@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru" class="app-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AmneziaWG Panel</title>
+  <script>
+    ;(() => {
+      const theme = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('amnezia-theme='))
+        ?.split('=')[1]
+
+      if (theme === 'light') {
+        document.documentElement.classList.remove('app-dark')
+      } else {
+        document.documentElement.classList.add('app-dark')
+      }
+    })()
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

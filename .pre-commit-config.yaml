@@ -1,0 +1,115 @@
+repos:
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        files: ^panel/(admin-frontend|user-frontend)/src/
+        types_or: [javascript, vue, css]
+
+  - repo: local
+    hooks:
+      - id: ruff-panel
+        name: ruff check (panel/backend)
+        entry: uv run --project panel/backend ruff check --fix
+        language: system
+        types: [python]
+        files: ^panel/backend/
+
+      - id: ruff-format-panel
+        name: ruff format (panel/backend)
+        entry: uv run --project panel/backend ruff format
+        language: system
+        types: [python]
+        files: ^panel/backend/
+
+      - id: ruff-node
+        name: ruff check (node/agent)
+        entry: uv run --project node/agent ruff check --fix
+        language: system
+        types: [python]
+        files: ^node/agent/
+
+      - id: ruff-format-node
+        name: ruff format (node/agent)
+        entry: uv run --project node/agent ruff format
+        language: system
+        types: [python]
+        files: ^node/agent/
+
+      - id: ruff-worker
+        name: ruff check (panel/worker)
+        entry: uv run --project panel/worker ruff check --fix
+        language: system
+        types: [python]
+        files: ^panel/worker/
+
+      - id: ruff-format-worker
+        name: ruff format (panel/worker)
+        entry: uv run --project panel/worker ruff format
+        language: system
+        types: [python]
+        files: ^panel/worker/
+
+      - id: pytest-worker
+        name: pytest (panel/worker)
+        entry: uv run --directory panel/worker pytest -q
+        language: system
+        types: [python]
+        files: ^panel/worker/
+        pass_filenames: false
+
+      - id: ty-worker
+        name: ty (panel/worker)
+        entry: uv run --directory panel/worker ty check --python .venv/bin/python
+        language: system
+        types: [python]
+        files: ^panel/worker/
+        pass_filenames: false
+
+      - id: ty-panel
+        name: ty (panel/backend)
+        entry: uv run --directory panel/backend ty check --python .venv/bin/python
+        language: system
+        types: [python]
+        files: ^panel/backend/
+        pass_filenames: false
+
+      - id: ty-node
+        name: ty (node/agent)
+        entry: uv run --directory node/agent ty check --python .venv/bin/python
+        language: system
+        types: [python]
+        files: ^node/agent/
+        pass_filenames: false
+
+      - id: pytest-panel
+        name: pytest (panel/backend)
+        entry: uv run --directory panel/backend pytest -q
+        language: system
+        types: [python]
+        files: ^panel/backend/
+        pass_filenames: false
+
+      - id: pytest-node
+        name: pytest (node/agent)
+        entry: uv run --directory node/agent pytest -q
+        language: system
+        types: [python]
+        files: ^node/agent/
+        pass_filenames: false
+
+      - id: eslint-user-frontend
+        name: eslint (panel/user-frontend)
+        entry: bash -c 'cd panel/user-frontend && npm run lint'
+        language: system
+        types_or: [javascript, ts, vue]
+        files: ^panel/user-frontend/src/
+        pass_filenames: false
+
+      - id: eslint-admin-frontend
+        name: eslint (panel/admin-frontend)
+        entry: bash -c 'cd panel/admin-frontend && npm run lint'
+        language: system
+        types_or: [javascript, ts, vue]
+        files: ^panel/admin-frontend/src/
+        pass_filenames: false

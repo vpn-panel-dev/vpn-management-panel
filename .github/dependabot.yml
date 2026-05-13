@@ -1,0 +1,54 @@
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+
+  - package-ecosystem: "uv"
+    directories:
+      - "/panel/backend"
+      - "/panel/worker"
+      - "/node/agent"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/panel/admin-frontend"
+      - "/panel/user-frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/panel/backend"
+      - "/panel/worker"
+      - "/panel/admin-frontend"
+      - "/panel/user-frontend"
+      - "/node"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"
+
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/panel"
+      - "/node"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Moscow"

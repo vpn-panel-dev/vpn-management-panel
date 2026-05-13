@@ -1,0 +1,42 @@
+/*
+ * Admin frontend design tokens.
+ *
+ * These custom properties define the colour palette, shadows, and
+ * semantic aliases consumed by every view.  Import this file once in
+ * the app shell (App.vue) so the tokens are available globally.
+ *
+ * DO NOT add Tailwind, UnoCSS, Sass, or any other preprocessor.
+ * This is plain CSS only.
+ */
+
+:root {
+  --app-bg: #eef3fb;
+  --app-bg-accent: #dceafe;
+  --app-shell: rgba(255, 255, 255, 0.84);
+  --app-shell-solid: #ffffff;
+  --app-border: rgba(122, 142, 171, 0.22);
+  --app-border-strong: rgba(94, 114, 145, 0.3);
+  --app-text: #14213d;
+  --app-text-muted: #637086;
+  --app-text-soft: #8995a9;
+  --app-code-bg: #edf4ff;
+  --app-code-text: #1d4ed8;
+  --app-hover: rgba(37, 99, 235, 0.08);
+  --app-shadow: 0 18px 50px rgba(48, 66, 92, 0.12);
+}
+
+:root.app-dark {
+  --app-bg: #07111f;
+  --app-bg-accent: #0f2038;
+  --app-shell: rgba(15, 23, 42, 0.86);
+  --app-shell-solid: #111827;
+  --app-border: rgba(148, 163, 184, 0.14);
+  --app-border-strong: rgba(148, 163, 184, 0.22);
+  --app-text: #f8fafc;
+  --app-text-muted: #b8c3d7;
+  --app-text-soft: #8190a8;
+  --app-code-bg: rgba(37, 99, 235, 0.16);
+  --app-code-text: #bfdbfe;
+  --app-hover: rgba(148, 163, 184, 0.12);
+  --app-shadow: 0 22px 60px rgba(0, 0, 0, 0.32);
+}

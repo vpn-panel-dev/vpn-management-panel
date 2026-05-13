@@ -1,0 +1,83 @@
+services:
+  frontend:
+    build: ./admin-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - panel
+      - user-frontend
+
+  user-frontend:
+    build: ./user-frontend
+    restart: unless-stopped
+    depends_on:
+      - panel
+
+  rabbitmq:
+    image: rabbitmq:4-alpine
+    hostname: rabbitmq
+    restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  panel:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://amnezia:secret@db:5432/amnezia
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - WORKER_TOKEN=changeme
+      - SYNC_INTERVAL_SEC=300
+      - ADMIN_PASSWORD=changeme
+      - SECRET_KEY=changeme
+      - REMNAWAVE_SECRET_KEY=${REMNAWAVE_SECRET_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/openapi.json')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  panel-worker:
+    build: ./worker
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - BACKEND_INTERNAL_URL=http://panel:8080
+      - WORKER_TOKEN=changeme
+      - SYNC_INTERVAL_SEC=300
+      - WORKER_CONCURRENCY=4
+    depends_on:
+      panel:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=amnezia
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=amnezia
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amnezia"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+  rabbitmq_data:

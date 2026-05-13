@@ -1,0 +1,45 @@
+/*
+ * User frontend design tokens.
+ *
+ * Plain CSS custom properties for the user-facing page.  Import this
+ * file once in the app shell so tokens are available globally.
+ *
+ * DO NOT add Tailwind, UnoCSS, Sass, or any other preprocessor.
+ */
+
+:root {
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-light: #eef2ff;
+  --success: #059669;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(0, 0, 0, 0.06);
+  --skeleton: #e2e8f0;
+  --skeleton-shine: #f1f5f9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --primary: #6366f1;
+    --primary-hover: #818cf8;
+    --primary-light: #1e1b4b;
+    --success: #10b981;
+    --danger: #f87171;
+    --danger-bg: #450a0a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 20px rgba(0, 0, 0, 0.3);
+    --skeleton: #334155;
+    --skeleton-shine: #475569;
+  }
+}

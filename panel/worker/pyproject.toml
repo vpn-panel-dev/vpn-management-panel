@@ -1,0 +1,82 @@
+[project]
+name = "panel-worker"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "aio-pika==9.*",
+    "httpx==0.28.*",
+    "pydantic==2.*",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.*",
+    "pytest-asyncio==1.*",
+    "pytest-cov==7.*",
+    "ruff==0.15.*",
+    "ty",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "B",
+    "C4",
+    "C90",
+    "UP",
+    "SIM",
+    "A",
+    "ASYNC",
+    "RUF",
+    "S",
+    "ARG",
+    "PTH",
+    "T20",
+    "TID",
+    "TRY",
+    "ERA",
+    "PLR",
+    "PLW",
+]
+ignore = [
+    "TRY003",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]

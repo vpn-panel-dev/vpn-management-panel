@@ -1,0 +1,183 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Panel Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: panel/backend
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: '3.14'
+          cache-suffix: panel-backend
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Run tests with coverage
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-report=html
+
+      - name: Add coverage summary
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('coverage.xml').getroot()
+          coverage = float(root.attrib['line-rate']) * 100
+          print(f'### Panel Backend coverage\n\nLine coverage: **{coverage:.2f}%**')
+          PY
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v6
+        with:
+          name: panel-backend-coverage
+          path: |
+            panel/backend/coverage.xml
+            panel/backend/htmlcov/
+
+  panel-worker:
+    name: Panel Worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: panel/worker
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: '3.14'
+          cache-suffix: panel-worker
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Run tests with coverage
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-report=html
+
+      - name: Add coverage summary
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('coverage.xml').getroot()
+          coverage = float(root.attrib['line-rate']) * 100
+          print(f'### Panel Worker coverage\n\nLine coverage: **{coverage:.2f}%**')
+          PY
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v6
+        with:
+          name: panel-worker-coverage
+          path: |
+            panel/worker/coverage.xml
+            panel/worker/htmlcov/
+
+  agent:
+    name: Node Agent
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node/agent
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: '3.14'
+          cache-suffix: node-agent
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Run tests with coverage
+        run: uv run pytest --cov=agent --cov-report=term-missing --cov-report=xml --cov-report=html
+
+      - name: Add coverage summary
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse('coverage.xml').getroot()
+          coverage = float(root.attrib['line-rate']) * 100
+          print(f'### Node Agent coverage\n\nLine coverage: **{coverage:.2f}%**')
+          PY
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v6
+        with:
+          name: node-agent-coverage
+          path: |
+            node/agent/coverage.xml
+            node/agent/htmlcov/
+
+  admin-frontend:
+    name: Admin Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: panel/admin-frontend
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26.1.0
+          cache: npm
+          cache-dependency-path: panel/admin-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  user-frontend:
+    name: User Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: panel/user-frontend
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26.1.0
+          cache: npm
+          cache-dependency-path: panel/user-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build

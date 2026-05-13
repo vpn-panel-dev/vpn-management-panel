@@ -1,0 +1,256 @@
+from __future__ import annotations
+
+import asyncio
+from datetime import UTC, datetime
+from typing import Any
+
+import httpx
+
+from app.commands import CommandName, WorkerCommand
+from app.handlers import CommandHandler
+from app.main import schedule_remnawave_reconcile
+
+EXPECTED_RECONCILED_USERS = 2
+EXPECTED_IDEMPOTENT_UPSERTS = 2
+EXPECTED_SCHEDULER_SKIPPED_STATES = 2
+EXPECTED_SCHEDULER_COMMANDS = 1
+
+
+def command(name: CommandName, target_id: str | None = None) -> WorkerCommand:
+    return WorkerCommand.model_validate(
+        {
+            'command': name,
+            'idempotency_key': f'idem-{name}-{target_id}',
+            'operation_id': f'op-{name}-{target_id}',
+            'target_type': 'remnawave_user' if target_id else 'remnawave',
+            'target_id': target_id,
+            'created_at': datetime.now(UTC).isoformat(),
+        }
+    )
+
+
+def remnawave_user(uuid: str, username: str) -> dict[str, Any]:
+    return {'uuid': uuid, 'username': username, 'status': 'ACTIVE'}
+
+
+class FakeBackend:
+    def __init__(self, *, enabled: bool = True) -> None:
+        self.calls: list[tuple[Any, ...]] = []
+        self.config = {
+            'enabled': enabled,
+            'base_url': 'https://remnawave.test',
+            'api_token': 'decrypted-token',
+        }
+
+    async def start_operation(self, operation_id: str) -> dict[str, Any]:
+        self.calls.append(('start', operation_id))
+        return {'status': 'running'}
+
+    async def succeed_operation(
+        self,
+        operation_id: str,
+        result: dict[str, Any] | None = None,
+    ) -> None:
+        self.calls.append(('succeed', operation_id, result))
+
+    async def fail_operation(
+        self,
+        operation_id: str,
+        error: str,
+        result: dict[str, Any] | None = None,
+    ) -> None:
+        self.calls.append(('fail', operation_id, error, result))
+
+    async def fetch_remnawave_config(self) -> dict[str, Any]:
+        self.calls.append(('config', None))
+        return self.config
+
+    async def upsert_remnawave_users(self, users: list[dict[str, Any]]) -> dict[str, Any]:
+        self.calls.append(('upsert', users))
+        return {'upserted': len(users)}
+
+    async def mark_remnawave_user_deleted(self, uuid: str) -> dict[str, Any]:
+        self.calls.append(('deleted', uuid))
+        return {'deleted': True}
+
+    async def complete_remnawave_reconcile(self) -> dict[str, Any]:
+        self.calls.append(('complete', None))
+        return {'status': 'ok'}
+
+
+class FakeRemnawaveClient:
+    def __init__(self, pages: list[dict[str, Any]], user: dict[str, Any] | None = None) -> None:
+        self.pages = pages
+        self.user = user
+        self.calls: list[tuple[Any, ...]] = []
+
+    async def list_users(self, start: int = 0, size: int = 25) -> dict[str, Any]:
+        self.calls.append(('list', start, size))
+        return self.pages.pop(0)
+
+    async def get_user(self, uuid: str) -> dict[str, Any] | None:
+        self.calls.append(('get', uuid))
+        return self.user
+
+
+async def test_full_reconcile_paginates_and_upserts_normalized_users() -> None:
+    backend = FakeBackend()
+    remnawave = FakeRemnawaveClient(
+        [
+            {'users': [remnawave_user('uuid-1', 'alice')], 'total': 2},
+            {'users': [remnawave_user('uuid-2', 'bob')], 'total': 2},
+        ]
+    )
+    handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
+
+    result = await handler.handle(command('remnawave_full_reconcile'))
+
+    assert result.ok is True
+    assert remnawave.calls == [('list', 0, 25), ('list', 1, 25)]
+    assert ('complete', None) in backend.calls
+    upserts = [call for call in backend.calls if call[0] == 'upsert']
+    assert [call[1][0]['remnawave_uuid'] for call in upserts] == ['uuid-1', 'uuid-2']
+    assert backend.calls[-1][0] == 'succeed'
+    assert backend.calls[-1][2]['users'] == EXPECTED_RECONCILED_USERS
+
+
+async def test_full_reconcile_stops_on_empty_page() -> None:
+    backend = FakeBackend()
+    remnawave = FakeRemnawaveClient([{'users': [], 'total': 100}])
+    handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
+
+    result = await handler.handle(command('remnawave_full_reconcile'))
+
+    assert result.ok is True
+    assert remnawave.calls == [('list', 0, 25)]
+    assert [call for call in backend.calls if call[0] == 'upsert'] == []
+    assert ('complete', None) in backend.calls
+
+
+async def test_sync_user_upserts_single_user_idempotently() -> None:
+    backend = FakeBackend()
+    remnawave = FakeRemnawaveClient([], {'user': remnawave_user('uuid-1', 'alice')})
+    handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
+
+    await handler.handle(command('remnawave_sync_user', 'uuid-1'))
+    await handler.handle(command('remnawave_sync_user', 'uuid-1'))
+
+    upserts = [call for call in backend.calls if call[0] == 'upsert']
+    assert len(upserts) == EXPECTED_IDEMPOTENT_UPSERTS
+    assert all(call[1][0]['remnawave_uuid'] == 'uuid-1' for call in upserts)
+
+
+async def test_sync_user_404_marks_deleted() -> None:
+    backend = FakeBackend()
+    remnawave = FakeRemnawaveClient([], None)
+    handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
+
+    result = await handler.handle(command('remnawave_sync_user', 'uuid-1'))
+
+    assert result.ok is True
+    assert ('deleted', 'uuid-1') in backend.calls
+
+
+async def test_disabled_config_succeeds_without_remote_calls() -> None:
+    backend = FakeBackend(enabled=False)
+    remnawave = FakeRemnawaveClient([{'users': [remnawave_user('uuid-1', 'alice')], 'total': 1}])
+    handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
+
+    result = await handler.handle(command('remnawave_full_reconcile'))
+
+    assert result.ok is True
+    assert result.result == {'enabled': False, 'skipped': True}
+    assert remnawave.calls == []
+
+
+async def test_remote_500_fails_operation_with_status_detail() -> None:
+    backend = FakeBackend()
+    request = httpx.Request('GET', 'https://remnawave.test/api/users')
+    response = httpx.Response(500, request=request, text='server exploded')
+
+    class FailingRemnawaveClient(FakeRemnawaveClient):
+        async def list_users(self, start: int = 0, size: int = 25) -> dict[str, Any]:
+            _ = (start, size)
+            raise httpx.HTTPStatusError('boom', request=request, response=response)
+
+    handler = CommandHandler(
+        backend,
+        object(),
+        lambda _base_url, _token: FailingRemnawaveClient([]),
+    )
+
+    result = await handler.handle(command('remnawave_full_reconcile'))
+
+    assert result.ok is False
+    fail_call = backend.calls[-1]
+    assert fail_call[0] == 'fail'
+    assert '500' in fail_call[2]
+    assert 'server exploded' in fail_call[2]
+
+
+async def test_malformed_response_fails_operation() -> None:
+    backend = FakeBackend()
+    remnawave = FakeRemnawaveClient([{'total': 1}])
+    handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
+
+    result = await handler.handle(command('remnawave_full_reconcile'))
+
+    assert result.ok is False
+    assert backend.calls[-1][0] == 'fail'
+    assert 'users list is missing' in backend.calls[-1][2]
+
+
+async def test_scheduler_does_not_enqueue_when_disabled_or_not_due() -> None:
+    backend = PollingBackend([{'enabled': False, 'due': True}, {'enabled': True, 'due': False}])
+    queue = FakeQueue()
+
+    task = asyncio.create_task(schedule_remnawave_reconcile(backend, queue, interval_sec=0))
+    await backend.wait_for_calls(EXPECTED_SCHEDULER_SKIPPED_STATES)
+    task.cancel()
+
+    assert queue.commands == []
+
+
+async def test_scheduler_enqueues_when_enabled_and_due() -> None:
+    backend = PollingBackend([{'enabled': True, 'due': True}])
+    queue = FakeQueue()
+
+    task = asyncio.create_task(schedule_remnawave_reconcile(backend, queue, interval_sec=0))
+    await queue.wait_for_commands(EXPECTED_SCHEDULER_COMMANDS)
+    task.cancel()
+
+    assert queue.commands[0].command == 'remnawave_full_reconcile'
+    assert queue.commands[0].target_type == 'remnawave'
+
+
+class PollingBackend:
+    def __init__(self, states: list[dict[str, Any]]) -> None:
+        self.states = states
+        self.calls = 0
+        self._event = asyncio.Event()
+
+    async def fetch_remnawave_polling_state(self) -> dict[str, Any]:
+        self.calls += 1
+        self._event.set()
+        state = self.states[min(self.calls - 1, len(self.states) - 1)]
+        return state
+
+    async def wait_for_calls(self, count: int) -> None:
+        while self.calls < count:
+            self._event.clear()
+            await self._event.wait()
+
+
+class FakeQueue:
+    def __init__(self) -> None:
+        self.commands: list[WorkerCommand] = []
+        self._event = asyncio.Event()
+
+    async def publish_command(self, command: WorkerCommand) -> None:
+        self.commands.append(command)
+        self._event.set()
+
+    async def wait_for_commands(self, count: int) -> None:
+        while len(self.commands) < count:
+            self._event.clear()
+            await self._event.wait()

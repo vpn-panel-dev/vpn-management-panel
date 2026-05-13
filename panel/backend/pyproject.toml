@@ -1,0 +1,104 @@
+[project]
+name = "panel-backend"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi==0.136.1",
+    "PyJWT==2.12.*",
+    "uvicorn[standard]==0.46.*",
+    "sqlalchemy[asyncio]==2.0.*",
+    "asyncpg==0.31.0",
+    "alembic==1.18.*",
+    "httpx==0.28.*",
+    "jinja2==3.1.*",
+    "python-multipart==0.0.27",
+    "cryptography==48.0.0",
+    "psycopg2-binary==2.9.*",
+    "aio-pika==9.6.*",
+    "segno==1.6.*",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.*",
+    "pytest-asyncio==1.*",
+    "pytest-cov==7.*",
+    "aiosqlite==0.22.*",
+    "httpx==0.28.*",
+    "ruff==0.15.*",
+    "ty",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "B",
+    "C4",
+    "C90",
+    "UP",
+    "SIM",
+    "A",
+    "ASYNC",
+    "RUF",
+    "S",
+    "ARG",
+    "PTH",
+    "T20",
+    "TID",
+    "TRY",
+    "ERA",
+    "PLR",
+    "PLW",
+]
+ignore = [
+    "TRY003",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+    "S105",
+    "S311",
+    "PLR2004",
+    "ARG002",
+]
+"migrations/**/*.py" = [
+    "N",
+    "RUF",
+]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.analysis]
+allowed-unresolved-imports = ["alembic.*"]
+
+[tool.ty.src]
+exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

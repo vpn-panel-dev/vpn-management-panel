@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Node / frontend build
+node_modules/
+panel/user-frontend/dist/
+panel/admin-frontend/dist/
+
+# VPN node config — contains private key; use awg0.conf.example as template
+node/config/*.conf
+node/config/*.lock
+
+# Runtime data
+panel/data/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Local dev tooling
+uv.lock
+poetry.lock
+Pipfile
+Pipfile.lock
+.python-version
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Lint cache
+.ruff_cache/
+.pytest_cache/
+
+# Test DB
+file::memory:
+
+# tmp (some AI stuff)
+tmp/
+
+# AI
+.claude
+.sisyphus
+.playwright-mcp
