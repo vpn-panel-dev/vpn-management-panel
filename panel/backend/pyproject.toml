@@ -11,7 +11,7 @@ dependencies = [
     "alembic==1.18.*",
     "httpx==0.28.*",
     "jinja2==3.1.*",
-    "python-multipart==0.0.27",
+    "python-multipart==0.0.28",
     "cryptography==48.0.0",
     "psycopg2-binary==2.9.*",
     "aio-pika==9.6.*",
