@@ -110,7 +110,10 @@ export const EyeIcon = () =>
       strokeLinecap: 'round' as const,
       strokeLinejoin: 'round' as const,
     },
-    [h('path', { d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' }), h('circle', { cx: 12, cy: 12, r: 3 })],
+    [
+      h('path', { d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z' }),
+      h('circle', { cx: 12, cy: 12, r: 3 }),
+    ],
   )
 
 export const MonitorIcon = () =>

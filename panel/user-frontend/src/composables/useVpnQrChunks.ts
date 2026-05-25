@@ -1,5 +1,11 @@
 import { computed, onUnmounted, reactive } from 'vue'
-import { fetchVpnChunks, type QrMapItem, type UserInfo, type UserNode, type VpnQrData } from '../api/userPage'
+import {
+  fetchVpnChunks,
+  type QrMapItem,
+  type UserInfo,
+  type UserNode,
+  type VpnQrData,
+} from '../api/userPage'
 import { svgToDataUri } from '../utils/format'
 
 export function useVpnQrChunks(userId: string) {
