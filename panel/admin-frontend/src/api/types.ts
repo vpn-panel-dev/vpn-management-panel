@@ -45,6 +45,9 @@ export interface RemnawaveUserBrief {
   traffic_limit_bytes: number
   delete_requested_at: string | null
   last_synced_at: string | null
+  sync_status: string
+  sync_reason: string | null
+  sync_error: string | null
 }
 
 export interface User {
@@ -126,6 +129,7 @@ export interface RemnawaveSettings {
   last_tested_at: string | null
   last_test_status: string | null
   last_test_error: string | null
+  last_synced_at: string | null
   created_at: string
   updated_at: string
 }
@@ -149,4 +153,17 @@ export interface RemnawaveTestResult {
 export interface RemnawaveSyncResult {
   operation_id: string
   status_url: string
+}
+
+export interface RemnawaveStatus {
+  enabled: boolean
+  base_url: string | null
+  last_successful_reconcile_at: string | null
+  last_failed_reconcile_at: string | null
+  last_error: string | null
+  imported_users_count: number
+  pending_node_sync_count: number
+  last_tested_at: string | null
+  last_test_status: string | null
+  last_test_error: string | null
 }
