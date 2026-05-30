@@ -14,20 +14,65 @@
             :value="user.is_blocked ? 'заблокирован' : 'активен'"
             style="font-size: 0.75rem"
           />
+          <Tag v-if="user.remnawave" severity="info" value="Remnawave" style="font-size: 0.72rem" />
           <Tag
             v-if="user.remnawave"
-            :severity="remnawaveSeverity(user.remnawave.status)"
-            :value="user.remnawave.status"
+            :severity="syncSeverity(user.remnawave.sync_status)"
+            :value="user.remnawave.sync_status"
+            style="font-size: 0.72rem"
+          />
+          <Tag
+            v-if="user.remnawave"
+            severity="secondary"
+            value="только просмотр"
             style="font-size: 0.72rem"
           />
         </div>
       </div>
 
       <div v-if="user.remnawave" class="mobile-remnawave-info">
-        <span v-if="user.remnawave.delete_requested_at" class="remnawave-warning">
-          Удаляется из Remnawave
-        </span>
-        <span v-else class="remnawave-label">Управляется Remnawave</span>
+        <div class="mobile-remnawave-head">
+          <span class="remnawave-label">Управляется Remnawave</span>
+          <Tag
+            :severity="remnawaveSeverity(user.remnawave.status)"
+            :value="user.remnawave.status"
+            style="font-size: 0.72rem"
+          />
+        </div>
+        <div class="mobile-remnawave-grid">
+          <div>
+            <span>UUID</span>
+            <code :title="user.remnawave.uuid">{{ user.remnawave.uuid }}</code>
+          </div>
+          <div>
+            <span>Источник</span>
+            <b class="remnawave-source">Remnawave</b>
+          </div>
+          <div>
+            <span>Username</span>
+            <b>{{ user.remnawave.username }}</b>
+          </div>
+          <div>
+            <span>Истекает</span>
+            <b>{{ fmtDate(user.remnawave.expire_at) }}</b>
+          </div>
+          <div>
+            <span>Лимит трафика</span>
+            <b>{{ trafficLimitLabel(user.remnawave.traffic_limit_bytes) }}</b>
+          </div>
+          <div>
+            <span>Последняя синхронизация</span>
+            <b>{{ formatDateTimeOrDash(user.remnawave.last_synced_at) }}</b>
+          </div>
+          <div>
+            <span>Причина sync</span>
+            <b>{{ user.remnawave.sync_reason || '—' }}</b>
+          </div>
+          <div class="mobile-remnawave-error">
+            <span>Ошибка sync</span>
+            <b>{{ user.remnawave.sync_error || '—' }}</b>
+          </div>
+        </div>
       </div>
 
       <div class="mobile-fields">
@@ -115,7 +160,7 @@
           outlined
           @click="$emit('copyUserLink', user)"
         />
-        <template v-if="!user.remnawave || user.remnawave.delete_requested_at">
+        <template v-if="!user.remnawave">
           <Button
             v-if="user.is_blocked"
             icon="pi pi-lock-open"
@@ -143,7 +188,7 @@
             @click="$emit('confirmDelete', $event, user)"
           />
         </template>
-        <span v-else class="remnawave-managed-text">Управляется Remnawave</span>
+        <span v-else class="remnawave-managed-text">Только просмотр</span>
       </div>
     </article>
   </div>
@@ -153,7 +198,7 @@
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import { peerSeverity, isOnline, remnawaveSeverity } from '../../utils/status'
-import { fmtHandshake } from '../../utils/format'
+import { fmtHandshake, fmtDate, fmtBytes, formatDateTime } from '../../utils/format'
 import type { User, Node } from '../../api'
 
 defineProps<{
@@ -172,6 +217,21 @@ defineEmits<{
   downloadConfigZip: [user: User]
   showQr: [user: User, node: Node]
 }>()
+
+function syncSeverity(status: string): string {
+  if (status === 'synced') return 'success'
+  if (status === 'syncing' || status === 'pending' || status === 'queued') return 'warn'
+  if (status === 'failed' || status === 'error') return 'danger'
+  return 'secondary'
+}
+
+function trafficLimitLabel(limitBytes: number): string {
+  return limitBytes > 0 ? fmtBytes(limitBytes) : 'без лимита'
+}
+
+function formatDateTimeOrDash(iso: string | null): string {
+  return iso ? formatDateTime(iso) : '—'
+}
 </script>
 
 <style scoped>
@@ -190,14 +250,6 @@ defineEmits<{
   color: var(--p-primary-500);
   font-size: 0.75rem;
   font-weight: 600;
-  margin-left: 0.35rem;
-}
-
-.remnawave-warning {
-  color: var(--p-red-500);
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-left: 0.35rem;
 }
 
 .remnawave-managed-text {
@@ -206,8 +258,46 @@ defineEmits<{
   font-style: italic;
 }
 
+.remnawave-source {
+  color: var(--p-primary-500);
+}
+
 .mobile-remnawave-info {
   margin-bottom: 0.5rem;
+}
+
+.mobile-remnawave-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.mobile-remnawave-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.mobile-remnawave-grid > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.mobile-remnawave-grid span {
+  color: var(--p-surface-500);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mobile-remnawave-grid code {
+  word-break: break-all;
+}
+
+.mobile-remnawave-error b {
+  color: var(--p-red-500);
 }
 
 .mobile-peer-list,

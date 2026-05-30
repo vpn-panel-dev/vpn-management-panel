@@ -21,24 +21,63 @@
       </template>
     </Column>
 
-    <Column header="Источник" style="width: 10rem">
+    <Column header="Источник" style="min-width: 24rem">
       <template #body="{ data }">
         <template v-if="data.remnawave">
-          <Tag
-            :severity="remnawaveSeverity(data.remnawave.status)"
-            :value="data.remnawave.status"
-            style="font-size: 0.72rem"
-          />
-          <span
-            v-if="data.remnawave.delete_requested_at"
-            class="remnawave-warning"
-            :title="`Удаляется из Remnawave — ${fmtDate(data.remnawave.delete_requested_at)}`"
-          >
-            Удаляется
-          </span>
-          <span v-else class="remnawave-label" :title="remnawaveTooltip(data.remnawave)">
-            Remnawave
-          </span>
+          <div class="remnawave-meta-card">
+            <div class="remnawave-meta-head">
+              <Tag severity="info" value="Remnawave" style="font-size: 0.72rem" />
+              <Tag
+                :severity="syncSeverity(data.remnawave.sync_status)"
+                :value="data.remnawave.sync_status"
+                style="font-size: 0.72rem"
+              />
+              <Tag severity="secondary" value="только просмотр" style="font-size: 0.72rem" />
+            </div>
+
+            <div class="remnawave-meta-grid">
+              <div class="remnawave-meta-item">
+                <span class="meta-label">UUID</span>
+                <code :title="data.remnawave.uuid">{{ data.remnawave.uuid }}</code>
+              </div>
+              <div class="remnawave-meta-item">
+                <span class="meta-label">Источник</span>
+                <span class="remnawave-source">Remnawave</span>
+              </div>
+              <div class="remnawave-meta-item">
+                <span class="meta-label">Username</span>
+                <span>{{ data.remnawave.username }}</span>
+              </div>
+              <div class="remnawave-meta-item">
+                <span class="meta-label">Статус</span>
+                <Tag
+                  :severity="remnawaveSeverity(data.remnawave.status)"
+                  :value="data.remnawave.status"
+                  style="font-size: 0.72rem"
+                />
+              </div>
+              <div class="remnawave-meta-item">
+                <span class="meta-label">Истекает</span>
+                <span>{{ fmtDate(data.remnawave.expire_at) }}</span>
+              </div>
+              <div class="remnawave-meta-item">
+                <span class="meta-label">Лимит трафика</span>
+                <span>{{ trafficLimitLabel(data.remnawave.traffic_limit_bytes) }}</span>
+              </div>
+              <div class="remnawave-meta-item">
+                <span class="meta-label">Последняя синхронизация</span>
+                <span>{{ formatDateTimeOrDash(data.remnawave.last_synced_at) }}</span>
+              </div>
+              <div class="remnawave-meta-item">
+                <span class="meta-label">Причина sync</span>
+                <span>{{ data.remnawave.sync_reason || '—' }}</span>
+              </div>
+              <div class="remnawave-meta-item remnawave-meta-item--error">
+                <span class="meta-label">Ошибка sync</span>
+                <span>{{ data.remnawave.sync_error || '—' }}</span>
+              </div>
+            </div>
+          </div>
         </template>
         <span v-else class="dim">—</span>
       </template>
@@ -115,13 +154,7 @@
 
     <Column header="Действия" style="width: 15rem; white-space: nowrap; text-align: right">
       <template #body="{ data }">
-        <div
-          v-if="data.remnawave && !data.remnawave.delete_requested_at"
-          class="row-actions remnawave-managed"
-        >
-          <span class="remnawave-managed-text">Управляется Remnawave</span>
-        </div>
-        <div v-else-if="data.remnawave && data.remnawave.delete_requested_at" class="row-actions">
+        <div v-if="data.remnawave" class="row-actions remnawave-managed">
           <Button
             icon="pi pi-chart-bar"
             size="small"
@@ -141,6 +174,7 @@
             title="Скопировать ссылку пользователя"
             @click="$emit('copyUserLink', data)"
           />
+          <Tag severity="secondary" value="только просмотр" style="font-size: 0.72rem" />
         </div>
         <div v-else class="row-actions">
           <Button
@@ -203,8 +237,8 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
-import { peerSeverity, isOnline, remnawaveSeverity, remnawaveTooltip } from '../../utils/status'
-import { fmtHandshake, fmtDate } from '../../utils/format'
+import { peerSeverity, isOnline, remnawaveSeverity } from '../../utils/status'
+import { fmtHandshake, fmtDate, fmtBytes, formatDateTime } from '../../utils/format'
 import type { User, Node } from '../../api'
 
 defineProps<{
@@ -223,6 +257,21 @@ defineEmits<{
   downloadConfigZip: [user: User]
   showQr: [user: User, node: Node]
 }>()
+
+function syncSeverity(status: string): string {
+  if (status === 'synced') return 'success'
+  if (status === 'syncing' || status === 'pending' || status === 'queued') return 'warn'
+  if (status === 'failed' || status === 'error') return 'danger'
+  return 'secondary'
+}
+
+function trafficLimitLabel(limitBytes: number): string {
+  return limitBytes > 0 ? fmtBytes(limitBytes) : 'без лимита'
+}
+
+function formatDateTimeOrDash(iso: string | null): string {
+  return iso ? formatDateTime(iso) : '—'
+}
 </script>
 
 <style scoped>
@@ -243,6 +292,7 @@ defineEmits<{
   align-items: center;
   gap: 0.15rem;
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .compact-action {
@@ -250,24 +300,62 @@ defineEmits<{
   font-size: 0.78rem !important;
 }
 
-.remnawave-label {
-  color: var(--p-primary-500);
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-left: 0.35rem;
-}
-
-.remnawave-warning {
-  color: var(--p-red-500);
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-left: 0.35rem;
-}
-
 .remnawave-managed-text {
   color: var(--p-surface-500);
   font-size: 0.78rem;
   font-style: italic;
+}
+
+.remnawave-meta-card {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.remnawave-meta-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.remnawave-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.75rem;
+}
+
+.remnawave-meta-item {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.remnawave-meta-item--error {
+  grid-column: 1 / -1;
+}
+
+.meta-label {
+  color: var(--p-surface-500);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.remnawave-source {
+  color: var(--p-primary-500);
+  font-weight: 600;
+}
+
+.remnawave-meta-item code {
+  word-break: break-all;
+}
+
+.remnawave-meta-item--error span:last-child {
+  color: var(--p-red-500);
+}
+
+.remnawave-managed {
+  gap: 0.45rem;
 }
 
 @media (max-width: 760px) {
