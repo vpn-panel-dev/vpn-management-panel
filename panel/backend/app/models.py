@@ -6,6 +6,7 @@ from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Strin
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
+from .schemas.remnawave import RemnawaveSyncStatus
 
 
 def _uuid() -> str:
@@ -211,6 +212,10 @@ class RemnawaveUser(Base):
     subscription_url_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sync_status: Mapped[RemnawaveSyncStatus] = mapped_column(
+        String, default='synced', nullable=False
+    )
+    sync_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     sync_error: Mapped[str | None] = mapped_column(String, nullable=True)
     delete_requested_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -365,6 +370,9 @@ class RemnawaveUserBrief(BaseModel):
     traffic_limit_bytes: int = 0
     delete_requested_at: datetime | None = None
     last_synced_at: datetime | None = None
+    sync_status: RemnawaveSyncStatus = 'synced'
+    sync_reason: str | None = None
+    sync_error: str | None = None
 
 
 class UserWithPeers(UserSchema):
@@ -456,6 +464,8 @@ class RemnawaveUserSchema(BaseModel):
     subscription_url_encrypted: str | None = None
     last_seen_at: datetime | None = None
     last_synced_at: datetime | None = None
+    sync_status: RemnawaveSyncStatus = 'synced'
+    sync_reason: str | None = None
     sync_error: str | None = None
     delete_requested_at: datetime | None = None
     created_at: datetime
