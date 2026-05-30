@@ -200,12 +200,21 @@ Endpoints under `/internal/worker/remnawave` (require worker bearer auth):
 - `GET /internal/worker/remnawave/polling-state`
   - Response: `{"enabled": true, "due": true}`
 - `POST /internal/worker/remnawave/users/upsert`
-  - Body: list of Remnawave user profiles
+  - Body: raw JSON list of Remnawave user profiles, not `{ "users": ... }`
   - Response: `{"upserted": ["uuid", ...], "affected_node_ids": ["..."]}`
 - `POST /internal/worker/remnawave/users/{uuid}/deleted`
   - Response: `{"status": "delete_requested", "affected_node_ids": ["..."]}`
 - `POST /internal/worker/remnawave/reconcile-complete`
-  - Response: `{"status": "ok", "purged": 0}`
+  - Body: `{"seen_uuids": ["uuid", ...]}`
+  - Response: `{"status": "ok", "purged": 0, "affected_node_ids": ["..."]}`
+
+Remnawave full reconcile is non-destructive. The backend uses `seen_uuids` to find users that were not
+present in the latest snapshot, marks those users stale, blocks the local user, and keeps the rows in
+the database. Missing remote users are not deleted during reconcile completion. Only users that were
+already marked delete-requested are purged later, after their peers are fully removed.
+
+Reconcile completion is idempotent. Repeating the same callback does not re-enqueue already-stale
+peers, and the backend returns only the newly affected node ids.
 
 ## Webhook
 

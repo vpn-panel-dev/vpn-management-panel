@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
+from http import HTTPStatus
 from typing import Any
+
+import httpx
 
 from app.commands import CommandName, WorkerCommand
 from app.handlers import CommandHandler
@@ -170,6 +173,14 @@ class FailingNode(FakeNode):
         raise RuntimeError('node-agent unavailable')
 
 
+class ReplayBackend(FakeBackend):
+    async def start_operation(self, operation_id: str) -> dict[str, Any]:
+        _ = operation_id
+        request = httpx.Request('POST', 'https://backend.test/internal/worker/operations/op/start')
+        response = httpx.Response(HTTPStatus.CONFLICT, request=request, text='already finished')
+        raise httpx.HTTPStatusError('conflict', request=request, response=response)
+
+
 async def test_sync_node_applies_snapshot_and_reports_success() -> None:
     backend = FakeBackend()
     node = FakeNode()
@@ -238,3 +249,15 @@ async def test_failure_is_reported_before_handler_returns() -> None:
 
     assert result.ok is False
     assert backend.calls[-1][0] == 'fail'
+
+
+async def test_replayed_operation_is_skipped_without_failing_backend() -> None:
+    backend = ReplayBackend()
+    node = FakeNode()
+    handler = CommandHandler(backend, node)
+
+    result = await handler.handle(command('sync_node'))
+
+    assert result.ok is True
+    assert result.result == {'skipped': True, 'reason': 'operation already handled'}
+    assert backend.calls == []

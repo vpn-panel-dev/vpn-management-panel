@@ -119,7 +119,7 @@ class BackendClient:
         async with self._client() as client:
             response = await client.post(
                 '/internal/worker/remnawave/users/upsert',
-                json={'users': users},
+                json=users,
             )
             response.raise_for_status()
             return dict(response.json())
@@ -130,9 +130,12 @@ class BackendClient:
             response.raise_for_status()
             return dict(response.json())
 
-    async def complete_remnawave_reconcile(self) -> dict[str, Any]:
+    async def complete_remnawave_reconcile(self, result: dict[str, Any]) -> dict[str, Any]:
         async with self._client() as client:
-            response = await client.post('/internal/worker/remnawave/reconcile-complete')
+            response = await client.post(
+                '/internal/worker/remnawave/reconcile-complete',
+                json=result,
+            )
             response.raise_for_status()
             return dict(response.json())
 

@@ -11,6 +11,8 @@ from app.handlers import CommandHandler
 from app.main import schedule_remnawave_reconcile
 
 EXPECTED_RECONCILED_USERS = 2
+EXPECTED_RECONCILED_PAGES = 2
+EXPECTED_RECONCILED_TOTAL = 2
 EXPECTED_IDEMPOTENT_UPSERTS = 2
 EXPECTED_SCHEDULER_SKIPPED_STATES = 2
 EXPECTED_SCHEDULER_COMMANDS = 1
@@ -73,9 +75,9 @@ class FakeBackend:
         self.calls.append(('deleted', uuid))
         return {'deleted': True}
 
-    async def complete_remnawave_reconcile(self) -> dict[str, Any]:
-        self.calls.append(('complete', None))
-        return {'status': 'ok'}
+    async def complete_remnawave_reconcile(self, result: dict[str, Any]) -> dict[str, Any]:
+        self.calls.append(('complete', result))
+        return {'status': 'ok', 'affected_node_ids': ['node-1']}
 
 
 class FakeRemnawaveClient:
@@ -107,11 +109,17 @@ async def test_full_reconcile_paginates_and_upserts_normalized_users() -> None:
 
     assert result.ok is True
     assert remnawave.calls == [('list', 0, 25), ('list', 1, 25)]
-    assert ('complete', None) in backend.calls
+    complete_call = next(call for call in backend.calls if call[0] == 'complete')
+    assert complete_call[1]['seen_uuids'] == ['uuid-1', 'uuid-2']
+    assert complete_call[1]['pages'] == EXPECTED_RECONCILED_PAGES
+    assert complete_call[1]['users'] == EXPECTED_RECONCILED_USERS
+    assert complete_call[1]['upserted'] == EXPECTED_RECONCILED_TOTAL
+    assert complete_call[1]['total'] == EXPECTED_RECONCILED_TOTAL
     upserts = [call for call in backend.calls if call[0] == 'upsert']
     assert [call[1][0]['remnawave_uuid'] for call in upserts] == ['uuid-1', 'uuid-2']
     assert backend.calls[-1][0] == 'succeed'
     assert backend.calls[-1][2]['users'] == EXPECTED_RECONCILED_USERS
+    assert result.result['completion'] == {'status': 'ok', 'affected_node_ids': ['node-1']}
 
 
 async def test_full_reconcile_stops_on_empty_page() -> None:
@@ -124,7 +132,10 @@ async def test_full_reconcile_stops_on_empty_page() -> None:
     assert result.ok is True
     assert remnawave.calls == [('list', 0, 25)]
     assert [call for call in backend.calls if call[0] == 'upsert'] == []
-    assert ('complete', None) in backend.calls
+    assert (
+        'complete',
+        {'pages': 0, 'seen_uuids': [], 'total': 100, 'upserted': 0, 'users': 0},
+    ) in backend.calls
 
 
 async def test_sync_user_upserts_single_user_idempotently() -> None:
@@ -140,15 +151,22 @@ async def test_sync_user_upserts_single_user_idempotently() -> None:
     assert all(call[1][0]['remnawave_uuid'] == 'uuid-1' for call in upserts)
 
 
-async def test_sync_user_404_marks_deleted() -> None:
+async def test_sync_user_404_fails_without_marking_deleted() -> None:
     backend = FakeBackend()
     remnawave = FakeRemnawaveClient([], None)
     handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
 
     result = await handler.handle(command('remnawave_sync_user', 'uuid-1'))
 
-    assert result.ok is True
-    assert ('deleted', 'uuid-1') in backend.calls
+    assert result.ok is False
+    assert result.detail == 'Remnawave user uuid-1 was not found'
+    assert ('deleted', 'uuid-1') not in backend.calls
+    assert backend.calls[-1] == (
+        'fail',
+        'op-remnawave_sync_user-uuid-1',
+        'Remnawave user uuid-1 was not found',
+        None,
+    )
 
 
 async def test_disabled_config_succeeds_without_remote_calls() -> None:

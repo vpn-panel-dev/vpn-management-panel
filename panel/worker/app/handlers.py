@@ -37,6 +37,13 @@ class CommandHandler:
     async def handle(self, command: WorkerCommand) -> CommandResult:
         try:
             result = await self._dispatch(command)
+            if result is None:
+                return CommandResult(
+                    command=command.command,
+                    node_id=command.node_id,
+                    ok=True,
+                    result={'skipped': True, 'reason': 'operation already handled'},
+                )
         except Exception as exc:
             error = str(exc)
             await self._backend.fail_operation(command.operation_id, error)
@@ -54,8 +61,13 @@ class CommandHandler:
             result=result,
         )
 
-    async def _dispatch(self, command: WorkerCommand) -> dict[str, Any]:
-        await self._backend.start_operation(command.operation_id)
+    async def _dispatch(self, command: WorkerCommand) -> dict[str, Any] | None:
+        try:
+            await self._backend.start_operation(command.operation_id)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == HTTPStatus.CONFLICT:
+                return None
+            raise
 
         match command.command:
             case 'sync_all':
@@ -81,6 +93,7 @@ class CommandHandler:
         fetched = 0
         pages = 0
         upserted = 0
+        seen_uuids: set[str] = set()
         while True:
             try:
                 payload = await client.list_users(start=start, size=PAGE_SIZE)
@@ -89,6 +102,9 @@ class CommandHandler:
             users, total = extract_users_page(payload)
             if not users:
                 break
+            seen_uuids.update(
+                str(user['remnawave_uuid']) for user in users if user.get('remnawave_uuid')
+            )
             result = await self._backend.upsert_remnawave_users(users)
             upserted += int(result.get('upserted', len(users)))
             fetched += len(users)
@@ -97,13 +113,22 @@ class CommandHandler:
             if total is not None and start >= total:
                 break
 
-        await self._backend.complete_remnawave_reconcile()
+        completion = await self._backend.complete_remnawave_reconcile(
+            {
+                'seen_uuids': sorted(seen_uuids),
+                'pages': pages,
+                'users': fetched,
+                'upserted': upserted,
+                'total': total,
+            }
+        )
         return {
             'enabled': True,
             'pages': pages,
             'users': fetched,
             'upserted': upserted,
             'total': total,
+            'completion': completion,
         }
 
     async def _remnawave_sync_user(self, command: WorkerCommand) -> dict[str, Any]:
@@ -117,8 +142,7 @@ class CommandHandler:
         except httpx.HTTPStatusError as exc:
             raise RuntimeError(self._http_error_detail(exc)) from exc
         if payload is None:
-            result = await self._backend.mark_remnawave_user_deleted(user_uuid)
-            return {'uuid': user_uuid, 'deleted': True, **result}
+            raise RuntimeError(f'Remnawave user {user_uuid} was not found')
 
         user = normalize_user_payload(payload)
         result = await self._backend.upsert_remnawave_users([user])

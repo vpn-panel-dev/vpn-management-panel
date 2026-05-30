@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
+
+import httpx
+import pytest
+
+from app.backend_client import BackendClient
+
+
+class TransportBackendClient(BackendClient):
+    def __init__(self, transport: httpx.AsyncBaseTransport) -> None:
+        super().__init__('https://backend.test', 'worker-secret')
+        self._transport = transport
+
+    @asynccontextmanager
+    async def _client(self) -> AsyncIterator[httpx.AsyncClient]:
+        headers = {'Authorization': 'Bearer worker-secret'}
+        async with httpx.AsyncClient(
+            base_url='https://backend.test',
+            headers=headers,
+            transport=self._transport,
+        ) as client:
+            yield client
+
+
+@pytest.mark.asyncio
+async def test_upsert_remnawave_users_sends_raw_list_body() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={'upserted': ['uuid-1'], 'affected_node_ids': []})
+
+    client = TransportBackendClient(httpx.MockTransport(handler))
+
+    users: list[dict[str, Any]] = [
+        {'remnawave_uuid': 'uuid-1', 'username': 'alice', 'status': 'ACTIVE'}
+    ]
+    result = await client.upsert_remnawave_users(users)
+
+    assert result == {'upserted': ['uuid-1'], 'affected_node_ids': []}
+    assert json.loads(requests[0].content) == users
