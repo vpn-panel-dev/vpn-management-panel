@@ -6,6 +6,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.models import Peer, RemnawaveUser, User
+from app.routers.api_parts.common import REMNAWAVE_MANAGED_USER_CONFLICT_DETAIL
+from app.services.remnawave_sync import reconcile_missing_remnawave_users
 
 pytestmark = pytest.mark.usefixtures('mock_sync_node_enqueue')
 
@@ -43,6 +45,9 @@ async def test_upsert_active_import_creates_user_peer_and_mapping(
     assert user.vpn_ip == '10.8.0.2'
     assert len(peers) == 1
     assert peers[0].status == 'pending'
+    assert rw_user.sync_status == 'synced'
+    assert rw_user.sync_reason is None
+    assert rw_user.sync_error is None
 
 
 async def test_upsert_disabled_and_expired_profiles_are_blocked(
@@ -68,6 +73,36 @@ async def test_upsert_disabled_and_expired_profiles_are_blocked(
     assert resp.status_code == HTTPStatus.OK
     users = (await db.execute(select(User).order_by(User.name))).scalars().all()
     assert {user.name: user.is_blocked for user in users} == {'disabled': True, 'expired': True}
+
+
+async def test_upsert_active_profiles_overwrite_local_block_state(
+    client: AsyncClient, db, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+    await client.post(
+        '/internal/worker/remnawave/users/upsert', json=[_profile()], headers=worker_headers
+    )
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    user_id = rw_user.user_id
+    user = await db.get(User, rw_user.user_id)
+    peer = (await db.execute(select(Peer).where(Peer.user_id == user_id))).scalar_one()
+
+    user.is_blocked = True
+    peer.status = 'pending_delete'
+    await db.commit()
+
+    resp = await client.post(
+        '/internal/worker/remnawave/users/upsert', json=[_profile()], headers=worker_headers
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    db.expire_all()
+    updated_rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    updated_user = await db.get(User, user_id)
+    updated_peer = (await db.execute(select(Peer).where(Peer.user_id == user_id))).scalar_one()
+    assert updated_user.is_blocked is False
+    assert updated_peer.status == 'pending'
+    assert updated_rw_user.sync_status == 'synced'
 
 
 async def test_upsert_never_auto_links_by_username_and_suffixes_conflict(
@@ -122,6 +157,36 @@ async def test_remote_delete_waits_for_peer_removal_before_purge(
     assert (await db.execute(select(RemnawaveUser))).scalar_one_or_none() is None
 
 
+async def test_missing_remote_users_become_stale_without_delete(
+    client: AsyncClient, db, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+    await client.post(
+        '/internal/worker/remnawave/users/upsert',
+        json=[_profile(uuid='missing-uuid', username='missing'), _profile()],
+        headers=worker_headers,
+    )
+    remote_uuid = (
+        (await db.execute(select(RemnawaveUser).where(RemnawaveUser.username == 'alice')))
+        .scalar_one()
+        .remnawave_uuid
+    )
+    affected_nodes = await reconcile_missing_remnawave_users(db, {remote_uuid})
+    assert affected_nodes == {'node-1'}
+    await db.commit()
+
+    stale_row = (
+        await db.execute(select(RemnawaveUser).where(RemnawaveUser.username == 'missing'))
+    ).scalar_one()
+    stale_user = await db.get(User, stale_row.user_id)
+    stale_peer = (await db.execute(select(Peer).where(Peer.user_id == stale_user.id))).scalar_one()
+    assert stale_row.sync_status == 'stale'
+    assert stale_row.sync_reason == 'remote user missing'
+    assert stale_user is not None
+    assert stale_user.is_blocked is True
+    assert stale_peer.status == 'pending_delete'
+
+
 async def test_local_block_unblock_delete_reject_remnawave_managed_user(
     client: AsyncClient, db, auth_headers, worker_headers, seeded_node
 ):
@@ -139,6 +204,23 @@ async def test_local_block_unblock_delete_reject_remnawave_managed_user(
     assert block.status_code == HTTPStatus.CONFLICT
     assert unblock.status_code == HTTPStatus.CONFLICT
     assert delete.status_code == HTTPStatus.CONFLICT
+    assert block.json()['detail'] == REMNAWAVE_MANAGED_USER_CONFLICT_DETAIL
+    assert unblock.json()['detail'] == REMNAWAVE_MANAGED_USER_CONFLICT_DETAIL
+    assert delete.json()['detail'] == REMNAWAVE_MANAGED_USER_CONFLICT_DETAIL
+
+
+async def test_standalone_local_users_remain_editable(client: AsyncClient, auth_headers):
+    created = await client.post('/api/users', json={'name': 'local-only'}, headers=auth_headers)
+    assert created.status_code == HTTPStatus.CREATED
+    user_id = created.json()['id']
+
+    block = await client.put(f'/api/users/{user_id}/block', headers=auth_headers)
+    unblock = await client.put(f'/api/users/{user_id}/unblock', headers=auth_headers)
+    delete = await client.delete(f'/api/users/{user_id}', headers=auth_headers)
+
+    assert block.status_code == HTTPStatus.OK
+    assert unblock.status_code == HTTPStatus.OK
+    assert delete.status_code == HTTPStatus.NO_CONTENT
 
 
 async def test_user_list_includes_remnawave_summary_for_linked_users(
@@ -193,3 +275,49 @@ async def test_user_list_remnawave_brief_fields(
     assert brief['traffic_used_bytes'] == 1_000_000
     assert brief['traffic_limit_bytes'] == 10_000_000
     assert brief['delete_requested_at'] is None
+
+
+async def test_user_list_includes_remnawave_sync_metadata(
+    client: AsyncClient, db, auth_headers, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+    await client.post(
+        '/internal/worker/remnawave/users/upsert', json=[_profile()], headers=worker_headers
+    )
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    rw_user.sync_status = 'stale'
+    rw_user.sync_reason = 'remote snapshot is older than local state'
+    rw_user.sync_error = 'timeout while syncing'
+    rw_user.last_synced_at = datetime(2026, 1, 1, tzinfo=UTC)
+    await db.commit()
+
+    resp = await client.get('/api/users', headers=auth_headers)
+    assert resp.status_code == HTTPStatus.OK
+    users = resp.json()
+    brief = next(u['remnawave'] for u in users if u['remnawave'] is not None)
+
+    assert brief['sync_status'] == 'stale'
+    assert brief['sync_reason'] == 'remote snapshot is older than local state'
+    assert brief['sync_error'] == 'timeout while syncing'
+    assert brief['last_synced_at'] == '2026-01-01T00:00:00'
+
+
+async def test_delete_request_marks_user_missing_in_sync_metadata(
+    client: AsyncClient, db, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+    await client.post(
+        '/internal/worker/remnawave/users/upsert', json=[_profile()], headers=worker_headers
+    )
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+
+    resp = await client.post(
+        f'/internal/worker/remnawave/users/{rw_user.remnawave_uuid}/deleted',
+        headers=worker_headers,
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    db.expire_all()
+    updated = (await db.execute(select(RemnawaveUser))).scalar_one()
+    assert updated.sync_status == 'missing'
+    assert updated.sync_reason == 'delete requested'

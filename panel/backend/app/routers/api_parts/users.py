@@ -51,6 +51,9 @@ async def api_list_users(db: DB):
                 traffic_limit_bytes=rw.traffic_limit_bytes,
                 delete_requested_at=rw.delete_requested_at,
                 last_synced_at=rw.last_synced_at,
+                sync_status=rw.sync_status,
+                sync_reason=rw.sync_reason,
+                sync_error=rw.sync_error,
             )
         result.append(
             UserWithPeers(

@@ -211,6 +211,44 @@ async def test_sync_by_uuid_status_change_updates_user(
 
 
 @pytest.mark.usefixtures('seeded_node')
+async def test_remnawave_sync_overwrites_local_lifecycle_state(
+    client: AsyncClient,
+    db,
+    worker_headers,
+):
+    initial = _normalize_fake_user(FAKE_USERS[0])
+
+    await client.post(
+        '/internal/worker/remnawave/users/upsert',
+        json=[initial],
+        headers=worker_headers,
+    )
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    user_id = rw_user.user_id
+    user = await db.get(User, rw_user.user_id)
+    peer = (await db.execute(select(Peer).where(Peer.user_id == user_id))).scalar_one()
+
+    user.is_blocked = True
+    peer.status = 'pending_delete'
+    await db.commit()
+
+    resp = await client.post(
+        '/internal/worker/remnawave/users/upsert',
+        json=[initial],
+        headers=worker_headers,
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    db.expire_all()
+    updated_rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    updated_user = await db.get(User, user_id)
+    updated_peer = (await db.execute(select(Peer).where(Peer.user_id == user_id))).scalar_one()
+    assert updated_user.is_blocked is False
+    assert updated_peer.status == 'pending'
+    assert updated_rw_user.sync_status == 'synced'
+
+
+@pytest.mark.usefixtures('seeded_node')
 async def test_webhook_valid_updates_user_and_invalid_is_rejected(
     client: AsyncClient,
     db,

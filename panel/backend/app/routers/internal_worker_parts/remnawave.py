@@ -5,13 +5,15 @@ from sqlalchemy.orm import selectinload
 from app.models import RemnawaveSettings, RemnawaveUser, User
 from app.remnawave_crypto import decrypt
 from app.routers.internal_worker_parts.common import DB
-from app.schemas.worker import RemnawaveUserIn
+from app.schemas.worker import RemnawaveReconcileCompleteIn, RemnawaveUserIn
 from app.services.remnawave_sync import (
+    apply_remnawave_lifecycle,
     apply_remnawave_profile,
     aware,
     enqueue_sync_nodes,
     now,
     purge_confirmed_remnawave_deletes,
+    reconcile_missing_remnawave_users,
     remnawave_blocked,
 )
 from app.services.users import create_remnawave_local_user
@@ -71,17 +73,7 @@ async def upsert_remnawave_users(data: list[RemnawaveUserIn], db: DB):
             await db.flush()
             affected_node_ids.update(created_node_ids)
         else:
-            user = row.user
-            should_block = remnawave_blocked(item)
-            if user.is_blocked != should_block:
-                user.is_blocked = should_block
-                for peer in user.peers:
-                    if should_block and peer.status != 'pending_delete':
-                        peer.status = 'pending_delete'
-                        affected_node_ids.add(peer.node_id)
-                    elif not should_block and peer.status in {'pending_delete', 'deleted'}:
-                        peer.status = 'pending'
-                        affected_node_ids.add(peer.node_id)
+            affected_node_ids.update(apply_remnawave_lifecycle(row, item))
 
         apply_remnawave_profile(row, item)
         upserted.append(item.uuid)
@@ -104,6 +96,8 @@ async def mark_remnawave_user_deleted(user_uuid: str, db: DB):
         return {'status': 'not_found', 'affected_node_ids': []}
 
     row.delete_requested_at = row.delete_requested_at or now()
+    row.sync_status = 'missing'
+    row.sync_reason = 'delete requested'
     row.user.is_blocked = True
     affected_node_ids: set[str] = set()
     for peer in row.user.peers:
@@ -116,9 +110,15 @@ async def mark_remnawave_user_deleted(user_uuid: str, db: DB):
 
 
 @router.post('/remnawave/reconcile-complete')
-async def remnawave_reconcile_complete(db: DB):
+async def remnawave_reconcile_complete(data: RemnawaveReconcileCompleteIn, db: DB):
     settings = await RemnawaveSettings.get_settings(db)
+    affected_node_ids = await reconcile_missing_remnawave_users(db, set(data.seen_uuids))
     settings.last_synced_at = now()
     purged = await purge_confirmed_remnawave_deletes(db)
     await db.commit()
-    return {'status': 'ok', 'purged': purged}
+    await enqueue_sync_nodes(db, affected_node_ids)
+    return {
+        'status': 'ok',
+        'purged': purged,
+        'affected_node_ids': sorted(affected_node_ids),
+    }

@@ -1,10 +1,11 @@
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
+from unittest.mock import AsyncMock, patch
 
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from app.models import AsyncOperation, Node, Peer, PeerTrafficSample
+from app.models import AsyncOperation, Node, Peer, PeerTrafficSample, RemnawaveUser, User
 
 
 async def test_worker_auth_rejects_missing_or_wrong_token(client: AsyncClient, monkeypatch):
@@ -203,3 +204,78 @@ async def test_node_results_set_health_status_on_failure(
     await db.refresh(saved_node)
     assert saved_node.health_status == 'offline'
     assert saved_node.last_error == 'provision failed'
+
+
+async def test_remnawave_reconcile_complete_marks_missing_users_and_is_idempotent(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, _, _ = seeded_worker_state
+    seen_user = User(name='seen-user')
+    missing_user = User(name='missing-user')
+    missing_peer = Peer(node_id=node.id, user=missing_user, status='pending')
+    db.add_all(
+        [
+            seen_user,
+            missing_user,
+            missing_peer,
+            RemnawaveUser(
+                user=seen_user,
+                remnawave_uuid='seen-uuid',
+                username='seen',
+                status='ACTIVE',
+            ),
+            RemnawaveUser(
+                user=missing_user,
+                remnawave_uuid='missing-uuid',
+                username='missing',
+                status='ACTIVE',
+            ),
+        ]
+    )
+    await db.flush()
+    missing_peer_id = missing_peer.id
+    await db.commit()
+
+    with patch('app.routers.internal_worker.enqueue_sync_node', new=AsyncMock()) as enqueue:
+        resp = await client.post(
+            '/internal/worker/remnawave/reconcile-complete',
+            json={'seen_uuids': ['seen-uuid']},
+            headers=worker_headers,
+        )
+        repeat = await client.post(
+            '/internal/worker/remnawave/reconcile-complete',
+            json={'seen_uuids': ['seen-uuid']},
+            headers=worker_headers,
+        )
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() == {
+        'status': 'ok',
+        'purged': 0,
+        'affected_node_ids': ['node-1'],
+    }
+    assert repeat.status_code == HTTPStatus.OK
+    assert repeat.json() == {
+        'status': 'ok',
+        'purged': 0,
+        'affected_node_ids': [],
+    }
+    assert enqueue.await_count == 1
+
+    result = await db.execute(
+        select(
+            RemnawaveUser.sync_status,
+            RemnawaveUser.sync_reason,
+            User.is_blocked,
+            Peer.status,
+        )
+        .join(RemnawaveUser.user)
+        .join(User.peers)
+        .where(RemnawaveUser.remnawave_uuid == 'missing-uuid', Peer.id == missing_peer_id)
+    )
+    sync_status, sync_reason, is_blocked, peer_status = result.one()
+
+    assert sync_status == 'stale'
+    assert sync_reason == 'remote user missing'
+    assert is_blocked is True
+    assert peer_status == 'pending_delete'

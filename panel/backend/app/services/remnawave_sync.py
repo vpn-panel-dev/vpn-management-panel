@@ -61,8 +61,68 @@ def apply_remnawave_profile(row: RemnawaveUser, data: RemnawaveUserIn) -> None:
     row.active_internal_squads_json = data.active_internal_squads_json
     row.subscription_url_encrypted = data.subscription_url
     row.last_synced_at = now()
+    row.sync_status = 'synced'
+    row.sync_reason = None
     row.sync_error = None
     row.delete_requested_at = None
+
+
+def apply_remnawave_lifecycle(row: RemnawaveUser, data: RemnawaveUserIn) -> set[str]:
+    affected_node_ids: set[str] = set()
+    should_block = remnawave_blocked(data)
+    if row.user.is_blocked == should_block:
+        return affected_node_ids
+
+    row.user.is_blocked = should_block
+    for peer in row.user.peers:
+        if should_block:
+            if peer.status != 'pending_delete':
+                peer.status = 'pending_delete'
+                affected_node_ids.add(peer.node_id)
+        elif peer.status in {'pending_delete', 'deleted'}:
+            peer.status = 'pending'
+            affected_node_ids.add(peer.node_id)
+    return affected_node_ids
+
+
+def mark_remnawave_user_stale(
+    row: RemnawaveUser, *, reason: str = 'remote user missing'
+) -> set[str]:
+    affected_node_ids: set[str] = set()
+    already_stale = (
+        row.sync_status == 'stale'
+        and row.sync_reason == reason
+        and row.sync_error is None
+        and row.user.is_blocked
+        and all(peer.status == 'pending_delete' for peer in row.user.peers)
+    )
+    row.sync_status = 'stale'
+    row.sync_reason = reason
+    row.sync_error = None
+    row.user.is_blocked = True
+    for peer in row.user.peers:
+        if peer.status != 'pending_delete':
+            peer.status = 'pending_delete'
+            affected_node_ids.add(peer.node_id)
+    if already_stale and not affected_node_ids:
+        return set()
+    return affected_node_ids
+
+
+async def reconcile_missing_remnawave_users(
+    db: AsyncSession,
+    seen_uuids: set[str],
+    *,
+    reason: str = 'remote user missing',
+) -> set[str]:
+    query = select(RemnawaveUser).options(selectinload(RemnawaveUser.user).selectinload(User.peers))
+    if seen_uuids:
+        query = query.where(~RemnawaveUser.remnawave_uuid.in_(seen_uuids))
+    rows = (await db.execute(query)).scalars().all()
+    affected_node_ids: set[str] = set()
+    for row in rows:
+        affected_node_ids.update(mark_remnawave_user_stale(row, reason=reason))
+    return affected_node_ids
 
 
 async def purge_confirmed_remnawave_deletes(db: AsyncSession) -> int:
