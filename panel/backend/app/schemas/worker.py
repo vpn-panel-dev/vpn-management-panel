@@ -53,6 +53,10 @@ class ProvisionResult(BaseModel):
     interface: InterfaceResult | None = None
 
 
+class RemnawaveReconcileCompleteIn(BaseModel):
+    seen_uuids: list[str] = Field(default_factory=list)
+
+
 class RemnawaveUserIn(BaseModel):
     uuid: str
     id: int | None = None

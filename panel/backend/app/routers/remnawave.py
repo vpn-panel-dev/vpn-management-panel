@@ -2,17 +2,21 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Annotated
+from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.job_commands import enqueue_remnawave_full_reconcile
+from app.job_commands import enqueue_remnawave_full_reconcile, enqueue_remnawave_sync_user
 from app.models import (
+    AsyncOperation,
     RemnawaveSettings,
     RemnawaveSettingsIn,
     RemnawaveSettingsSchema,
+    RemnawaveUser,
 )
 from app.remnawave_crypto import decrypt, encrypt
 from app.routers.auth import require_auth
@@ -20,6 +24,50 @@ from app.services.operations import enqueue_operation, new_operation, operation_
 
 router = APIRouter(prefix='/api/remnawave', dependencies=[Depends(require_auth)])
 DB = Annotated[AsyncSession, Depends(get_db)]
+
+
+async def _remnawave_status(db: AsyncSession) -> dict[str, object]:
+    settings = await RemnawaveSettings.get_settings(db)
+
+    imported_users_count = await db.scalar(select(func.count()).select_from(RemnawaveUser))
+    pending_node_sync_count = await db.scalar(
+        select(func.count()).select_from(RemnawaveUser).where(RemnawaveUser.sync_status != 'synced')
+    )
+    last_successful_reconcile_at = (
+        settings.last_synced_at.isoformat() if settings.last_synced_at else None
+    )
+
+    failed_reconcile = (
+        (
+            await db.execute(
+                select(AsyncOperation)
+                .where(
+                    AsyncOperation.kind == 'remnawave_full_reconcile',
+                    AsyncOperation.status.in_({'failed', 'enqueue_failed'}),
+                )
+                .order_by(AsyncOperation.updated_at.desc())
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    return {
+        'enabled': settings.enabled,
+        'base_url': settings.base_url,
+        'last_successful_reconcile_at': last_successful_reconcile_at,
+        'last_failed_reconcile_at': (
+            failed_reconcile.updated_at.isoformat() if failed_reconcile else None
+        ),
+        'last_error': failed_reconcile.error if failed_reconcile else None,
+        'imported_users_count': imported_users_count or 0,
+        'pending_node_sync_count': pending_node_sync_count or 0,
+        'last_tested_at': (
+            settings.last_tested_at.isoformat() if settings.last_tested_at else None
+        ),
+        'last_test_status': settings.last_test_status,
+        'last_test_error': settings.last_test_error,
+    }
 
 
 @router.get('/settings')
@@ -105,14 +153,18 @@ async def trigger_remnawave_sync(db: DB):
     return operation_response(operation)
 
 
+@router.post('/users/{user_uuid}/sync', status_code=202)
+async def trigger_remnawave_user_sync(user_uuid: UUID, db: DB):
+    settings = await RemnawaveSettings.get_settings(db)
+    if not settings.enabled:
+        raise HTTPException(status_code=409, detail='Remnawave is disabled')
+
+    operation = new_operation('remnawave_sync_user', 'remnawave_user', str(user_uuid))
+    await enqueue_operation(db, operation, enqueue_remnawave_sync_user, str(user_uuid))
+    return operation_response(operation)
+
+
 @router.get('/status')
 async def get_remnawave_status(db: DB):
     """Return the last test and sync status for Remnawave."""
-    settings = await RemnawaveSettings.get_settings(db)
-    return {
-        'enabled': settings.enabled,
-        'base_url': settings.base_url,
-        'last_tested_at': settings.last_tested_at.isoformat() if settings.last_tested_at else None,
-        'last_test_status': settings.last_test_status,
-        'last_test_error': settings.last_test_error,
-    }
+    return await _remnawave_status(db)
