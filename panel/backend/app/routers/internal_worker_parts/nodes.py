@@ -54,9 +54,7 @@ async def node_sync_result(node_id: str, data: SyncResult, db: DB):
         peer = peers_by_public_key.get(peer_result.public_key)
         if not peer:
             continue
-        sample = apply_peer_result(peer, peer_result, sampled_at)
-        if sample:
-            db.add(sample)
+        await apply_peer_result(db, peer, peer_result, sampled_at)
     for peer in peers:
         if peer.status == 'pending_delete' and peer.user.public_key not in seen_public_keys:
             peer.status = 'deleted'

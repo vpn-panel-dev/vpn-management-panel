@@ -1,11 +1,21 @@
 from datetime import datetime
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Node, Peer, PeerTrafficSample
+from app.models import (
+    LocalAmneziawgTrafficDelta,
+    LocalAmneziawgUserDailyTraffic,
+    LocalAmneziawgUserLifetimeTraffic,
+    LocalAmneziawgUserNodeDailyTraffic,
+    LocalAmneziawgUserNodeLifetimeTraffic,
+    Node,
+    Peer,
+    PeerTrafficSample,
+)
 from app.schemas.worker import InterfaceResult, PeerSyncResult
 
 
@@ -54,22 +64,123 @@ def apply_interface_result(node: Node, data: InterfaceResult) -> None:
             setattr(node, target, value)
 
 
-def apply_peer_result(peer: Peer, data: PeerSyncResult, now: datetime) -> PeerTrafficSample | None:
+async def apply_peer_result(
+    db: AsyncSession, peer: Peer, data: PeerSyncResult, now: datetime
+) -> PeerTrafficSample | None:
     if data.status in {'active', 'pending', 'pending_delete', 'deleted'}:
         peer.status = data.status
     if data.last_handshake is not None:
         peer.last_handshake = data.last_handshake
     if data.rx_bytes is None or data.tx_bytes is None:
         return None
-    delta_rx = 0 if peer.raw_rx is None else max(data.rx_bytes - peer.raw_rx, 0)
-    delta_tx = 0 if peer.raw_tx is None else max(data.tx_bytes - peer.raw_tx, 0)
+
+    previous_rx = peer.raw_rx or 0
+    previous_tx = peer.raw_tx or 0
+    rx_reset_detected = peer.raw_rx is not None and data.rx_bytes < peer.raw_rx
+    tx_reset_detected = peer.raw_tx is not None and data.tx_bytes < peer.raw_tx
+    delta_rx = _counter_delta(peer.raw_rx, data.rx_bytes)
+    delta_tx = _counter_delta(peer.raw_tx, data.tx_bytes)
     peer.raw_rx = data.rx_bytes
     peer.raw_tx = data.tx_bytes
     if delta_rx == 0 and delta_tx == 0:
         return None
-    return PeerTrafficSample(
+
+    sample = PeerTrafficSample(
         peer_id=peer.id,
         sampled_at=now,
         rx_bytes=delta_rx,
         tx_bytes=delta_tx,
     )
+    db.add(sample)
+    db.add(
+        LocalAmneziawgTrafficDelta(
+            peer_id=peer.id,
+            node_id=peer.node_id,
+            user_id=peer.user_id,
+            observed_at=now,
+            previous_rx_bytes=previous_rx,
+            previous_tx_bytes=previous_tx,
+            current_rx_bytes=data.rx_bytes,
+            current_tx_bytes=data.tx_bytes,
+            rx_delta_bytes=delta_rx,
+            tx_delta_bytes=delta_tx,
+            total_delta_bytes=delta_rx + delta_tx,
+            rx_reset_detected=rx_reset_detected,
+            tx_reset_detected=tx_reset_detected,
+        )
+    )
+    await _apply_local_traffic_aggregates(db, peer, now, delta_rx, delta_tx)
+    return sample
+
+
+def _counter_delta(previous: int | None, current: int) -> int:
+    if previous is None:
+        return 0
+    if current < previous:
+        return current
+    return current - previous
+
+
+async def _apply_local_traffic_aggregates(
+    db: AsyncSession, peer: Peer, observed_at: datetime, rx_delta: int, tx_delta: int
+) -> None:
+    total_delta = rx_delta + tx_delta
+    usage_day = observed_at.date()
+    await _increase_aggregate(
+        db,
+        LocalAmneziawgUserDailyTraffic,
+        {'user_id': peer.user_id, 'day': usage_day},
+        (rx_delta, tx_delta, total_delta),
+        observed_at,
+    )
+    await _increase_aggregate(
+        db,
+        LocalAmneziawgUserNodeDailyTraffic,
+        {'user_id': peer.user_id, 'node_id': peer.node_id, 'day': usage_day},
+        (rx_delta, tx_delta, total_delta),
+        observed_at,
+    )
+    await _increase_aggregate(
+        db,
+        LocalAmneziawgUserLifetimeTraffic,
+        {'user_id': peer.user_id},
+        (rx_delta, tx_delta, total_delta),
+        observed_at,
+    )
+    await _increase_aggregate(
+        db,
+        LocalAmneziawgUserNodeLifetimeTraffic,
+        {'user_id': peer.user_id, 'node_id': peer.node_id},
+        (rx_delta, tx_delta, total_delta),
+        observed_at,
+    )
+
+
+async def _increase_aggregate(
+    db: AsyncSession,
+    model: type[Any],
+    identity: dict[str, object],
+    increment: tuple[int, int, int],
+    observed_at: datetime,
+) -> None:
+    rx_delta, tx_delta, total_delta = increment
+    statement = select(model)
+    for column_name, value in identity.items():
+        statement = statement.where(getattr(model, column_name) == value)
+
+    aggregate = (await db.execute(statement)).scalar_one_or_none()
+    if aggregate is None:
+        aggregate = model(
+            **identity,
+            rx_bytes=rx_delta,
+            tx_bytes=tx_delta,
+            total_bytes=total_delta,
+            updated_at=observed_at,
+        )
+        db.add(aggregate)
+        return
+
+    aggregate.rx_bytes += rx_delta
+    aggregate.tx_bytes += tx_delta
+    aggregate.total_bytes += total_delta
+    aggregate.updated_at = observed_at

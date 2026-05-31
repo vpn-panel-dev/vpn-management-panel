@@ -5,7 +5,20 @@ from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from app.models import AsyncOperation, Node, Peer, PeerTrafficSample, RemnawaveUser, User
+from app.models import (
+    AsyncOperation,
+    LocalAmneziawgTrafficDelta,
+    LocalAmneziawgTrafficSettings,
+    LocalAmneziawgUserDailyTraffic,
+    LocalAmneziawgUserLifetimeTraffic,
+    LocalAmneziawgUserNodeDailyTraffic,
+    LocalAmneziawgUserNodeLifetimeTraffic,
+    Node,
+    Peer,
+    PeerTrafficSample,
+    RemnawaveUser,
+    User,
+)
 
 
 async def test_worker_auth_rejects_missing_or_wrong_token(client: AsyncClient, monkeypatch):
@@ -206,6 +219,373 @@ async def test_node_results_set_health_status_on_failure(
     assert saved_node.last_error == 'provision failed'
 
 
+async def test_node_sync_accounts_local_traffic_counter_increase(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    peer.raw_rx = 1_000
+    peer.raw_tx = 2_000
+    await db.commit()
+
+    sync = await _post_sync_result(
+        client,
+        worker_headers,
+        node.id,
+        [{'public_key': user.public_key, 'status': 'active', 'rx_bytes': 1_500, 'tx_bytes': 2_600}],
+    )
+
+    assert sync.status_code == HTTPStatus.OK
+    delta = await db.scalar(select(LocalAmneziawgTrafficDelta))
+    user_daily = await db.scalar(select(LocalAmneziawgUserDailyTraffic))
+    user_node_daily = await db.scalar(select(LocalAmneziawgUserNodeDailyTraffic))
+    user_lifetime = await db.scalar(select(LocalAmneziawgUserLifetimeTraffic))
+    user_node_lifetime = await db.scalar(select(LocalAmneziawgUserNodeLifetimeTraffic))
+    sample = await db.scalar(select(PeerTrafficSample))
+
+    assert delta is not None
+    assert delta.peer_id == peer.id
+    assert delta.node_id == node.id
+    assert delta.user_id == user.id
+    assert delta.previous_rx_bytes == 1_000
+    assert delta.previous_tx_bytes == 2_000
+    assert delta.current_rx_bytes == 1_500
+    assert delta.current_tx_bytes == 2_600
+    assert delta.rx_delta_bytes == 500
+    assert delta.tx_delta_bytes == 600
+    assert delta.total_delta_bytes == 1_100
+    assert delta.rx_reset_detected is False
+    assert delta.tx_reset_detected is False
+    assert sample is not None
+    assert (sample.rx_bytes, sample.tx_bytes) == (500, 600)
+    assert user_daily is not None
+    assert (user_daily.rx_bytes, user_daily.tx_bytes, user_daily.total_bytes) == (500, 600, 1_100)
+    assert user_node_daily is not None
+    assert user_node_daily.node_id == node.id
+    assert (user_node_daily.rx_bytes, user_node_daily.tx_bytes, user_node_daily.total_bytes) == (
+        500,
+        600,
+        1_100,
+    )
+    assert user_lifetime is not None
+    assert (user_lifetime.rx_bytes, user_lifetime.tx_bytes, user_lifetime.total_bytes) == (
+        500,
+        600,
+        1_100,
+    )
+    assert user_node_lifetime is not None
+    assert user_node_lifetime.node_id == node.id
+    assert (
+        user_node_lifetime.rx_bytes,
+        user_node_lifetime.tx_bytes,
+        user_node_lifetime.total_bytes,
+    ) == (500, 600, 1_100)
+
+
+async def test_node_sync_accounts_counter_reset_as_post_reset_usage(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    peer.raw_rx = 5_000
+    peer.raw_tx = 5_000
+    await db.commit()
+
+    sync = await _post_sync_result(
+        client,
+        worker_headers,
+        node.id,
+        [{'public_key': user.public_key, 'status': 'active', 'rx_bytes': 100, 'tx_bytes': 200}],
+    )
+
+    assert sync.status_code == HTTPStatus.OK
+    delta = await db.scalar(select(LocalAmneziawgTrafficDelta))
+    user_lifetime = await db.scalar(select(LocalAmneziawgUserLifetimeTraffic))
+
+    assert delta is not None
+    assert delta.previous_rx_bytes == 5_000
+    assert delta.previous_tx_bytes == 5_000
+    assert delta.rx_delta_bytes == 100
+    assert delta.tx_delta_bytes == 200
+    assert delta.total_delta_bytes == 300
+    assert delta.rx_reset_detected is True
+    assert delta.tx_reset_detected is True
+    assert user_lifetime is not None
+    assert user_lifetime.total_bytes == 300
+
+
+async def test_node_sync_duplicate_counters_do_not_increment_local_usage(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    peer.raw_rx = 100
+    peer.raw_tx = 200
+    await db.commit()
+
+    first = await _post_sync_result(
+        client,
+        worker_headers,
+        node.id,
+        [{'public_key': user.public_key, 'status': 'active', 'rx_bytes': 150, 'tx_bytes': 250}],
+    )
+    duplicate = await _post_sync_result(
+        client,
+        worker_headers,
+        node.id,
+        [{'public_key': user.public_key, 'status': 'active', 'rx_bytes': 150, 'tx_bytes': 250}],
+    )
+
+    assert first.status_code == HTTPStatus.OK
+    assert duplicate.status_code == HTTPStatus.OK
+    deltas = (await db.execute(select(LocalAmneziawgTrafficDelta))).scalars().all()
+    user_lifetime = await db.scalar(select(LocalAmneziawgUserLifetimeTraffic))
+
+    assert len(deltas) == 1
+    assert deltas[0].total_delta_bytes == 100
+    assert user_lifetime is not None
+    assert user_lifetime.total_bytes == 100
+
+
+async def test_node_sync_missing_bytes_skips_local_accounting(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    peer.raw_rx = 100
+    peer.raw_tx = 200
+    await db.commit()
+
+    sync = await _post_sync_result(
+        client,
+        worker_headers,
+        node.id,
+        [{'public_key': user.public_key, 'status': 'active', 'rx_bytes': 150}],
+    )
+
+    saved_peer = await db.get(Peer, peer.id)
+    deltas = (await db.execute(select(LocalAmneziawgTrafficDelta))).scalars().all()
+    samples = (await db.execute(select(PeerTrafficSample))).scalars().all()
+
+    assert sync.status_code == HTTPStatus.OK
+    assert saved_peer is not None
+    await db.refresh(saved_peer)
+    assert saved_peer.status == 'active'
+    assert saved_peer.raw_rx == 100
+    assert saved_peer.raw_tx == 200
+    assert deltas == []
+    assert samples == []
+
+
+async def test_node_sync_local_accounting_sums_multi_node_user_totals(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    second_node = Node(
+        id='node-2',
+        name='node-2',
+        url='http://agent-2:8000',
+        token='node-token-2',  # noqa: S106
+    )
+    second_peer = Peer(id='peer-2', node=second_node, user=user, status='active')
+    peer.raw_rx = 1_000
+    peer.raw_tx = 2_000
+    second_peer.raw_rx = 10
+    second_peer.raw_tx = 20
+    db.add_all([second_node, second_peer])
+    await db.commit()
+
+    first_sync = await _post_sync_result(
+        client,
+        worker_headers,
+        node.id,
+        [{'public_key': user.public_key, 'status': 'active', 'rx_bytes': 1_500, 'tx_bytes': 2_600}],
+    )
+    second_sync = await _post_sync_result(
+        client,
+        worker_headers,
+        second_node.id,
+        [{'public_key': user.public_key, 'status': 'active', 'rx_bytes': 20, 'tx_bytes': 45}],
+    )
+
+    assert first_sync.status_code == HTTPStatus.OK
+    assert second_sync.status_code == HTTPStatus.OK
+    user_lifetime = await db.scalar(select(LocalAmneziawgUserLifetimeTraffic))
+    node_lifetimes = (
+        (await db.execute(select(LocalAmneziawgUserNodeLifetimeTraffic))).scalars().all()
+    )
+    totals_by_node = {row.node_id: row.total_bytes for row in node_lifetimes}
+
+    assert user_lifetime is not None
+    assert user_lifetime.total_bytes == 1_135
+    assert totals_by_node == {'node-1': 1_100, 'node-2': 35}
+
+
+async def test_worker_raw_sample_cleanup_deletes_only_persisted_old_samples(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    old = datetime.now(UTC) - timedelta(days=100)
+    recent = datetime.now(UTC) - timedelta(days=10)
+    persisted_old_sample = PeerTrafficSample(
+        id='old-persisted-sample',
+        peer_id=peer.id,
+        sampled_at=old,
+        rx_bytes=100,
+        tx_bytes=200,
+    )
+    unpersisted_old_sample = PeerTrafficSample(
+        id='old-unpersisted-sample',
+        peer_id=peer.id,
+        sampled_at=old + timedelta(minutes=1),
+        rx_bytes=10,
+        tx_bytes=20,
+    )
+    recent_sample = PeerTrafficSample(
+        id='recent-sample',
+        peer_id=peer.id,
+        sampled_at=recent,
+        rx_bytes=30,
+        tx_bytes=40,
+    )
+    delta = LocalAmneziawgTrafficDelta(
+        id='delta-1',
+        peer_id=peer.id,
+        node_id=node.id,
+        user_id=user.id,
+        observed_at=old,
+        previous_rx_bytes=1_000,
+        previous_tx_bytes=2_000,
+        current_rx_bytes=1_100,
+        current_tx_bytes=2_200,
+        rx_delta_bytes=100,
+        tx_delta_bytes=200,
+        total_delta_bytes=300,
+    )
+    user_daily = LocalAmneziawgUserDailyTraffic(
+        user_id=user.id,
+        day=old.date(),
+        rx_bytes=100,
+        tx_bytes=200,
+        total_bytes=300,
+    )
+    user_node_daily = LocalAmneziawgUserNodeDailyTraffic(
+        user_id=user.id,
+        node_id=node.id,
+        day=old.date(),
+        rx_bytes=100,
+        tx_bytes=200,
+        total_bytes=300,
+    )
+    user_lifetime = LocalAmneziawgUserLifetimeTraffic(
+        user_id=user.id,
+        rx_bytes=100,
+        tx_bytes=200,
+        total_bytes=300,
+    )
+    user_node_lifetime = LocalAmneziawgUserNodeLifetimeTraffic(
+        user_id=user.id,
+        node_id=node.id,
+        rx_bytes=100,
+        tx_bytes=200,
+        total_bytes=300,
+    )
+    db.add_all(
+        [
+            persisted_old_sample,
+            unpersisted_old_sample,
+            recent_sample,
+            delta,
+            user_daily,
+            user_node_daily,
+            user_lifetime,
+            user_node_lifetime,
+        ]
+    )
+    await db.commit()
+
+    cleanup = await client.post(
+        '/internal/worker/traffic/cleanup-raw-samples', headers=worker_headers
+    )
+
+    remaining_samples = (await db.execute(select(PeerTrafficSample))).scalars().all()
+    remaining_deltas = (await db.execute(select(LocalAmneziawgTrafficDelta))).scalars().all()
+    await db.refresh(user_daily)
+    await db.refresh(user_node_daily)
+    await db.refresh(user_lifetime)
+    await db.refresh(user_node_lifetime)
+
+    assert cleanup.status_code == HTTPStatus.OK
+    assert cleanup.json()['retention_days'] == 90
+    assert cleanup.json()['deleted'] == 1
+    assert cleanup.json()['disabled'] is False
+    assert {sample.id for sample in remaining_samples} == {
+        'old-unpersisted-sample',
+        'recent-sample',
+    }
+    assert [row.id for row in remaining_deltas] == ['delta-1']
+    assert (user_daily.rx_bytes, user_daily.tx_bytes, user_daily.total_bytes) == (100, 200, 300)
+    assert (user_node_daily.rx_bytes, user_node_daily.tx_bytes, user_node_daily.total_bytes) == (
+        100,
+        200,
+        300,
+    )
+    assert (user_lifetime.rx_bytes, user_lifetime.tx_bytes, user_lifetime.total_bytes) == (
+        100,
+        200,
+        300,
+    )
+    assert (
+        user_node_lifetime.rx_bytes,
+        user_node_lifetime.tx_bytes,
+        user_node_lifetime.total_bytes,
+    ) == (100, 200, 300)
+
+
+async def test_worker_raw_sample_cleanup_is_disabled_when_retention_is_zero(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    _, _, peer = seeded_worker_state
+    old = datetime.now(UTC) - timedelta(days=100)
+    settings = await LocalAmneziawgTrafficSettings.get_settings(db)
+    settings.raw_sample_retention_days = 0
+    db.add(PeerTrafficSample(peer_id=peer.id, sampled_at=old, rx_bytes=100, tx_bytes=200))
+    await db.commit()
+
+    cleanup = await client.post(
+        '/internal/worker/traffic/cleanup-raw-samples', headers=worker_headers
+    )
+
+    samples = (await db.execute(select(PeerTrafficSample))).scalars().all()
+    assert cleanup.status_code == HTTPStatus.OK
+    assert cleanup.json() == {
+        'status': 'ok',
+        'retention_days': 0,
+        'deleted': 0,
+        'disabled': True,
+        'cutoff': None,
+    }
+    assert len(samples) == 1
+
+
+async def test_node_sync_keeps_pending_delete_and_blocked_user_behavior(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    user.is_blocked = True
+    peer.status = 'pending_delete'
+    await db.commit()
+
+    sync = await _post_sync_result(client, worker_headers, node.id, [])
+
+    saved_user = await db.get(User, user.id)
+    saved_peer = await db.get(Peer, peer.id)
+
+    assert sync.status_code == HTTPStatus.OK
+    assert saved_user is not None
+    await db.refresh(saved_user)
+    assert saved_user.is_blocked is True
+    assert saved_peer is not None
+    await db.refresh(saved_peer)
+    assert saved_peer.status == 'deleted'
+
+
 async def test_remnawave_reconcile_complete_marks_missing_users_and_is_idempotent(
     client: AsyncClient, db, worker_headers, seeded_worker_state
 ):
@@ -279,3 +659,16 @@ async def test_remnawave_reconcile_complete_marks_missing_users_and_is_idempoten
     assert sync_reason == 'remote user missing'
     assert is_blocked is True
     assert peer_status == 'pending_delete'
+
+
+async def _post_sync_result(
+    client: AsyncClient,
+    worker_headers: dict[str, str],
+    node_id: str,
+    peers: list[dict],
+):
+    return await client.post(
+        f'/internal/worker/nodes/{node_id}/sync-result',
+        json={'ok': True, 'peers': peers},
+        headers=worker_headers,
+    )
