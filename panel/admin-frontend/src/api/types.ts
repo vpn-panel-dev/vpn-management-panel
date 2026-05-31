@@ -43,6 +43,9 @@ export interface RemnawaveUserBrief {
   tag: string | null
   traffic_used_bytes: number
   traffic_limit_bytes: number
+  local_amneziawg_traffic_used_bytes: number
+  combined_traffic_used_bytes: number
+  blocked_reason: string | null
   delete_requested_at: string | null
   last_synced_at: string | null
   sync_status: string
@@ -78,6 +81,16 @@ export interface LocalAmneziawgUsageTotals {
 export interface LocalAmneziawgUsageNodeTotals extends LocalAmneziawgUsageTotals {
   node_id: string
   node_name: string
+}
+
+export interface LocalAmneziawgNodeUsageTotals {
+  source: 'local_amneziawg'
+  node_id: string
+  node_name: string
+  rx_bytes: number
+  tx_bytes: number
+  total_bytes: number
+  updated_at: string | null
 }
 
 export interface LocalAmneziawgUsageDailyTotals {
