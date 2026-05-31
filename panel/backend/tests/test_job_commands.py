@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 from app.job_commands import (
+    cleanup_raw_traffic_samples,
     provision_node,
     remnawave_full_reconcile,
     remnawave_sync_user,
@@ -39,6 +40,17 @@ def test_remnawave_full_reconcile_payload_shape():
 
     assert payload['command'] == 'remnawave_full_reconcile'
     assert payload['target_type'] == 'remnawave'
+    assert payload['target_id'] is None
+    uuid.UUID(payload['idempotency_key'])
+    uuid.UUID(payload['operation_id'])
+    assert payload['created_at'].endswith('+00:00')
+
+
+def test_cleanup_raw_traffic_samples_payload_shape():
+    payload = cleanup_raw_traffic_samples()
+
+    assert payload['command'] == 'cleanup_raw_traffic_samples'
+    assert payload['target_type'] == 'traffic'
     assert payload['target_id'] is None
     uuid.UUID(payload['idempotency_key'])
     uuid.UUID(payload['operation_id'])

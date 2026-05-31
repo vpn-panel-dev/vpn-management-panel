@@ -30,6 +30,11 @@ async def test_get_settings_unauthorized(client: AsyncClient):
     assert resp.status_code == HTTPStatus.UNAUTHORIZED
 
 
+async def test_local_traffic_settings_unauthorized(client: AsyncClient):
+    resp = await client.get('/api/remnawave/local-traffic/settings')
+    assert resp.status_code == HTTPStatus.UNAUTHORIZED
+
+
 async def test_get_settings_empty(client: AsyncClient, auth_headers):
     resp = await client.get('/api/remnawave/settings', headers=auth_headers)
     assert resp.status_code == HTTPStatus.OK
@@ -62,6 +67,26 @@ async def test_update_settings(client: AsyncClient, auth_headers):
     assert data['api_token_set'] is True
     assert data['webhook_secret_set'] is True
     assert data['subscription_url'] == 'https://sub.example.com'
+
+
+async def test_local_traffic_settings_round_trip(client: AsyncClient, auth_headers):
+    resp = await client.get('/api/remnawave/local-traffic/settings', headers=auth_headers)
+    assert resp.status_code == HTTPStatus.OK
+    data = resp.json()
+    assert data['raw_sample_retention_days'] == 90
+
+    resp = await client.put(
+        '/api/remnawave/local-traffic/settings',
+        json={'raw_sample_retention_days': 0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == HTTPStatus.OK
+    data = resp.json()
+    assert data['raw_sample_retention_days'] == 0
+
+    resp = await client.get('/api/remnawave/local-traffic/settings', headers=auth_headers)
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['raw_sample_retention_days'] == 0
 
 
 async def test_update_settings_preserves_secrets_when_omitted(client: AsyncClient, auth_headers):

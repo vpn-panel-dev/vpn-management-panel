@@ -13,6 +13,9 @@ from app.database import get_db
 from app.job_commands import enqueue_remnawave_full_reconcile, enqueue_remnawave_sync_user
 from app.models import (
     AsyncOperation,
+    LocalAmneziawgTrafficSettings,
+    LocalAmneziawgTrafficSettingsIn,
+    LocalAmneziawgTrafficSettingsSchema,
     RemnawaveSettings,
     RemnawaveSettingsIn,
     RemnawaveSettingsSchema,
@@ -75,6 +78,21 @@ async def get_remnawave_settings(db: DB):
     """Return current Remnawave settings (secrets exposed only as booleans)."""
     settings = await RemnawaveSettings.get_settings(db)
     return RemnawaveSettingsSchema.from_orm(settings)
+
+
+@router.get('/local-traffic/settings', response_model=LocalAmneziawgTrafficSettingsSchema)
+async def get_local_traffic_settings(db: DB):
+    settings = await LocalAmneziawgTrafficSettings.get_settings(db)
+    return settings
+
+
+@router.put('/local-traffic/settings', response_model=LocalAmneziawgTrafficSettingsSchema)
+async def update_local_traffic_settings(data: LocalAmneziawgTrafficSettingsIn, db: DB):
+    settings = await LocalAmneziawgTrafficSettings.get_settings(db)
+    settings.raw_sample_retention_days = data.raw_sample_retention_days
+    await db.commit()
+    await db.refresh(settings)
+    return settings
 
 
 @router.put('/settings')
