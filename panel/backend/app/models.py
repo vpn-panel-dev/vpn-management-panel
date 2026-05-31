@@ -509,6 +509,9 @@ class RemnawaveUserBrief(BaseModel):
     tag: str | None = None
     traffic_used_bytes: int = 0
     traffic_limit_bytes: int = 0
+    local_amneziawg_traffic_used_bytes: int = 0
+    combined_traffic_used_bytes: int = 0
+    blocked_reason: str | None = None
     delete_requested_at: datetime | None = None
     last_synced_at: datetime | None = None
     sync_status: RemnawaveSyncStatus = 'synced'
@@ -540,6 +543,16 @@ class LocalAmneziawgUsageTotals(BaseModel):
 class LocalAmneziawgUsageNodeTotals(LocalAmneziawgUsageTotals):
     node_id: str
     node_name: str
+
+
+class LocalAmneziawgNodeUsageTotals(BaseModel):
+    source: str = 'local_amneziawg'
+    node_id: str
+    node_name: str
+    rx_bytes: int = 0
+    tx_bytes: int = 0
+    total_bytes: int = 0
+    updated_at: datetime | None = None
 
 
 class LocalAmneziawgUsageDailyTotals(BaseModel):

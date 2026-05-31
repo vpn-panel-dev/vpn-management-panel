@@ -1,9 +1,19 @@
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.crypto import generate_keypair
-from app.models import Node, NodeIn, NodeSchema, NodeUpdate, NodeWithStatus, Peer, PeerSchema
+from app.models import (
+    LocalAmneziawgNodeUsageTotals,
+    LocalAmneziawgUserNodeLifetimeTraffic,
+    Node,
+    NodeIn,
+    NodeSchema,
+    NodeUpdate,
+    NodeWithStatus,
+    Peer,
+    PeerSchema,
+)
 from app.routers.api_parts.common import DB
 from app.services.operations import enqueue_operation, new_operation, operation_response
 from app.services.users import create_pending_peers_for_node
@@ -120,3 +130,30 @@ async def api_node_peers(node_id: str, db: DB):
 
 
 # ── Traffic stats ─────────────────────────────────────────────────────────────
+
+
+@router.get('/nodes/{node_id}/local-traffic', response_model=LocalAmneziawgNodeUsageTotals)
+async def api_node_local_traffic(node_id: str, db: DB):
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail='Node not found')
+
+    row = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(LocalAmneziawgUserNodeLifetimeTraffic.rx_bytes), 0),
+                func.coalesce(func.sum(LocalAmneziawgUserNodeLifetimeTraffic.tx_bytes), 0),
+                func.coalesce(func.sum(LocalAmneziawgUserNodeLifetimeTraffic.total_bytes), 0),
+                func.max(LocalAmneziawgUserNodeLifetimeTraffic.updated_at),
+            ).where(LocalAmneziawgUserNodeLifetimeTraffic.node_id == node_id)
+        )
+    ).one()
+    rx_bytes, tx_bytes, total_bytes, updated_at = row
+    return LocalAmneziawgNodeUsageTotals(
+        node_id=node.id,
+        node_name=node.name,
+        rx_bytes=rx_bytes,
+        tx_bytes=tx_bytes,
+        total_bytes=total_bytes,
+        updated_at=updated_at,
+    )
