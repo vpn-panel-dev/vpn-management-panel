@@ -1,7 +1,15 @@
 import { reactive } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { operationsApi } from '../api/operations'
-import type { User, Node, TrafficPoint } from '../api/types'
+import type {
+  LocalAmneziawgUsageDailyTotals,
+  LocalAmneziawgUsageNodeDailyTotals,
+  LocalAmneziawgUsageNodeTotals,
+  LocalAmneziawgUsageTotals,
+  Node,
+  TrafficPoint,
+  User,
+} from '../api/types'
 
 export interface QrDialog {
   visible: boolean
@@ -15,8 +23,12 @@ export interface TrafficDialog {
   visible: boolean
   title: string
   loading: boolean
-  data: TrafficPoint[] | null
+  data: TrafficPoint[]
   maxVal: number
+  localTotals: LocalAmneziawgUsageTotals | null
+  localDaily: LocalAmneziawgUsageDailyTotals[]
+  localNodes: LocalAmneziawgUsageNodeTotals[]
+  localNodesDaily: LocalAmneziawgUsageNodeDailyTotals[]
 }
 
 export const qrTabs = [
@@ -26,6 +38,8 @@ export const qrTabs = [
 
 export function useDownloads() {
   const toast = useToast()
+  const trafficDays = 30
+  let trafficRequestId = 0
 
   const qrDialog = reactive<QrDialog>({
     visible: false,
@@ -39,8 +53,12 @@ export function useDownloads() {
     visible: false,
     title: '',
     loading: false,
-    data: null,
+    data: [],
     maxVal: 0,
+    localTotals: null,
+    localDaily: [],
+    localNodes: [],
+    localNodesDaily: [],
   })
 
   async function showQr(user: User, node: Node) {
@@ -114,17 +132,37 @@ export function useDownloads() {
   }
 
   async function showTraffic(user: User) {
+    const requestId = ++trafficRequestId
     trafficDialog.title = `Трафик — ${user.name}`
-    trafficDialog.data = null
+    trafficDialog.data = []
+    trafficDialog.maxVal = 0
+    trafficDialog.localTotals = null
+    trafficDialog.localDaily = []
+    trafficDialog.localNodes = []
+    trafficDialog.localNodesDaily = []
     trafficDialog.loading = true
     trafficDialog.visible = true
     try {
-      const points = await operationsApi.getUserTraffic(user.id, 30)
+      const [points, localTotals, localDaily, localNodes, localNodesDaily] = await Promise.all([
+        operationsApi.getUserTraffic(user.id, trafficDays),
+        operationsApi.getUserLocalTraffic(user.id),
+        operationsApi.getUserLocalTrafficDaily(user.id, trafficDays),
+        operationsApi.getUserLocalTrafficNodes(user.id),
+        operationsApi.getUserLocalTrafficNodesDaily(user.id, trafficDays),
+      ])
+
+      if (requestId !== trafficRequestId) return
+
       if (points) {
         trafficDialog.maxVal = points.reduce((m, p) => Math.max(m, p.rx_bytes, p.tx_bytes), 0)
         trafficDialog.data = points
       }
+      trafficDialog.localTotals = localTotals ?? null
+      trafficDialog.localDaily = localDaily ?? []
+      trafficDialog.localNodes = localNodes ?? []
+      trafficDialog.localNodesDaily = localNodesDaily ?? []
     } catch (e: unknown) {
+      if (requestId !== trafficRequestId) return
       toast.add({
         severity: 'error',
         summary: 'Ошибка',
@@ -133,7 +171,9 @@ export function useDownloads() {
       })
       trafficDialog.visible = false
     } finally {
-      trafficDialog.loading = false
+      if (requestId === trafficRequestId) {
+        trafficDialog.loading = false
+      }
     }
   }
 
