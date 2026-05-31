@@ -23,7 +23,9 @@ export function useUsers() {
     loading.value = true
     try {
       const [u, n] = await Promise.all([usersApi.getUsers(), nodesApi.getNodes()])
-      if (u) users.value = u
+      if (u) {
+        users.value = u
+      }
       if (n) allNodes.value = n
     } catch (e: unknown) {
       toast.add({
@@ -44,6 +46,7 @@ export function useUsers() {
     try {
       const user = await usersApi.addUser(name)
       if (user) {
+        user.local_traffic = null
         users.value.push(user)
         newName.value = ''
         toast.add({ severity: 'success', summary: 'Добавлен', detail: user.name, life: 3000 })
@@ -120,7 +123,9 @@ export function useUsers() {
   async function silentRefresh() {
     try {
       const [u, n] = await Promise.all([usersApi.getUsers(), nodesApi.getNodes()])
-      if (u) users.value = u
+      if (u) {
+        users.value = u
+      }
       if (n) allNodes.value = n
     } catch {
       /* ignore background errors */

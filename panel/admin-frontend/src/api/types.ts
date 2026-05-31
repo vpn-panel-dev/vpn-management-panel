@@ -57,12 +57,42 @@ export interface User {
   is_blocked: boolean
   peers: Peer[]
   remnawave: RemnawaveUserBrief | null
+  local_traffic?: LocalAmneziawgUsageTotals | null
 }
 
 export interface TrafficPoint {
   day: string
   rx_bytes: number
   tx_bytes: number
+}
+
+export interface LocalAmneziawgUsageTotals {
+  source: 'local_amneziawg'
+  user_id: string
+  rx_bytes: number
+  tx_bytes: number
+  total_bytes: number
+  updated_at: string | null
+}
+
+export interface LocalAmneziawgUsageNodeTotals extends LocalAmneziawgUsageTotals {
+  node_id: string
+  node_name: string
+}
+
+export interface LocalAmneziawgUsageDailyTotals {
+  source: 'local_amneziawg'
+  user_id: string
+  day: string
+  rx_bytes: number
+  tx_bytes: number
+  total_bytes: number
+  updated_at: string | null
+}
+
+export interface LocalAmneziawgUsageNodeDailyTotals extends LocalAmneziawgUsageDailyTotals {
+  node_id: string
+  node_name: string
 }
 
 export interface NodePeer {
@@ -132,6 +162,17 @@ export interface RemnawaveSettings {
   last_synced_at: string | null
   created_at: string
   updated_at: string
+}
+
+export interface LocalAmneziawgTrafficSettings {
+  id: string
+  raw_sample_retention_days: number
+  created_at: string
+  updated_at: string
+}
+
+export interface LocalAmneziawgTrafficSettingsUpdate {
+  raw_sample_retention_days: number
 }
 
 export interface RemnawaveSettingsUpdate {
