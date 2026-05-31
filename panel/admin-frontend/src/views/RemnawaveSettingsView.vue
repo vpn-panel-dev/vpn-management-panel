@@ -267,6 +267,27 @@
           </div>
         </section>
 
+        <section>
+          <div class="section-header">
+            <h3>Local AmneziaWG</h3>
+            <p>Очистка raw-сэмплов локального трафика. Значение 0 отключает cleanup.</p>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label>Хранение raw-сэмплов (дней)</label>
+              <InputNumber
+                v-model="form.raw_sample_retention_days"
+                :min="0"
+                :useGrouping="false"
+                style="width: 100%"
+                data-testid="local-traffic-retention"
+              />
+              <small class="section-note">По умолчанию — 90 дней. 0 отключает очистку.</small>
+            </div>
+          </div>
+        </section>
+
         <div class="settings-actions">
           <Button
             type="submit"
@@ -340,6 +361,7 @@ const form = reactive({
   webhook_secret: '',
   polling_enabled: false,
   polling_interval_seconds: 300,
+  raw_sample_retention_days: 90,
 })
 
 const syncUserUuidValue = computed(() => syncUserUuid.value.trim())
@@ -417,19 +439,22 @@ async function loadStatus() {
 async function loadSettings() {
   loading.value = true
   try {
-    const data = await remnawaveApi.getRemnawaveSettings()
-    if (data) {
-      settings.value = data
-      form.base_url = data.base_url ?? ''
-      form.enabled = data.enabled
-      form.polling_enabled = data.polling_enabled
-      form.polling_interval_seconds = data.polling_interval_seconds
-      loaded.value = true
-      hydrateStatusFromSettings(data)
-      void loadStatus()
-    } else {
-      loaded.value = false
+    const [data, localTrafficSettings] = await Promise.all([
+      remnawaveApi.getRemnawaveSettings(),
+      remnawaveApi.getLocalTrafficSettings(),
+    ])
+    if (!data || !localTrafficSettings) {
+      throw new Error('Не удалось загрузить настройки')
     }
+    settings.value = data
+    form.base_url = data.base_url ?? ''
+    form.enabled = data.enabled
+    form.polling_enabled = data.polling_enabled
+    form.polling_interval_seconds = data.polling_interval_seconds
+    form.raw_sample_retention_days = localTrafficSettings.raw_sample_retention_days
+    loaded.value = true
+    hydrateStatusFromSettings(data)
+    void loadStatus()
   } catch (e: unknown) {
     toast.add({
       severity: 'error',
@@ -459,16 +484,21 @@ async function saveSettings() {
       payload.webhook_secret = form.webhook_secret
     }
     const data = await remnawaveApi.updateRemnawaveSettings(payload)
-    if (data) {
-      settings.value = data
-      form.api_token = ''
-      form.webhook_secret = ''
-      hydrateStatusFromSettings(data)
+    const localTrafficSettings = await remnawaveApi.updateLocalTrafficSettings({
+      raw_sample_retention_days: form.raw_sample_retention_days,
+    })
+    if (!data || !localTrafficSettings) {
+      throw new Error('Не удалось сохранить настройки')
     }
+    settings.value = data
+    form.api_token = ''
+    form.webhook_secret = ''
+    hydrateStatusFromSettings(data)
+    form.raw_sample_retention_days = localTrafficSettings.raw_sample_retention_days
     toast.add({
       severity: 'success',
       summary: 'Сохранено',
-      detail: 'Настройки Remnawave обновлены.',
+      detail: 'Настройки Remnawave и очистки raw-сэмплов обновлены.',
       life: 4000,
     })
   } catch (e: unknown) {
