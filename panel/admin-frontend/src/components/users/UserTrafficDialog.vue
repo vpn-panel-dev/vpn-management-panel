@@ -10,6 +10,42 @@
       <ProgressSpinner style="width: 50px; height: 50px" />
     </div>
     <div v-else class="traffic-dialog">
+      <section v-if="user?.remnawave" class="traffic-section traffic-section--combined">
+        <div class="traffic-section-head">
+          <div>
+            <div class="traffic-kicker">Combined usage</div>
+            <h3>Amnezia local accounting</h3>
+            <p>Imported Remnawave usage plus measured local AmneziaWG usage.</p>
+          </div>
+          <Tag class="traffic-tag" severity="success" value="combined" />
+        </div>
+
+        <div class="traffic-metrics">
+          <article class="traffic-metric">
+            <span class="traffic-metric-label">Remnawave imported</span>
+            <strong class="traffic-metric-value">{{
+              fmtBytes(user.remnawave.traffic_used_bytes)
+            }}</strong>
+          </article>
+          <article class="traffic-metric">
+            <span class="traffic-metric-label">Local AmneziaWG</span>
+            <strong class="traffic-metric-value">{{
+              fmtBytes(user.remnawave.local_amneziawg_traffic_used_bytes)
+            }}</strong>
+          </article>
+          <article class="traffic-metric traffic-metric--accent">
+            <span class="traffic-metric-label">Combined</span>
+            <strong class="traffic-metric-value">{{
+              fmtBytes(user.remnawave.combined_traffic_used_bytes)
+            }}</strong>
+          </article>
+          <article class="traffic-metric traffic-metric--wide">
+            <span class="traffic-metric-label">Limit comparison</span>
+            <span class="traffic-metric-note">{{ combinedLimitLabel(user) }}</span>
+          </article>
+        </div>
+      </section>
+
       <section class="traffic-section traffic-section--legacy">
         <div class="traffic-section-head">
           <div>
@@ -220,6 +256,7 @@ import type {
   LocalAmneziawgUsageNodeTotals,
   LocalAmneziawgUsageTotals,
   TrafficPoint,
+  User,
 } from '../../api'
 
 defineProps<{
@@ -228,6 +265,7 @@ defineProps<{
   loading: boolean
   data: TrafficPoint[]
   maxVal: number
+  user: User | null
   localTotals: LocalAmneziawgUsageTotals | null
   localDaily: LocalAmneziawgUsageDailyTotals[]
   localNodes: LocalAmneziawgUsageNodeTotals[]
@@ -246,6 +284,12 @@ function formatDay(day: string): string {
   const [year, month, date] = day.split('-')
   if (!year || !month || !date) return day
   return `${date}.${month}.${year}`
+}
+
+function combinedLimitLabel(user: User): string {
+  const limit = user.remnawave?.traffic_limit_bytes ?? 0
+  if (limit <= 0 || !user.remnawave) return 'Без лимита'
+  return `${fmtBytes(user.remnawave.combined_traffic_used_bytes)} / ${fmtBytes(limit)}`
 }
 </script>
 
@@ -274,6 +318,10 @@ function formatDay(day: string): string {
 
 .traffic-section--legacy {
   background: color-mix(in srgb, var(--app-shell-solid) 92%, var(--p-primary-100));
+}
+
+.traffic-section--combined {
+  background: color-mix(in srgb, var(--app-shell-solid) 88%, var(--p-green-100));
 }
 
 .traffic-section-head {
@@ -420,6 +468,11 @@ function formatDay(day: string): string {
 
 .traffic-metric--wide {
   grid-column: 1 / -1;
+}
+
+.traffic-metric--accent {
+  border-color: color-mix(in srgb, var(--p-green-400) 50%, var(--app-border));
+  background: color-mix(in srgb, var(--app-shell-solid) 80%, var(--p-green-100));
 }
 
 .traffic-metric-label {
