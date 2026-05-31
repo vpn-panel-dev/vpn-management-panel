@@ -65,6 +65,14 @@
                 <span>{{ trafficLimitLabel(data.remnawave.traffic_limit_bytes) }}</span>
               </div>
               <div class="remnawave-meta-item">
+                <span class="meta-label">Причина блокировки</span>
+                <Tag
+                  :severity="remnawaveBlockedReasonSeverity(data.remnawave.blocked_reason)"
+                  :value="remnawaveBlockedReasonLabel(data.remnawave.blocked_reason)"
+                  style="font-size: 0.72rem"
+                />
+              </div>
+              <div class="remnawave-meta-item">
                 <span class="meta-label">Последняя синхронизация</span>
                 <span>{{ formatDateTimeOrDash(data.remnawave.last_synced_at) }}</span>
               </div>
@@ -83,14 +91,24 @@
       </template>
     </Column>
 
-    <Column header="Local AmneziaWG usage" style="width: 12rem">
+    <Column header="Traffic usage" style="width: 13rem">
       <template #body="{ data }">
-        <div v-if="data.local_traffic" class="local-traffic-card">
-          <span class="meta-label">Total</span>
+        <div v-if="data.remnawave" class="local-traffic-card">
+          <span class="meta-label">Combined</span>
+          <strong class="local-traffic-value">{{
+            fmtBytes(data.remnawave.combined_traffic_used_bytes)
+          }}</strong>
+          <span class="local-traffic-note">
+            Remnawave {{ fmtBytes(data.remnawave.traffic_used_bytes) }} + Local
+            {{ fmtBytes(data.remnawave.local_amneziawg_traffic_used_bytes) }}
+          </span>
+        </div>
+        <div v-else-if="data.local_traffic" class="local-traffic-card">
+          <span class="meta-label">Local</span>
           <strong class="local-traffic-value">{{
             fmtBytes(data.local_traffic.total_bytes)
           }}</strong>
-          <span class="local-traffic-note">Separate from Remnawave imported traffic</span>
+          <span class="local-traffic-note">Standalone local usage</span>
         </div>
         <span v-else class="dim">—</span>
       </template>
@@ -250,7 +268,13 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
-import { peerSeverity, isOnline, remnawaveSeverity } from '../../utils/status'
+import {
+  peerSeverity,
+  isOnline,
+  remnawaveSeverity,
+  remnawaveBlockedReasonLabel,
+  remnawaveBlockedReasonSeverity,
+} from '../../utils/status'
 import { fmtHandshake, fmtDate, fmtBytes, formatDateTime } from '../../utils/format'
 import type { User, Node } from '../../api'
 
