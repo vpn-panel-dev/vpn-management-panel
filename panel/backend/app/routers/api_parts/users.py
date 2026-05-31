@@ -30,6 +30,27 @@ from app.services.users import create_local_user
 router = APIRouter()
 
 
+def _remnawave_blocked_reason(rw) -> str | None:
+    if rw.delete_requested_at is not None:
+        return 'deleted'
+    if rw.sync_status in {'missing', 'stale'}:
+        return 'deleted'
+    status_reasons = {
+        'DISABLED': 'disabled',
+        'LIMITED': 'limited',
+        'EXPIRED': 'expired',
+    }
+    if reason := status_reasons.get(rw.status):
+        return reason
+    expire_at = rw.expire_at
+    if expire_at is not None:
+        if expire_at.tzinfo is None:
+            expire_at = expire_at.replace(tzinfo=UTC)
+        if expire_at <= datetime.now(UTC):
+            return 'expired'
+    return None
+
+
 async def get_user_or_404(user_id: str, db: DB) -> User:
     user = await db.get(User, user_id)
     if not user:
@@ -67,8 +88,10 @@ async def api_list_users(db: DB):
     result = []
     for u in rows:
         rw_brief = None
+        local_traffic = local_traffic_by_user_id.get(u.id)
         if u.remnawave_user is not None:
             rw = u.remnawave_user
+            local_total = local_traffic.total_bytes if local_traffic else 0
             rw_brief = RemnawaveUserBrief(
                 uuid=rw.remnawave_uuid,
                 username=rw.username,
@@ -78,6 +101,9 @@ async def api_list_users(db: DB):
                 tag=rw.tag,
                 traffic_used_bytes=rw.traffic_used_bytes,
                 traffic_limit_bytes=rw.traffic_limit_bytes,
+                local_amneziawg_traffic_used_bytes=local_total,
+                combined_traffic_used_bytes=rw.traffic_used_bytes + local_total,
+                blocked_reason=_remnawave_blocked_reason(rw),
                 delete_requested_at=rw.delete_requested_at,
                 last_synced_at=rw.last_synced_at,
                 sync_status=rw.sync_status,
@@ -97,7 +123,7 @@ async def api_list_users(db: DB):
                     for p in u.peers
                 ],
                 remnawave=rw_brief,
-                local_traffic=local_traffic_by_user_id.get(u.id),
+                local_traffic=local_traffic,
             )
         )
     return result

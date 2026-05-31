@@ -5,7 +5,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from app.models import Peer, RemnawaveUser, User
+from app.models import LocalAmneziawgUserLifetimeTraffic, Peer, RemnawaveUser, User
 from app.routers.api_parts.common import REMNAWAVE_MANAGED_USER_CONFLICT_DETAIL
 from app.services.remnawave_sync import reconcile_missing_remnawave_users
 
@@ -250,7 +250,7 @@ async def test_user_list_includes_remnawave_summary_for_linked_users(
 
 
 async def test_user_list_remnawave_brief_fields(
-    client: AsyncClient, auth_headers, worker_headers, seeded_node
+    client: AsyncClient, db, auth_headers, worker_headers, seeded_node
 ):
     assert seeded_node.id == 'node-1'
     profile = _profile(
@@ -262,6 +262,16 @@ async def test_user_list_remnawave_brief_fields(
     await client.post(
         '/internal/worker/remnawave/users/upsert', json=[profile], headers=worker_headers
     )
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    db.add(
+        LocalAmneziawgUserLifetimeTraffic(
+            user_id=rw_user.user_id,
+            rx_bytes=100,
+            tx_bytes=250,
+            total_bytes=350,
+        )
+    )
+    await db.commit()
 
     headers = auth_headers
     resp = await client.get('/api/users', headers=headers)
@@ -274,6 +284,9 @@ async def test_user_list_remnawave_brief_fields(
     assert brief['tag'] == 'premium'
     assert brief['traffic_used_bytes'] == 1_000_000
     assert brief['traffic_limit_bytes'] == 10_000_000
+    assert brief['local_amneziawg_traffic_used_bytes'] == 350
+    assert brief['combined_traffic_used_bytes'] == 1_000_350
+    assert brief['blocked_reason'] is None
     assert brief['delete_requested_at'] is None
 
 
@@ -300,6 +313,7 @@ async def test_user_list_includes_remnawave_sync_metadata(
     assert brief['sync_reason'] == 'remote snapshot is older than local state'
     assert brief['sync_error'] == 'timeout while syncing'
     assert brief['last_synced_at'] == '2026-01-01T00:00:00'
+    assert brief['blocked_reason'] == 'deleted'
 
 
 async def test_delete_request_marks_user_missing_in_sync_metadata(

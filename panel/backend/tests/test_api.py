@@ -456,6 +456,95 @@ async def test_user_local_traffic_returns_lifetime_daily_and_node_breakdowns(
     ]
 
 
+async def test_node_local_traffic_returns_all_user_totals(client: AsyncClient, auth_headers, db):
+    headers = auth_headers
+    updated_at = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    node = Node(
+        id='node-total-1',
+        name='aggregate-node',
+        url='http://agent:8000',
+        token='tok',  # noqa: S106
+    )
+    other_node = Node(
+        id='node-total-2',
+        name='other-node',
+        url='http://agent-2:8000',
+        token='tok-2',  # noqa: S106
+    )
+    first_user = User(id='node-user-1', name='node-user-1')
+    second_user = User(id='node-user-2', name='node-user-2')
+    db.add_all(
+        [
+            node,
+            other_node,
+            first_user,
+            second_user,
+            LocalAmneziawgUserNodeLifetimeTraffic(
+                user_id=first_user.id,
+                node_id=node.id,
+                rx_bytes=100,
+                tx_bytes=250,
+                total_bytes=350,
+                updated_at=updated_at,
+            ),
+            LocalAmneziawgUserNodeLifetimeTraffic(
+                user_id=second_user.id,
+                node_id=node.id,
+                rx_bytes=10,
+                tx_bytes=20,
+                total_bytes=30,
+                updated_at=updated_at + timedelta(seconds=1),
+            ),
+            LocalAmneziawgUserNodeLifetimeTraffic(
+                user_id=second_user.id,
+                node_id=other_node.id,
+                rx_bytes=999,
+                tx_bytes=999,
+                total_bytes=1998,
+                updated_at=updated_at,
+            ),
+        ]
+    )
+    await db.commit()
+
+    resp = await client.get(f'/api/nodes/{node.id}/local-traffic', headers=headers)
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() == {
+        'source': 'local_amneziawg',
+        'node_id': node.id,
+        'node_name': node.name,
+        'rx_bytes': 110,
+        'tx_bytes': 270,
+        'total_bytes': 380,
+        'updated_at': '2026-01-02T03:04:06',
+    }
+
+
+async def test_node_local_traffic_zero_for_no_data(client: AsyncClient, auth_headers, db):
+    node = Node(
+        id='node-total-empty',
+        name='empty-node',
+        url='http://agent:8000',
+        token='tok',  # noqa: S106
+    )
+    db.add(node)
+    await db.commit()
+
+    resp = await client.get(f'/api/nodes/{node.id}/local-traffic', headers=auth_headers)
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() == {
+        'source': 'local_amneziawg',
+        'node_id': node.id,
+        'node_name': node.name,
+        'rx_bytes': 0,
+        'tx_bytes': 0,
+        'total_bytes': 0,
+        'updated_at': None,
+    }
+
+
 async def test_user_traffic_endpoint_keeps_existing_shape(client: AsyncClient, auth_headers):
     headers = auth_headers
     user_resp = await client.post('/api/users', json={'name': 'legacy-traffic'}, headers=headers)
