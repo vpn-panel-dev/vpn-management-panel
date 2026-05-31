@@ -280,6 +280,7 @@ Amnezia can sync users from [Remnawave](https://remnawave.com) via API polling o
 
 - Remnawave is the source of truth. Changes flow one-way from Remnawave to Amnezia.
 - Remnawave-managed users are not automatically linked to existing local users.
+- Local AmneziaWG usage is separate from imported Remnawave traffic, it is derived from node peer counters (`rx + tx`), stays reset-safe, and is not pushed back to Remnawave in Phase 2.
 - Without the same `REMNAWAVE_SECRET_KEY`, stored Remnawave secrets and subscription URLs cannot be decrypted after a backup restore.
 
 ---
