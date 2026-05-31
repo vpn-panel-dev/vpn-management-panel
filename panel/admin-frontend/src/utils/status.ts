@@ -23,6 +23,20 @@ export function remnawaveSeverity(status: string): string {
   return 'warn'
 }
 
+export function remnawaveBlockedReasonLabel(reason: string | null): string {
+  if (reason === 'disabled') return 'Disabled'
+  if (reason === 'limited') return 'Limited'
+  if (reason === 'expired') return 'Expired'
+  if (reason === 'deleted') return 'Deleted'
+  return 'Not blocked'
+}
+
+export function remnawaveBlockedReasonSeverity(reason: string | null): string {
+  if (reason === 'limited') return 'warn'
+  if (reason) return 'danger'
+  return 'success'
+}
+
 /**
  * Check whether a peer was online recently (within 3 minutes).
  */
@@ -38,9 +52,9 @@ export function remnawaveTooltip(rw: RemnawaveUserBrief): string {
   const parts: string[] = [`Статус: ${rw.status}`]
   if (rw.expire_at) parts.push(`Истекает: ${fmtDate(rw.expire_at)}`)
   if (rw.traffic_limit_bytes > 0) {
-    const used = fmtBytes(rw.traffic_used_bytes)
+    const used = fmtBytes(rw.combined_traffic_used_bytes)
     const limit = fmtBytes(rw.traffic_limit_bytes)
-    parts.push(`Трафик: ${used} / ${limit}`)
+    parts.push(`Combined traffic: ${used} / ${limit}`)
   }
   return parts.join('\n')
 }
