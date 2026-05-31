@@ -9,10 +9,11 @@ CommandName = Literal[
     'sync_all',
     'sync_node',
     'provision_node',
+    'cleanup_raw_traffic_samples',
     'remnawave_full_reconcile',
     'remnawave_sync_user',
 ]
-TargetType = Literal['all', 'node', 'remnawave', 'remnawave_user']
+TargetType = Literal['all', 'node', 'traffic', 'remnawave', 'remnawave_user']
 
 
 class WorkerCommand(BaseModel):

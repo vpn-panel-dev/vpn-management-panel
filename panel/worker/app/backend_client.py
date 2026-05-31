@@ -109,6 +109,12 @@ class BackendClient:
             response.raise_for_status()
             return dict(response.json())
 
+    async def cleanup_raw_traffic_samples(self) -> dict[str, Any]:
+        async with self._client() as client:
+            response = await client.post('/internal/worker/traffic/cleanup-raw-samples')
+            response.raise_for_status()
+            return dict(response.json())
+
     async def fetch_remnawave_polling_state(self) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.get('/internal/worker/remnawave/polling-state')

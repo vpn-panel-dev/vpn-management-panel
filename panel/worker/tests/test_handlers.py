@@ -12,12 +12,13 @@ from app.handlers import CommandHandler
 
 
 def command(name: CommandName, node_id: str | None = 'node-1') -> WorkerCommand:
+    target_type = 'traffic' if name == 'cleanup_raw_traffic_samples' else 'all'
     return WorkerCommand.model_validate(
         {
             'command': name,
             'idempotency_key': f'idem-{name}',
             'operation_id': f'op-{name}',
-            'target_type': 'all' if node_id is None else 'node',
+            'target_type': target_type if node_id is None else 'node',
             'target_id': node_id,
             'created_at': datetime.now(UTC).isoformat(),
         }
@@ -98,6 +99,10 @@ class FakeBackend:
 
     async def report_provision_result(self, node_id: str, result: dict[str, Any]) -> None:
         self.calls.append(('provision_result', node_id, result))
+
+    async def cleanup_raw_traffic_samples(self) -> dict[str, Any]:
+        self.calls.append(('cleanup_raw_traffic_samples', None))
+        return {'status': 'ok', 'retention_days': 90, 'deleted': 2, 'disabled': False}
 
 
 class FakeNode:
@@ -221,6 +226,23 @@ async def test_provision_node_reports_provision_result() -> None:
             },
         )
     ]
+
+
+async def test_cleanup_raw_traffic_samples_calls_backend_cleanup() -> None:
+    backend = FakeBackend()
+    node = FakeNode()
+    handler = CommandHandler(backend, node)
+
+    result = await handler.handle(command('cleanup_raw_traffic_samples', None))
+
+    assert result.ok is True
+    assert result.result == {'status': 'ok', 'retention_days': 90, 'deleted': 2, 'disabled': False}
+    assert ('cleanup_raw_traffic_samples', None) in backend.calls
+    assert backend.calls[-1] == (
+        'succeed',
+        'op-cleanup_raw_traffic_samples',
+        {'status': 'ok', 'retention_days': 90, 'deleted': 2, 'disabled': False},
+    )
 
 
 async def test_sync_all_uses_per_node_lock() -> None:

@@ -44,3 +44,23 @@ async def test_upsert_remnawave_users_sends_raw_list_body() -> None:
 
     assert result == {'upserted': ['uuid-1'], 'affected_node_ids': []}
     assert json.loads(requests[0].content) == users
+
+
+@pytest.mark.asyncio
+async def test_cleanup_raw_traffic_samples_calls_internal_endpoint() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={'status': 'ok', 'retention_days': 90, 'deleted': 1, 'disabled': False},
+        )
+
+    client = TransportBackendClient(httpx.MockTransport(handler))
+
+    result = await client.cleanup_raw_traffic_samples()
+
+    assert result == {'status': 'ok', 'retention_days': 90, 'deleted': 1, 'disabled': False}
+    assert requests[0].method == 'POST'
+    assert requests[0].url.path == '/internal/worker/traffic/cleanup-raw-samples'

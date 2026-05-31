@@ -6,10 +6,10 @@ All messages are JSON objects:
 
 ```json
 {
-  "command": "sync_all | sync_node | provision_node | remnawave_full_reconcile | remnawave_sync_user",
+  "command": "sync_all | sync_node | provision_node | cleanup_raw_traffic_samples | remnawave_full_reconcile | remnawave_sync_user",
   "idempotency_key": "uuid-v4",
   "operation_id": "uuid-v4",
-  "target_type": "all | node | remnawave | remnawave_user",
+  "target_type": "all | node | traffic | remnawave | remnawave_user",
   "target_id": "string | null",
   "created_at": "RFC3339 UTC timestamp"
 }
@@ -21,6 +21,7 @@ Rules:
 - `operation_id` identifies the job instance.
 - `target_id` is `null` for `sync_all` and a node id for node-scoped commands.
 - `created_at` is UTC ISO-8601.
+- `cleanup_raw_traffic_samples` has `target_type` `traffic` and `target_id` `null`.
 
 ## RabbitMQ topology
 
@@ -66,7 +67,7 @@ Stale response shape:
     {
       "id": "operation uuid",
       "kind": "sync_all | sync_node | provision_node | remnawave_full_reconcile | remnawave_sync_user",
-      "target_type": "all | node | remnawave | remnawave_user | null",
+      "target_type": "all | node | traffic | remnawave | remnawave_user | null",
       "target_id": "node id | null",
       "status": "queued",
       "attempts": 0,
@@ -179,6 +180,18 @@ Node snapshot shape:
 
   - Failure body: `{"ok":false,"error":"message"}`
   - Response: `{"status":"succeeded"}` or `{"status":"failed"}`
+
+### Local traffic retention
+
+Local AmneziaWG usage is read-only and separate from imported Remnawave traffic. The backend derives it from node peer counters (`rx + tx`), so it stays reset-safe when counters restart.
+
+- `POST /internal/worker/traffic/cleanup-raw-samples`
+  - Removes only old `peer_traffic_samples` rows that have matching local accounting ledger rows plus daily and lifetime aggregate rows.
+  - Does not delete ledger, daily aggregate, or lifetime aggregate rows.
+  - Uses `local_amneziawg_traffic_settings.raw_sample_retention_days`; the default is `90`, and `0` disables cleanup.
+  - Response: `{"status":"ok","retention_days":90,"deleted":0,"disabled":false,"cutoff":"RFC3339 timestamp | null"}`
+
+Phase 2 does not push local AmneziaWG usage back to Remnawave.
 
 ## Remnawave Commands
 

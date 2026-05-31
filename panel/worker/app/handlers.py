@@ -76,6 +76,8 @@ class CommandHandler:
                 result = await self._sync_node(command)
             case 'provision_node':
                 result = await self._provision_node(command)
+            case 'cleanup_raw_traffic_samples':
+                result = await self._backend.cleanup_raw_traffic_samples()
             case 'remnawave_full_reconcile':
                 result = await self._remnawave_full_reconcile()
             case 'remnawave_sync_user':

@@ -18,7 +18,22 @@ def test_worker_command_accepts_remnawave_commands():
     )
 
     assert cmd.name == 'remnawave_full_reconcile'
-    assert cmd.target_type == 'remnawave'
+
+
+def test_worker_command_accepts_cleanup_raw_traffic_samples():
+    cmd = WorkerCommand.model_validate(
+        {
+            'command': 'cleanup_raw_traffic_samples',
+            'idempotency_key': 'idem-traffic-cleanup',
+            'operation_id': 'op-traffic-cleanup',
+            'target_type': 'traffic',
+            'target_id': None,
+            'created_at': '2026-01-01T00:00:00Z',
+        }
+    )
+
+    assert cmd.name == 'cleanup_raw_traffic_samples'
+    assert cmd.target_type == 'traffic'
     assert cmd.node_id is None
 
 

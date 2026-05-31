@@ -58,6 +58,9 @@ async def run(settings: Settings) -> None:
     async with asyncio.TaskGroup() as task_group:
         task_group.create_task(queue.consume(handle_queue_command, settings.worker_concurrency))
         task_group.create_task(schedule_sync_all(queue, settings.sync_interval_sec))
+        task_group.create_task(
+            schedule_cleanup_raw_traffic_samples(queue, settings.sync_interval_sec)
+        )
         task_group.create_task(schedule_remnawave_reconcile(backend, queue))
         task_group.create_task(recover_stale_operations(backend, queue, settings))
 
@@ -66,6 +69,12 @@ async def schedule_sync_all(queue: RabbitQueue, interval_sec: float) -> None:
     while True:
         await asyncio.sleep(interval_sec)
         await queue.publish_command(_new_command('sync_all', 'all', None))
+
+
+async def schedule_cleanup_raw_traffic_samples(queue: RabbitQueue, interval_sec: float) -> None:
+    while True:
+        await asyncio.sleep(interval_sec)
+        await queue.publish_command(_new_command('cleanup_raw_traffic_samples', 'traffic', None))
 
 
 async def schedule_remnawave_reconcile(
