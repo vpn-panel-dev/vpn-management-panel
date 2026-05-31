@@ -1,8 +1,20 @@
-import uuid
-from datetime import UTC, datetime
+from __future__ import annotations
 
-from pydantic import BaseModel
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, select
+import uuid
+from datetime import UTC, date, datetime
+
+from pydantic import BaseModel, Field
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    select,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -124,6 +136,135 @@ class PeerTrafficSample(Base):
     tx_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
     peer: Mapped[Peer] = relationship('Peer', back_populates='samples')
+
+
+class LocalAmneziawgTrafficDelta(Base):
+    __tablename__ = 'local_amneziawg_traffic_deltas'
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    peer_id: Mapped[str] = mapped_column(
+        String, ForeignKey('peers.id', ondelete='CASCADE'), nullable=False
+    )
+    node_id: Mapped[str] = mapped_column(
+        String, ForeignKey('nodes.id', ondelete='CASCADE'), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey('users.id', ondelete='CASCADE'), nullable=False
+    )
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    source_sync_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    previous_rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    previous_tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    current_rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    current_tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    rx_delta_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tx_delta_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    total_delta_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    rx_reset_detected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tx_reset_detected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+
+
+class LocalAmneziawgUserDailyTraffic(Base):
+    __tablename__ = 'local_amneziawg_user_daily_traffic'
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey('users.id', ondelete='CASCADE'), nullable=False
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    __table_args__ = (UniqueConstraint('user_id', 'day'),)
+
+
+class LocalAmneziawgUserNodeDailyTraffic(Base):
+    __tablename__ = 'local_amneziawg_user_node_daily_traffic'
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey('users.id', ondelete='CASCADE'), nullable=False
+    )
+    node_id: Mapped[str] = mapped_column(
+        String, ForeignKey('nodes.id', ondelete='CASCADE'), nullable=False
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    __table_args__ = (UniqueConstraint('user_id', 'node_id', 'day'),)
+
+
+class LocalAmneziawgUserLifetimeTraffic(Base):
+    __tablename__ = 'local_amneziawg_user_lifetime_traffic'
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True
+    )
+    rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+
+class LocalAmneziawgUserNodeLifetimeTraffic(Base):
+    __tablename__ = 'local_amneziawg_user_node_lifetime_traffic'
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey('users.id', ondelete='CASCADE'), nullable=False
+    )
+    node_id: Mapped[str] = mapped_column(
+        String, ForeignKey('nodes.id', ondelete='CASCADE'), nullable=False
+    )
+    rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    __table_args__ = (UniqueConstraint('user_id', 'node_id'),)
+
+
+class LocalAmneziawgTrafficSettings(Base):
+    __tablename__ = 'local_amneziawg_traffic_settings'
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    raw_sample_retention_days: Mapped[int] = mapped_column(Integer, default=90, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    @classmethod
+    async def get_settings(cls, db):
+        result = await db.execute(select(cls))
+        row = result.scalar_one_or_none()
+        if row is None:
+            row = cls()
+            db.add(row)
+            await db.commit()
+            await db.refresh(row)
+        return row
 
 
 class AsyncOperation(Base):
@@ -378,12 +519,88 @@ class RemnawaveUserBrief(BaseModel):
 class UserWithPeers(UserSchema):
     peers: list[PeerBrief] = []
     remnawave: RemnawaveUserBrief | None = None
+    local_traffic: LocalAmneziawgUsageTotals | None = None
 
 
 class TrafficPoint(BaseModel):
     day: str
     rx_bytes: int
     tx_bytes: int
+
+
+class LocalAmneziawgUsageTotals(BaseModel):
+    source: str = 'local_amneziawg'
+    user_id: str
+    rx_bytes: int = 0
+    tx_bytes: int = 0
+    total_bytes: int = 0
+    updated_at: datetime | None = None
+
+
+class LocalAmneziawgUsageNodeTotals(LocalAmneziawgUsageTotals):
+    node_id: str
+    node_name: str
+
+
+class LocalAmneziawgUsageDailyTotals(BaseModel):
+    source: str = 'local_amneziawg'
+    user_id: str
+    day: date
+    rx_bytes: int = 0
+    tx_bytes: int = 0
+    total_bytes: int = 0
+    updated_at: datetime | None = None
+
+
+class LocalAmneziawgUsageNodeDailyTotals(LocalAmneziawgUsageDailyTotals):
+    node_id: str
+    node_name: str
+
+
+class LocalAmneziawgTrafficDeltaSchema(BaseModel):
+    id: str
+    peer_id: str
+    node_id: str
+    user_id: str
+    observed_at: datetime
+    source_sync_id: str | None = None
+    previous_rx_bytes: int = 0
+    previous_tx_bytes: int = 0
+    current_rx_bytes: int = 0
+    current_tx_bytes: int = 0
+    rx_delta_bytes: int = 0
+    tx_delta_bytes: int = 0
+    total_delta_bytes: int = 0
+    rx_reset_detected: bool = False
+    tx_reset_detected: bool = False
+    created_at: datetime
+
+    model_config = {'from_attributes': True}
+
+
+class LocalAmneziawgTrafficAggregateSchema(BaseModel):
+    user_id: str
+    node_id: str | None = None
+    day: date | None = None
+    rx_bytes: int = 0
+    tx_bytes: int = 0
+    total_bytes: int = 0
+    updated_at: datetime
+
+    model_config = {'from_attributes': True}
+
+
+class LocalAmneziawgTrafficSettingsSchema(BaseModel):
+    id: str
+    raw_sample_retention_days: int = 90
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {'from_attributes': True}
+
+
+class LocalAmneziawgTrafficSettingsIn(BaseModel):
+    raw_sample_retention_days: int = Field(default=90, ge=0)
 
 
 class RemnawaveSettingsIn(BaseModel):
