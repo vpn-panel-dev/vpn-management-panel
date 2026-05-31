@@ -61,6 +61,14 @@
             <b>{{ trafficLimitLabel(user.remnawave.traffic_limit_bytes) }}</b>
           </div>
           <div>
+            <span>Причина блокировки</span>
+            <Tag
+              :severity="remnawaveBlockedReasonSeverity(user.remnawave.blocked_reason)"
+              :value="remnawaveBlockedReasonLabel(user.remnawave.blocked_reason)"
+              style="font-size: 0.72rem"
+            />
+          </div>
+          <div>
             <span>Последняя синхронизация</span>
             <b>{{ formatDateTimeOrDash(user.remnawave.last_synced_at) }}</b>
           </div>
@@ -76,10 +84,15 @@
       </div>
 
       <div class="mobile-local-traffic">
-        <span>Local AmneziaWG usage</span>
-        <b v-if="user.local_traffic">{{ fmtBytes(user.local_traffic.total_bytes) }}</b>
+        <span>{{ user.remnawave ? 'Combined usage' : 'Local AmneziaWG usage' }}</span>
+        <b v-if="user.remnawave">{{ fmtBytes(user.remnawave.combined_traffic_used_bytes) }}</b>
+        <b v-else-if="user.local_traffic">{{ fmtBytes(user.local_traffic.total_bytes) }}</b>
         <b v-else class="dim">—</b>
-        <small>Separate from Remnawave imported traffic</small>
+        <small v-if="user.remnawave">
+          Remnawave {{ fmtBytes(user.remnawave.traffic_used_bytes) }} + Local
+          {{ fmtBytes(user.remnawave.local_amneziawg_traffic_used_bytes) }}
+        </small>
+        <small v-else>Standalone local usage</small>
       </div>
 
       <div class="mobile-fields">
@@ -204,7 +217,13 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
-import { peerSeverity, isOnline, remnawaveSeverity } from '../../utils/status'
+import {
+  peerSeverity,
+  isOnline,
+  remnawaveSeverity,
+  remnawaveBlockedReasonLabel,
+  remnawaveBlockedReasonSeverity,
+} from '../../utils/status'
 import { fmtHandshake, fmtDate, fmtBytes, formatDateTime } from '../../utils/format'
 import type { User, Node } from '../../api'
 
