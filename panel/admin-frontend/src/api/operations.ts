@@ -1,5 +1,6 @@
 import { req, reqBlob } from './client'
 import type {
+  LocalAmneziawgNodeUsageTotals,
   LocalAmneziawgUsageDailyTotals,
   LocalAmneziawgUsageNodeDailyTotals,
   LocalAmneziawgUsageNodeTotals,
@@ -22,6 +23,8 @@ export const operationsApi = {
       'GET',
       `/users/${uid}/local-traffic/nodes/daily?days=${days}`,
     ),
+  getNodeLocalTraffic: (nodeId: string) =>
+    req<LocalAmneziawgNodeUsageTotals>('GET', `/nodes/${nodeId}/local-traffic`),
   fetchConfig: (uid: string, nid: string) => reqBlob(`/users/${uid}/configs/${nid}`),
   fetchConfigZip: (uid: string) => reqBlob(`/users/${uid}/configs/zip`),
   fetchQr: (uid: string, nid: string) => reqBlob(`/users/${uid}/qr/${nid}`),
