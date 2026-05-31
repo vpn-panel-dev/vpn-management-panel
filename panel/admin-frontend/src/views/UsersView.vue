@@ -66,6 +66,7 @@
       :loading="trafficDialog.loading"
       :data="trafficDialog.data"
       :max-val="trafficDialog.maxVal"
+      :user="trafficDialog.user"
       :local-totals="trafficDialog.localTotals"
       :local-daily="trafficDialog.localDaily"
       :local-nodes="trafficDialog.localNodes"

@@ -1,5 +1,5 @@
-import { reactive } from 'vue'
 import { useToast } from 'primevue/usetoast'
+import { reactive } from 'vue'
 import { operationsApi } from '../api/operations'
 import type {
   LocalAmneziawgUsageDailyTotals,
@@ -26,6 +26,7 @@ export interface TrafficDialog {
   data: TrafficPoint[]
   maxVal: number
   localTotals: LocalAmneziawgUsageTotals | null
+  user: User | null
   localDaily: LocalAmneziawgUsageDailyTotals[]
   localNodes: LocalAmneziawgUsageNodeTotals[]
   localNodesDaily: LocalAmneziawgUsageNodeDailyTotals[]
@@ -56,6 +57,7 @@ export function useDownloads() {
     data: [],
     maxVal: 0,
     localTotals: null,
+    user: null,
     localDaily: [],
     localNodes: [],
     localNodesDaily: [],
@@ -137,6 +139,7 @@ export function useDownloads() {
     trafficDialog.data = []
     trafficDialog.maxVal = 0
     trafficDialog.localTotals = null
+    trafficDialog.user = user
     trafficDialog.localDaily = []
     trafficDialog.localNodes = []
     trafficDialog.localNodesDaily = []
