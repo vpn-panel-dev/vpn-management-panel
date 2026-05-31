@@ -75,6 +75,13 @@
         </div>
       </div>
 
+      <div class="mobile-local-traffic">
+        <span>Local AmneziaWG usage</span>
+        <b v-if="user.local_traffic">{{ fmtBytes(user.local_traffic.total_bytes) }}</b>
+        <b v-else class="dim">—</b>
+        <small>Separate from Remnawave imported traffic</small>
+      </div>
+
       <div class="mobile-fields">
         <div>
           <span>Ноды</span>
@@ -298,6 +305,34 @@ function formatDateTimeOrDash(iso: string | null): string {
 
 .mobile-remnawave-error b {
   color: var(--p-red-500);
+}
+
+.mobile-local-traffic {
+  display: grid;
+  gap: 0.15rem;
+  margin-bottom: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--app-shell-solid) 92%, var(--p-primary-50));
+}
+
+.mobile-local-traffic span {
+  color: var(--app-text-soft);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mobile-local-traffic b {
+  color: var(--app-text);
+  font-size: 0.92rem;
+}
+
+.mobile-local-traffic small {
+  color: var(--app-text-muted);
+  font-size: 0.74rem;
 }
 
 .mobile-peer-list,

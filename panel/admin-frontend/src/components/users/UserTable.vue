@@ -83,6 +83,19 @@
       </template>
     </Column>
 
+    <Column header="Local AmneziaWG usage" style="width: 12rem">
+      <template #body="{ data }">
+        <div v-if="data.local_traffic" class="local-traffic-card">
+          <span class="meta-label">Total</span>
+          <strong class="local-traffic-value">{{
+            fmtBytes(data.local_traffic.total_bytes)
+          }}</strong>
+          <span class="local-traffic-note">Separate from Remnawave imported traffic</span>
+        </div>
+        <span v-else class="dim">—</span>
+      </template>
+    </Column>
+
     <Column header="Ноды">
       <template #body="{ data }">
         <span v-if="!data.peers?.length" class="dim">нет</span>
@@ -356,6 +369,21 @@ function formatDateTimeOrDash(iso: string | null): string {
 
 .remnawave-managed {
   gap: 0.45rem;
+}
+
+.local-traffic-card {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.local-traffic-value {
+  color: var(--app-text);
+  font-size: 0.92rem;
+}
+
+.local-traffic-note {
+  color: var(--p-surface-500);
+  font-size: 0.72rem;
 }
 
 @media (max-width: 760px) {
