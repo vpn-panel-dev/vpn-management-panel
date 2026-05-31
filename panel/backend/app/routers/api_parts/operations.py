@@ -14,6 +14,8 @@ async def api_trigger_sync(db: DB):
     from app.routers import api as api_router
 
     await enqueue_operation(db, operation, api_router.enqueue_sync_all)
+    cleanup_operation = new_operation('cleanup_raw_traffic_samples', 'traffic', None)
+    await enqueue_operation(db, cleanup_operation, api_router.enqueue_cleanup_raw_traffic_samples)
     return operation_response(operation)
 
 

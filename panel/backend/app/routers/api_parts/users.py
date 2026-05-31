@@ -5,6 +5,15 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import selectinload
 
 from app.models import (
+    LocalAmneziawgUsageDailyTotals,
+    LocalAmneziawgUsageNodeDailyTotals,
+    LocalAmneziawgUsageNodeTotals,
+    LocalAmneziawgUsageTotals,
+    LocalAmneziawgUserDailyTraffic,
+    LocalAmneziawgUserLifetimeTraffic,
+    LocalAmneziawgUserNodeDailyTraffic,
+    LocalAmneziawgUserNodeLifetimeTraffic,
+    Node,
     Peer,
     PeerBrief,
     PeerTrafficSample,
@@ -21,6 +30,13 @@ from app.services.users import create_local_user
 router = APIRouter()
 
 
+async def get_user_or_404(user_id: str, db: DB) -> User:
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    return user
+
+
 @router.get('/users', response_model=list[UserWithPeers])
 async def api_list_users(db: DB):
     rows = (
@@ -35,6 +51,19 @@ async def api_list_users(db: DB):
         .scalars()
         .all()
     )
+    local_traffic_rows = (
+        (await db.execute(select(LocalAmneziawgUserLifetimeTraffic))).scalars().all()
+    )
+    local_traffic_by_user_id = {
+        row.user_id: LocalAmneziawgUsageTotals(
+            user_id=row.user_id,
+            rx_bytes=row.rx_bytes,
+            tx_bytes=row.tx_bytes,
+            total_bytes=row.total_bytes,
+            updated_at=row.updated_at,
+        )
+        for row in local_traffic_rows
+    }
     result = []
     for u in rows:
         rw_brief = None
@@ -68,6 +97,7 @@ async def api_list_users(db: DB):
                     for p in u.peers
                 ],
                 remnawave=rw_brief,
+                local_traffic=local_traffic_by_user_id.get(u.id),
             )
         )
     return result
@@ -155,15 +185,13 @@ async def api_delete_user(user_id: str, db: DB):
 
 @router.get('/users/{user_id}/traffic')
 async def api_user_traffic(user_id: str, db: DB, days: int = 30):
-    user = await db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail='User not found')
+    await get_user_or_404(user_id, db)
 
     since = datetime.now(UTC) - timedelta(days=days)
     rows = (
         await db.execute(
             select(
-                func.date_trunc('day', PeerTrafficSample.sampled_at).label('day'),
+                func.date(PeerTrafficSample.sampled_at).label('day'),
                 func.sum(PeerTrafficSample.rx_bytes).label('rx'),
                 func.sum(PeerTrafficSample.tx_bytes).label('tx'),
             )
@@ -175,6 +203,124 @@ async def api_user_traffic(user_id: str, db: DB, days: int = 30):
     ).all()
 
     return [
-        {'day': r.day.date().isoformat(), 'rx_bytes': int(r.rx), 'tx_bytes': int(r.tx)}
+        {
+            'day': r.day.isoformat() if hasattr(r.day, 'isoformat') else str(r.day),
+            'rx_bytes': int(r.rx),
+            'tx_bytes': int(r.tx),
+        }
         for r in rows
+    ]
+
+
+@router.get('/users/{user_id}/local-traffic', response_model=LocalAmneziawgUsageTotals)
+async def api_user_local_traffic_lifetime(user_id: str, db: DB):
+    await get_user_or_404(user_id, db)
+    row = await db.scalar(
+        select(LocalAmneziawgUserLifetimeTraffic).where(
+            LocalAmneziawgUserLifetimeTraffic.user_id == user_id
+        )
+    )
+    if row is None:
+        return LocalAmneziawgUsageTotals(user_id=user_id)
+    return LocalAmneziawgUsageTotals(
+        user_id=user_id,
+        rx_bytes=row.rx_bytes,
+        tx_bytes=row.tx_bytes,
+        total_bytes=row.total_bytes,
+        updated_at=row.updated_at,
+    )
+
+
+@router.get(
+    '/users/{user_id}/local-traffic/daily',
+    response_model=list[LocalAmneziawgUsageDailyTotals],
+)
+async def api_user_local_traffic_daily(user_id: str, db: DB, days: int = 30):
+    await get_user_or_404(user_id, db)
+    since = (datetime.now(UTC) - timedelta(days=days)).date()
+    rows = (
+        (
+            await db.execute(
+                select(LocalAmneziawgUserDailyTraffic)
+                .where(
+                    LocalAmneziawgUserDailyTraffic.user_id == user_id,
+                    LocalAmneziawgUserDailyTraffic.day >= since,
+                )
+                .order_by(LocalAmneziawgUserDailyTraffic.day)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        LocalAmneziawgUsageDailyTotals(
+            user_id=user_id,
+            day=row.day,
+            rx_bytes=row.rx_bytes,
+            tx_bytes=row.tx_bytes,
+            total_bytes=row.total_bytes,
+            updated_at=row.updated_at,
+        )
+        for row in rows
+    ]
+
+
+@router.get(
+    '/users/{user_id}/local-traffic/nodes',
+    response_model=list[LocalAmneziawgUsageNodeTotals],
+)
+async def api_user_local_traffic_nodes(user_id: str, db: DB):
+    await get_user_or_404(user_id, db)
+    rows = (
+        await db.execute(
+            select(LocalAmneziawgUserNodeLifetimeTraffic, Node)
+            .join(Node, LocalAmneziawgUserNodeLifetimeTraffic.node_id == Node.id)
+            .where(LocalAmneziawgUserNodeLifetimeTraffic.user_id == user_id)
+            .order_by(Node.name, Node.id)
+        )
+    ).all()
+    return [
+        LocalAmneziawgUsageNodeTotals(
+            user_id=user_id,
+            node_id=node.id,
+            node_name=node.name,
+            rx_bytes=row.rx_bytes,
+            tx_bytes=row.tx_bytes,
+            total_bytes=row.total_bytes,
+            updated_at=row.updated_at,
+        )
+        for row, node in rows
+    ]
+
+
+@router.get(
+    '/users/{user_id}/local-traffic/nodes/daily',
+    response_model=list[LocalAmneziawgUsageNodeDailyTotals],
+)
+async def api_user_local_traffic_nodes_daily(user_id: str, db: DB, days: int = 30):
+    await get_user_or_404(user_id, db)
+    since = (datetime.now(UTC) - timedelta(days=days)).date()
+    rows = (
+        await db.execute(
+            select(LocalAmneziawgUserNodeDailyTraffic, Node)
+            .join(Node, LocalAmneziawgUserNodeDailyTraffic.node_id == Node.id)
+            .where(
+                LocalAmneziawgUserNodeDailyTraffic.user_id == user_id,
+                LocalAmneziawgUserNodeDailyTraffic.day >= since,
+            )
+            .order_by(LocalAmneziawgUserNodeDailyTraffic.day, Node.name, Node.id)
+        )
+    ).all()
+    return [
+        LocalAmneziawgUsageNodeDailyTotals(
+            user_id=user_id,
+            node_id=node.id,
+            node_name=node.name,
+            day=row.day,
+            rx_bytes=row.rx_bytes,
+            tx_bytes=row.tx_bytes,
+            total_bytes=row.total_bytes,
+            updated_at=row.updated_at,
+        )
+        for row, node in rows
     ]

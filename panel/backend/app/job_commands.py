@@ -86,12 +86,31 @@ def remnawave_sync_user(user_uuid: str, **overrides: Any) -> dict[str, Any]:
     )
 
 
+def cleanup_raw_traffic_samples(**overrides: Any) -> dict[str, Any]:
+    return _payload(
+        'cleanup_raw_traffic_samples',
+        target_type='traffic',
+        target_id=None,
+        **overrides,
+    )
+
+
 async def enqueue_remnawave_full_reconcile(
     *,
     url: str | None = None,
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = remnawave_full_reconcile(**overrides)
+    await publish_command(payload, SYNC_ROUTING_KEY, url=url)
+    return payload
+
+
+async def enqueue_cleanup_raw_traffic_samples(
+    *,
+    url: str | None = None,
+    **overrides: Any,
+) -> dict[str, Any]:
+    payload = cleanup_raw_traffic_samples(**overrides)
     await publish_command(payload, SYNC_ROUTING_KEY, url=url)
     return payload
 
