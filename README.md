@@ -280,9 +280,17 @@ Amnezia can sync users from [Remnawave](https://remnawave.com) via API polling o
 
 - Remnawave is the source of truth. Changes flow one-way from Remnawave to Amnezia.
 - Remnawave-managed users are not automatically linked to existing local users.
-- Local AmneziaWG usage is derived from node peer counters (`rx + tx`), stays reset-safe, and is not pushed back to Remnawave. For local Amnezia display and enforcement, Remnawave-managed users use combined usage: imported Remnawave traffic used plus local AmneziaWG lifetime usage.
+- Imported Remnawave usage is the traffic value read from Remnawave during sync. Local AmneziaWG usage is measured from node peer counters (`rx + tx`) and stored reset-safely by Amnezia.
+- For local Amnezia display and enforcement, Remnawave-managed users use combined usage: imported Remnawave traffic used plus local AmneziaWG lifetime usage.
+- Local and combined AmneziaWG usage are not pushed back to Remnawave traffic counters.
 - If combined usage reaches the Remnawave-imported traffic limit, Amnezia blocks the user's local peers, queues node sync, and asks Remnawave to disable the user through its lifecycle API when the integration is enabled. This does not mutate Remnawave traffic counters.
+- Remnawave polling can be enabled in settings. The backend stores `polling_interval_seconds` with a default of 300 seconds; the worker checks whether polling is due once per minute.
 - Without the same `REMNAWAVE_SECRET_KEY`, stored Remnawave secrets and subscription URLs cannot be decrypted after a backup restore.
+
+## Operational semantics
+
+- Node `online`/`offline` status currently reflects the last successful or failed sync/provision result handled by the backend. It is not an independent heartbeat and does not prove that the node is reachable right now.
+- The worker automatically republishes stale `queued` operations. Operations already marked `running` are not recovered automatically today; inspect and resolve them manually until a running-operation timeout policy is implemented.
 
 ---
 

@@ -58,6 +58,8 @@ Missing or invalid tokens return `401`.
   - Response: `{"status":"failed"}`
 - `GET /internal/worker/operations/stale?status=queued&older_than_seconds=30`
   - Returns operations with matching `status` and `updated_at` older than the cutoff.
+  - Current worker recovery calls this endpoint only with `status=queued`, then republishes the returned jobs.
+  - `running` operations are not automatically recovered or failed today; operators must inspect and resolve them manually until a running-operation timeout policy is defined.
 
 Stale response shape:
 
@@ -162,6 +164,9 @@ Node snapshot shape:
 
   - Failure body: `{"ok":false,"error":"message"}`
   - Response: `{"status":"ok"}` or `{"status":"failed"}`
+  - On success the backend sets `node.health_status` to `online` and updates `last_seen_at` to the result handling time. This is a last-successful-sync marker, not an active heartbeat or current reachability check.
+  - On failure the backend sets `node.health_status` to `offline` and stores `last_error`.
+  - Peer counters update local AmneziaWG accounting. If combined Remnawave imported usage plus local AmneziaWG lifetime usage reaches the imported traffic limit, this endpoint can block local peers, queue follow-up node sync for affected nodes, and enqueue `remnawave_disable_user` jobs for affected Remnawave users.
 
 - `POST /internal/worker/nodes/{node_id}/provision-result`
   - Success body:
@@ -180,6 +185,7 @@ Node snapshot shape:
 
   - Failure body: `{"ok":false,"error":"message"}`
   - Response: `{"status":"succeeded"}` or `{"status":"failed"}`
+  - On success the backend sets `node.health_status` to `online` and updates `last_seen_at` to the result handling time. On failure it sets `node.health_status` to `offline` and stores `last_error`. These fields describe the last provision attempt result, not an independent node heartbeat.
 
 ### Local traffic retention
 
@@ -197,7 +203,7 @@ If combined usage reaches the imported Remnawave traffic limit, the backend loca
   - Uses `local_amneziawg_traffic_settings.raw_sample_retention_days`; the default is `90`, and `0` disables cleanup.
   - Response: `{"status":"ok","retention_days":90,"deleted":0,"disabled":false,"cutoff":"RFC3339 timestamp | null"}`
 
-Phase 2/3 does not push local AmneziaWG usage back to Remnawave.
+The current implementation does not push local or combined AmneziaWG usage back to Remnawave.
 
 ## Remnawave Commands
 
@@ -223,7 +229,8 @@ Endpoints under `/internal/worker/remnawave` (require worker bearer auth):
   - Response: `{"enabled": true, "due": true}`
 - `POST /internal/worker/remnawave/users/upsert`
   - Body: raw JSON list of Remnawave user profiles, not `{ "users": ... }`
-  - Response: `{"upserted": ["uuid", ...], "affected_node_ids": ["..."]}`
+  - Response: `{"upserted": ["uuid", ...], "affected_node_ids": ["..."], "remote_disable_uuids": ["uuid", ...]}`
+  - Side effects: creates or updates linked local users, applies imported lifecycle and traffic-limit facts, queues node sync for affected local peers, and may enqueue `remnawave_disable_user` when combined-limit enforcement blocks a Remnawave-managed user.
 - `POST /internal/worker/remnawave/users/{uuid}/deleted`
   - Response: `{"status": "delete_requested", "affected_node_ids": ["..."]}`
 - `POST /internal/worker/remnawave/reconcile-complete`
@@ -250,7 +257,9 @@ Public endpoint `POST /api/remnawave/webhook` receives Remnawave webhooks:
 
 ## Polling and failure semantics
 
-- The worker polls `/internal/worker/remnawave/polling-state` to decide whether a full reconcile is due.
+- Remnawave settings store `polling_interval_seconds` in the backend; the default is `300` seconds.
+- The worker checks `/internal/worker/remnawave/polling-state` every `60` seconds to decide whether a full reconcile is due. A reconcile is due when polling is enabled and `last_synced_at` is absent or older than `polling_interval_seconds`.
+- `SYNC_INTERVAL_SEC` controls scheduled node sync and raw traffic cleanup jobs, not the Remnawave polling-state check interval.
 - If the Remnawave API returns an HTTP error during reconcile, the worker fails the operation and reports the error to the backend.
 - If a single user sync fails, the operation is marked failed and the error is recorded.
 - Webhook events are deduplicated by event key (`event_type:timestamp:uuid`). Duplicate events return `{"status": "already_processed"}` without enqueuing a new job.
