@@ -6,7 +6,7 @@ All messages are JSON objects:
 
 ```json
 {
-  "command": "sync_all | sync_node | provision_node | cleanup_raw_traffic_samples | remnawave_full_reconcile | remnawave_sync_user",
+  "command": "sync_all | sync_node | provision_node | cleanup_raw_traffic_samples | remnawave_full_reconcile | remnawave_sync_user | remnawave_disable_user",
   "idempotency_key": "uuid-v4",
   "operation_id": "uuid-v4",
   "target_type": "all | node | traffic | remnawave | remnawave_user",
@@ -66,7 +66,7 @@ Stale response shape:
   "operations": [
     {
       "id": "operation uuid",
-      "kind": "sync_all | sync_node | provision_node | remnawave_full_reconcile | remnawave_sync_user",
+      "kind": "sync_all | sync_node | provision_node | remnawave_full_reconcile | remnawave_sync_user | remnawave_disable_user",
       "target_type": "all | node | traffic | remnawave | remnawave_user | null",
       "target_id": "node id | null",
       "status": "queued",
@@ -183,7 +183,13 @@ Node snapshot shape:
 
 ### Local traffic retention
 
-Local AmneziaWG usage is read-only and separate from imported Remnawave traffic. The backend derives it from node peer counters (`rx + tx`), so it stays reset-safe when counters restart.
+Local AmneziaWG usage is read-only from Remnawave's perspective and separate from imported Remnawave traffic. The backend derives it from node peer counters (`rx + tx`), so it stays reset-safe when counters restart.
+
+For local Amnezia display and enforcement, Remnawave-managed users use combined usage:
+
+`combined_usage = imported Remnawave traffic used + local AmneziaWG lifetime usage`
+
+If combined usage reaches the imported Remnawave traffic limit, the backend locally blocks the user, marks local peers for deletion, queues node sync, and enqueues a Remnawave lifecycle disable action. It does not push local or combined usage back to Remnawave traffic counters.
 
 - `POST /internal/worker/traffic/cleanup-raw-samples`
   - Removes only old `peer_traffic_samples` rows that have matching local accounting ledger rows plus daily and lifetime aggregate rows.
@@ -191,7 +197,7 @@ Local AmneziaWG usage is read-only and separate from imported Remnawave traffic.
   - Uses `local_amneziawg_traffic_settings.raw_sample_retention_days`; the default is `90`, and `0` disables cleanup.
   - Response: `{"status":"ok","retention_days":90,"deleted":0,"disabled":false,"cutoff":"RFC3339 timestamp | null"}`
 
-Phase 2 does not push local AmneziaWG usage back to Remnawave.
+Phase 2/3 does not push local AmneziaWG usage back to Remnawave.
 
 ## Remnawave Commands
 
@@ -201,6 +207,9 @@ Additional commands for Remnawave synchronization:
   - `target_type`: `remnawave`
   - `target_id`: `null`
 - `remnawave_sync_user` — sync single Remnawave user by UUID
+  - `target_type`: `remnawave_user`
+  - `target_id`: `<remnawave user uuid>`
+- `remnawave_disable_user` — disable a Remnawave user by UUID through `POST /api/users/{uuid}/actions/disable`
   - `target_type`: `remnawave_user`
   - `target_id`: `<remnawave user uuid>`
 
@@ -246,5 +255,6 @@ Public endpoint `POST /api/remnawave/webhook` receives Remnawave webhooks:
 - If a single user sync fails, the operation is marked failed and the error is recorded.
 - Webhook events are deduplicated by event key (`event_type:timestamp:uuid`). Duplicate events return `{"status": "already_processed"}` without enqueuing a new job.
 - Missing or invalid webhook signatures return `401`. Expired timestamps return `400`.
-- Ownership is one-way: Remnawave is the source of truth. Amnezia does not push changes back to Remnawave.
+- Ownership is one-way: Remnawave is the source of truth. Amnezia does not push traffic counter changes back to Remnawave.
+- Exception: combined-limit enforcement may call Remnawave's user lifecycle disable action.
 - Users created from Remnawave are not automatically linked to existing local users. A new local user is created for each Remnawave profile.
