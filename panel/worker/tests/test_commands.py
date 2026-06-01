@@ -53,6 +53,22 @@ def test_worker_command_accepts_remnawave_sync_user():
     assert cmd.node_id == 'user-123'
 
 
+def test_worker_command_accepts_remnawave_disable_user():
+    now = datetime.now(UTC)
+    cmd = WorkerCommand(
+        command='remnawave_disable_user',
+        idempotency_key=str(uuid.uuid4()),
+        operation_id=str(uuid.uuid4()),
+        target_type='remnawave_user',
+        target_id='user-123',
+        created_at=now,
+    )
+
+    assert cmd.name == 'remnawave_disable_user'
+    assert cmd.target_type == 'remnawave_user'
+    assert cmd.node_id == 'user-123'
+
+
 def test_command_result_accepts_remnawave_command():
     result = CommandResult(
         command='remnawave_full_reconcile',

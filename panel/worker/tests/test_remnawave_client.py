@@ -50,6 +50,25 @@ async def test_get_user_raises_for_unauthorized() -> None:
         await client.get_user('user-uuid')
 
 
+@pytest.mark.asyncio
+async def test_disable_user_posts_disable_action() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={'status': 'ok'})
+
+    client = RemnawaveClient(
+        'https://remnawave.test',
+        'secret-token',
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert await client.disable_user('user-uuid') == {'status': 'ok'}
+    assert requests[0].method == 'POST'
+    assert requests[0].url == 'https://remnawave.test/api/users/user-uuid/actions/disable'
+
+
 def test_extract_users_page_normalizes_users() -> None:
     users, total = extract_users_page(
         {

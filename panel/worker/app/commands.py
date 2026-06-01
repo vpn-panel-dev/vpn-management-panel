@@ -12,6 +12,7 @@ CommandName = Literal[
     'cleanup_raw_traffic_samples',
     'remnawave_full_reconcile',
     'remnawave_sync_user',
+    'remnawave_disable_user',
 ]
 TargetType = Literal['all', 'node', 'traffic', 'remnawave', 'remnawave_user']
 

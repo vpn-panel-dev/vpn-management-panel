@@ -47,6 +47,12 @@ class RemnawaveClient:
             response.raise_for_status()
             return dict(response.json())
 
+    async def disable_user(self, uuid: str) -> dict[str, Any]:
+        async with self._client() as client:
+            response = await client.post(f'/api/users/{uuid}/actions/disable')
+            response.raise_for_status()
+            return dict(response.json())
+
 
 def extract_users_page(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], int | None]:
     data = _unwrap_payload(payload)
