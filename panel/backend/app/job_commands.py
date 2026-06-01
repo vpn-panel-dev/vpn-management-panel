@@ -86,6 +86,15 @@ def remnawave_sync_user(user_uuid: str, **overrides: Any) -> dict[str, Any]:
     )
 
 
+def remnawave_disable_user(user_uuid: str, **overrides: Any) -> dict[str, Any]:
+    return _payload(
+        'remnawave_disable_user',
+        target_type='remnawave_user',
+        target_id=user_uuid,
+        **overrides,
+    )
+
+
 def cleanup_raw_traffic_samples(**overrides: Any) -> dict[str, Any]:
     return _payload(
         'cleanup_raw_traffic_samples',
@@ -122,5 +131,16 @@ async def enqueue_remnawave_sync_user(
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = remnawave_sync_user(user_uuid, **overrides)
+    await publish_command(payload, SYNC_ROUTING_KEY, url=url)
+    return payload
+
+
+async def enqueue_remnawave_disable_user(
+    user_uuid: str,
+    *,
+    url: str | None = None,
+    **overrides: Any,
+) -> dict[str, Any]:
+    payload = remnawave_disable_user(user_uuid, **overrides)
     await publish_command(payload, SYNC_ROUTING_KEY, url=url)
     return payload

@@ -5,6 +5,7 @@ import uuid
 from app.job_commands import (
     cleanup_raw_traffic_samples,
     provision_node,
+    remnawave_disable_user,
     remnawave_full_reconcile,
     remnawave_sync_user,
     sync_all,
@@ -61,6 +62,17 @@ def test_remnawave_sync_user_payload_shape():
     payload = remnawave_sync_user('user-123')
 
     assert payload['command'] == 'remnawave_sync_user'
+    assert payload['target_type'] == 'remnawave_user'
+    assert payload['target_id'] == 'user-123'
+    uuid.UUID(payload['idempotency_key'])
+    uuid.UUID(payload['operation_id'])
+    assert payload['created_at'].endswith('+00:00')
+
+
+def test_remnawave_disable_user_payload_shape():
+    payload = remnawave_disable_user('user-123')
+
+    assert payload['command'] == 'remnawave_disable_user'
     assert payload['target_type'] == 'remnawave_user'
     assert payload['target_id'] == 'user-123'
     uuid.UUID(payload['idempotency_key'])

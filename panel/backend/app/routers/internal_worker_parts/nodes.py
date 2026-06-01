@@ -6,7 +6,13 @@ from app.routers.internal_worker_parts.common import DB
 from app.schemas.worker import ProvisionResult, SyncResult
 from app.services.node_config import node_snapshot
 from app.services.node_sync import apply_interface_result, apply_peer_result, load_node_with_peers
-from app.services.remnawave_sync import now as utc_now, purge_confirmed_remnawave_deletes
+from app.services.remnawave_sync import (
+    enforce_remnawave_combined_limit_for_user,
+    enqueue_remnawave_disable_users,
+    enqueue_sync_nodes,
+    now as utc_now,
+    purge_confirmed_remnawave_deletes,
+)
 
 router = APIRouter()
 
@@ -49,17 +55,25 @@ async def node_sync_result(node_id: str, data: SyncResult, db: DB):
     peers_by_public_key = {peer.user.public_key: peer for peer in peers if peer.user.public_key}
     sampled_at = utc_now()
     seen_public_keys: set[str] = set()
+    limited_node_ids: set[str] = set()
+    remote_disable_uuids: set[str] = set()
     for peer_result in data.peers:
         seen_public_keys.add(peer_result.public_key)
         peer = peers_by_public_key.get(peer_result.public_key)
         if not peer:
             continue
-        await apply_peer_result(db, peer, peer_result, sampled_at)
+        sample = await apply_peer_result(db, peer, peer_result, sampled_at)
+        if sample is not None:
+            node_ids, user_uuids = await enforce_remnawave_combined_limit_for_user(db, peer.user_id)
+            limited_node_ids.update(node_ids)
+            remote_disable_uuids.update(user_uuids)
     for peer in peers:
         if peer.status == 'pending_delete' and peer.user.public_key not in seen_public_keys:
             peer.status = 'deleted'
     await purge_confirmed_remnawave_deletes(db)
     await db.commit()
+    await enqueue_sync_nodes(db, limited_node_ids)
+    await enqueue_remnawave_disable_users(db, remote_disable_uuids)
     return {'status': 'ok'}
 
 

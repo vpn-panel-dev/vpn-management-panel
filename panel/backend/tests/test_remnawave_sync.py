@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -103,6 +104,44 @@ async def test_upsert_active_profiles_overwrite_local_block_state(
     assert updated_user.is_blocked is False
     assert updated_peer.status == 'pending'
     assert updated_rw_user.sync_status == 'synced'
+
+
+async def test_upsert_blocks_when_combined_usage_reaches_remnawave_limit(
+    client: AsyncClient, db, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+    await client.post(
+        '/internal/worker/remnawave/users/upsert', json=[_profile()], headers=worker_headers
+    )
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    db.add(
+        LocalAmneziawgUserLifetimeTraffic(
+            user_id=rw_user.user_id,
+            rx_bytes=100,
+            tx_bytes=250,
+            total_bytes=350,
+        )
+    )
+    await db.commit()
+
+    profile = _profile(traffic_used_bytes=800, traffic_limit_bytes=1_000)
+    with patch(
+        'app.routers.internal_worker.enqueue_remnawave_disable_user', new=AsyncMock()
+    ) as enqueue:
+        resp = await client.post(
+            '/internal/worker/remnawave/users/upsert', json=[profile], headers=worker_headers
+        )
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['affected_node_ids'] == ['node-1']
+    assert resp.json()['remote_disable_uuids'] == ['rw-uuid-1']
+    db.expire_all()
+    updated_rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    updated_user = await db.get(User, updated_rw_user.user_id)
+    peer = (await db.execute(select(Peer).where(Peer.user_id == updated_user.id))).scalar_one()
+    assert updated_user.is_blocked is True
+    assert peer.status == 'pending_delete'
+    enqueue.assert_awaited_once()
 
 
 async def test_upsert_never_auto_links_by_username_and_suffixes_conflict(
