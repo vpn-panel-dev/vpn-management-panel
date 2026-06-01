@@ -27,6 +27,8 @@ that crosses service boundaries.
   docs when a contract changes.
 - Prefer existing patterns in the target module over introducing new abstractions.
 - Use Docker Compose only for integration/manual checks that need live services.
+- Never add co-authors, `Co-authored-by` trailers, AI attribution footers, or assistant/bot
+  attribution to commits.
 
 ## Python services
 
