@@ -10,6 +10,8 @@ from app.services.remnawave_sync import (
     apply_remnawave_lifecycle,
     apply_remnawave_profile,
     aware,
+    enforce_remnawave_combined_limit,
+    enqueue_remnawave_disable_users,
     enqueue_sync_nodes,
     now,
     purge_confirmed_remnawave_deletes,
@@ -47,6 +49,7 @@ async def get_remnawave_polling_state(db: DB):
 @router.post('/remnawave/users/upsert')
 async def upsert_remnawave_users(data: list[RemnawaveUserIn], db: DB):
     affected_node_ids: set[str] = set()
+    remote_disable_uuids: set[str] = set()
     upserted: list[str] = []
     for item in data:
         row = (
@@ -76,11 +79,19 @@ async def upsert_remnawave_users(data: list[RemnawaveUserIn], db: DB):
             affected_node_ids.update(apply_remnawave_lifecycle(row, item))
 
         apply_remnawave_profile(row, item)
+        limited_node_ids, limited_user_uuids = await enforce_remnawave_combined_limit(db, row)
+        affected_node_ids.update(limited_node_ids)
+        remote_disable_uuids.update(limited_user_uuids)
         upserted.append(item.uuid)
 
     await db.commit()
     await enqueue_sync_nodes(db, affected_node_ids)
-    return {'upserted': upserted, 'affected_node_ids': sorted(affected_node_ids)}
+    await enqueue_remnawave_disable_users(db, remote_disable_uuids)
+    return {
+        'upserted': upserted,
+        'affected_node_ids': sorted(affected_node_ids),
+        'remote_disable_uuids': sorted(remote_disable_uuids),
+    }
 
 
 @router.post('/remnawave/users/{user_uuid}/deleted')

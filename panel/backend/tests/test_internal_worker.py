@@ -417,6 +417,59 @@ async def test_node_sync_local_accounting_sums_multi_node_user_totals(
     assert totals_by_node == {'node-1': 1_100, 'node-2': 35}
 
 
+async def test_node_sync_blocks_remnawave_user_when_combined_usage_reaches_limit(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    user_id = user.id
+    peer_id = peer.id
+    peer.raw_rx = 1_000
+    peer.raw_tx = 2_000
+    db.add(
+        RemnawaveUser(
+            user_id=user.id,
+            remnawave_uuid='rw-limited-by-local',
+            username='alice',
+            status='ACTIVE',
+            traffic_used_bytes=800,
+            traffic_limit_bytes=1_000,
+        )
+    )
+    await db.commit()
+
+    with (
+        patch('app.routers.internal_worker.enqueue_sync_node', new=AsyncMock()) as enqueue_sync,
+        patch(
+            'app.routers.internal_worker.enqueue_remnawave_disable_user', new=AsyncMock()
+        ) as enqueue_disable,
+    ):
+        sync = await _post_sync_result(
+            client,
+            worker_headers,
+            node.id,
+            [
+                {
+                    'public_key': user.public_key,
+                    'status': 'active',
+                    'rx_bytes': 1_100,
+                    'tx_bytes': 2_250,
+                }
+            ],
+        )
+
+    assert sync.status_code == HTTPStatus.OK
+    db.expire_all()
+    updated_user = await db.get(User, user_id)
+    updated_peer = await db.get(Peer, peer_id)
+    user_lifetime = await db.scalar(select(LocalAmneziawgUserLifetimeTraffic))
+    assert user_lifetime is not None
+    assert user_lifetime.total_bytes == 350
+    assert updated_user.is_blocked is True
+    assert updated_peer.status == 'pending_delete'
+    enqueue_sync.assert_awaited_once()
+    enqueue_disable.assert_awaited_once()
+
+
 async def test_worker_raw_sample_cleanup_deletes_only_persisted_old_samples(
     client: AsyncClient, db, worker_headers, seeded_worker_state
 ):

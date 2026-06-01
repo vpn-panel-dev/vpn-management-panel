@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import RemnawaveUser, User
+from app.models import LocalAmneziawgUserLifetimeTraffic, Peer, RemnawaveUser, User
 from app.schemas.worker import RemnawaveUserIn
 from app.services.operations import enqueue_operation, new_operation
 
@@ -26,6 +26,13 @@ def remnawave_blocked(data: RemnawaveUser | RemnawaveUserIn) -> bool:
     return expire_at is not None and expire_at <= now()
 
 
+def remnawave_combined_limited(row: RemnawaveUser, local_total_bytes: int) -> bool:
+    return (
+        row.traffic_limit_bytes > 0
+        and row.traffic_used_bytes + local_total_bytes >= row.traffic_limit_bytes
+    )
+
+
 async def enqueue_sync_nodes(db: AsyncSession, node_ids: set[str]) -> None:
     from app.routers import internal_worker
 
@@ -35,6 +42,18 @@ async def enqueue_sync_nodes(db: AsyncSession, node_ids: set[str]) -> None:
             new_operation('sync_node', 'node', node_id),
             internal_worker.enqueue_sync_node,
             node_id,
+        )
+
+
+async def enqueue_remnawave_disable_users(db: AsyncSession, user_uuids: set[str]) -> None:
+    from app.routers import internal_worker
+
+    for user_uuid in sorted(user_uuids):
+        await enqueue_operation(
+            db,
+            new_operation('remnawave_disable_user', 'remnawave_user', user_uuid),
+            internal_worker.enqueue_remnawave_disable_user,
+            user_uuid,
         )
 
 
@@ -83,6 +102,45 @@ def apply_remnawave_lifecycle(row: RemnawaveUser, data: RemnawaveUserIn) -> set[
             peer.status = 'pending'
             affected_node_ids.add(peer.node_id)
     return affected_node_ids
+
+
+async def enforce_remnawave_combined_limit(
+    db: AsyncSession, row: RemnawaveUser
+) -> tuple[set[str], set[str]]:
+    local_total = await db.scalar(
+        select(LocalAmneziawgUserLifetimeTraffic.total_bytes).where(
+            LocalAmneziawgUserLifetimeTraffic.user_id == row.user_id
+        )
+    )
+    if not remnawave_combined_limited(row, local_total or 0):
+        return set(), set()
+
+    remote_disable_uuids = set()
+    if row.status != 'DISABLED':
+        remote_disable_uuids.add(row.remnawave_uuid)
+    row.user.is_blocked = True
+    peers = (await db.execute(select(Peer).where(Peer.user_id == row.user_id))).scalars().all()
+    affected_node_ids: set[str] = set()
+    for peer in peers:
+        if peer.status != 'pending_delete':
+            peer.status = 'pending_delete'
+            affected_node_ids.add(peer.node_id)
+    return affected_node_ids, remote_disable_uuids
+
+
+async def enforce_remnawave_combined_limit_for_user(
+    db: AsyncSession, user_id: str
+) -> tuple[set[str], set[str]]:
+    row = (
+        await db.execute(
+            select(RemnawaveUser)
+            .where(RemnawaveUser.user_id == user_id)
+            .options(selectinload(RemnawaveUser.user))
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return set(), set()
+    return await enforce_remnawave_combined_limit(db, row)
 
 
 def mark_remnawave_user_stale(
