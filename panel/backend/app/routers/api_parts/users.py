@@ -30,7 +30,7 @@ from app.services.users import create_local_user
 router = APIRouter()
 
 
-def _remnawave_blocked_reason(rw) -> str | None:
+def _remnawave_blocked_reason(rw, local_total: int) -> str | None:
     if rw.delete_requested_at is not None:
         return 'deleted'
     if rw.sync_status in {'missing', 'stale'}:
@@ -42,6 +42,8 @@ def _remnawave_blocked_reason(rw) -> str | None:
     }
     if reason := status_reasons.get(rw.status):
         return reason
+    if rw.traffic_limit_bytes > 0 and rw.traffic_used_bytes + local_total >= rw.traffic_limit_bytes:
+        return 'limited'
     expire_at = rw.expire_at
     if expire_at is not None:
         if expire_at.tzinfo is None:
@@ -103,7 +105,7 @@ async def api_list_users(db: DB):
                 traffic_limit_bytes=rw.traffic_limit_bytes,
                 local_amneziawg_traffic_used_bytes=local_total,
                 combined_traffic_used_bytes=rw.traffic_used_bytes + local_total,
-                blocked_reason=_remnawave_blocked_reason(rw),
+                blocked_reason=_remnawave_blocked_reason(rw, local_total),
                 delete_requested_at=rw.delete_requested_at,
                 last_synced_at=rw.last_synced_at,
                 sync_status=rw.sync_status,
