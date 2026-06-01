@@ -23,6 +23,8 @@ that crosses service boundaries.
 - Do not commit secrets, local runtime data, generated dependency folders, build outputs, caches, or
   VPN node configs. In particular, avoid `node/config/*.conf`, `node/config/*.lock`, `panel/data/`,
   `.venv/`, `node_modules/`, and frontend `dist/` directories.
+- Never stage ignored files, including with `git add -f`, unless the user explicitly asks to track that
+  ignored path in git.
 - Preserve public API contracts between backend, worker, node agent, and frontends. Update tests and
   docs when a contract changes.
 - Prefer existing patterns in the target module over introducing new abstractions.
