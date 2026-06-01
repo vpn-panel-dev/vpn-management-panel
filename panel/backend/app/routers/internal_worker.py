@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends
 
-from app.job_commands import enqueue_sync_node as enqueue_sync_node
+from app.job_commands import (
+    enqueue_remnawave_disable_user as enqueue_remnawave_disable_user,
+    enqueue_sync_node as enqueue_sync_node,
+)
 from app.routers.internal_worker_parts import nodes, operations, remnawave, traffic
 from app.routers.internal_worker_parts.auth import require_worker_token
 
