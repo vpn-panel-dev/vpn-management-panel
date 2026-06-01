@@ -94,6 +94,10 @@ class FakeRemnawaveClient:
         self.calls.append(('get', uuid))
         return self.user
 
+    async def disable_user(self, uuid: str) -> dict[str, Any]:
+        self.calls.append(('disable', uuid))
+        return {'status': 'ok'}
+
 
 async def test_full_reconcile_paginates_and_upserts_normalized_users() -> None:
     backend = FakeBackend()
@@ -167,6 +171,19 @@ async def test_sync_user_404_fails_without_marking_deleted() -> None:
         'Remnawave user uuid-1 was not found',
         None,
     )
+
+
+async def test_disable_user_calls_remnawave_disable_action() -> None:
+    backend = FakeBackend()
+    remnawave = FakeRemnawaveClient([])
+    handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
+
+    result = await handler.handle(command('remnawave_disable_user', 'uuid-1'))
+
+    assert result.ok is True
+    assert remnawave.calls == [('disable', 'uuid-1')]
+    assert backend.calls[-1][0] == 'succeed'
+    assert backend.calls[-1][2]['disabled'] is True
 
 
 async def test_disabled_config_succeeds_without_remote_calls() -> None:

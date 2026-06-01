@@ -82,6 +82,8 @@ class CommandHandler:
                 result = await self._remnawave_full_reconcile()
             case 'remnawave_sync_user':
                 result = await self._remnawave_sync_user(command)
+            case 'remnawave_disable_user':
+                result = await self._remnawave_disable_user(command)
 
         await self._backend.succeed_operation(command.operation_id, result)
         return result
@@ -149,6 +151,18 @@ class CommandHandler:
         user = normalize_user_payload(payload)
         result = await self._backend.upsert_remnawave_users([user])
         return {'uuid': user_uuid, 'deleted': False, **result}
+
+    async def _remnawave_disable_user(self, command: WorkerCommand) -> dict[str, Any]:
+        user_uuid = self._require_node_id(command)
+        client = await self._remnawave_client()
+        if client is None:
+            return {'enabled': False, 'skipped': True, 'uuid': user_uuid}
+
+        try:
+            result = await client.disable_user(user_uuid)
+        except httpx.HTTPStatusError as exc:
+            raise RuntimeError(self._http_error_detail(exc)) from exc
+        return {'uuid': user_uuid, 'disabled': True, 'remnawave': result}
 
     async def _remnawave_client(self) -> RemnawaveClient | Any | None:
         config = await self._backend.fetch_remnawave_config()
