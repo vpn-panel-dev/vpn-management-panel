@@ -74,19 +74,22 @@ async def test_local_traffic_settings_round_trip(client: AsyncClient, auth_heade
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()
     assert data['raw_sample_retention_days'] == 90
+    assert data['peer_online_threshold_seconds'] == 180
 
     resp = await client.put(
         '/api/remnawave/local-traffic/settings',
-        json={'raw_sample_retention_days': 0},
+        json={'raw_sample_retention_days': 0, 'peer_online_threshold_seconds': 240},
         headers=auth_headers,
     )
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()
     assert data['raw_sample_retention_days'] == 0
+    assert data['peer_online_threshold_seconds'] == 240
 
     resp = await client.get('/api/remnawave/local-traffic/settings', headers=auth_headers)
     assert resp.status_code == HTTPStatus.OK
     assert resp.json()['raw_sample_retention_days'] == 0
+    assert resp.json()['peer_online_threshold_seconds'] == 240
 
 
 async def test_update_settings_preserves_secrets_when_omitted(client: AsyncClient, auth_headers):

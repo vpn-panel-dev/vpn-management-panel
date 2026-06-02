@@ -24,6 +24,7 @@ from app.models import (
     UserWithPeers,
 )
 from app.routers.api_parts.common import DB, guard_not_remnawave_managed
+from app.services.online import is_peer_online, online_threshold_seconds
 from app.services.operations import enqueue_operation, new_operation
 from app.services.users import create_local_user
 
@@ -62,6 +63,7 @@ async def get_user_or_404(user_id: str, db: DB) -> User:
 
 @router.get('/users', response_model=list[UserWithPeers])
 async def api_list_users(db: DB):
+    threshold_seconds = await online_threshold_seconds(db)
     rows = (
         (
             await db.execute(
@@ -91,6 +93,17 @@ async def api_list_users(db: DB):
     for u in rows:
         rw_brief = None
         local_traffic = local_traffic_by_user_id.get(u.id)
+        peer_briefs = [
+            PeerBrief(
+                node_id=p.node_id,
+                node_name=p.node.name,
+                status=p.status,
+                last_handshake=p.last_handshake,
+                endpoint=p.endpoint,
+                online=is_peer_online(p, threshold_seconds),
+            )
+            for p in u.peers
+        ]
         if u.remnawave_user is not None:
             rw = u.remnawave_user
             local_total = local_traffic.total_bytes if local_traffic else 0
@@ -115,15 +128,8 @@ async def api_list_users(db: DB):
         result.append(
             UserWithPeers(
                 **UserSchema.model_validate(u).model_dump(),
-                peers=[
-                    PeerBrief(
-                        node_id=p.node_id,
-                        node_name=p.node.name,
-                        status=p.status,
-                        last_handshake=p.last_handshake,
-                    )
-                    for p in u.peers
-                ],
+                peers=peer_briefs,
+                online=any(peer.online for peer in peer_briefs),
                 remnawave=rw_brief,
                 local_traffic=local_traffic,
             )

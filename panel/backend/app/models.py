@@ -114,11 +114,15 @@ class Peer(Base):
     raw_rx: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     raw_tx: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     last_handshake: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    endpoint: Mapped[str | None] = mapped_column(String, nullable=True)
 
     node: Mapped[Node] = relationship('Node', back_populates='peers')
     user: Mapped[User] = relationship('User', back_populates='peers')
     samples: Mapped[list[PeerTrafficSample]] = relationship(
         'PeerTrafficSample', back_populates='peer', cascade='all, delete-orphan'
+    )
+    endpoint_sessions: Mapped[list[PeerEndpointSession]] = relationship(
+        'PeerEndpointSession', back_populates='peer', cascade='all, delete-orphan'
     )
 
 
@@ -136,6 +140,31 @@ class PeerTrafficSample(Base):
     tx_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
     peer: Mapped[Peer] = relationship('Peer', back_populates='samples')
+
+
+class PeerEndpointSession(Base):
+    __tablename__ = 'peer_endpoint_sessions'
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    peer_id: Mapped[str] = mapped_column(
+        String, ForeignKey('peers.id', ondelete='CASCADE'), nullable=False
+    )
+    node_id: Mapped[str] = mapped_column(
+        String, ForeignKey('nodes.id', ondelete='CASCADE'), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey('users.id', ondelete='CASCADE'), nullable=False
+    )
+    endpoint: Mapped[str] = mapped_column(String, nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_handshake: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+    peer: Mapped[Peer] = relationship('Peer', back_populates='endpoint_sessions')
 
 
 class LocalAmneziawgTrafficDelta(Base):
@@ -248,6 +277,7 @@ class LocalAmneziawgTrafficSettings(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     raw_sample_retention_days: Mapped[int] = mapped_column(Integer, default=90, nullable=False)
+    peer_online_threshold_seconds: Mapped[int] = mapped_column(Integer, default=180, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )
@@ -257,8 +287,8 @@ class LocalAmneziawgTrafficSettings(Base):
 
     @classmethod
     async def get_settings(cls, db):
-        result = await db.execute(select(cls))
-        row = result.scalar_one_or_none()
+        result = await db.execute(select(cls).order_by(cls.created_at, cls.id))
+        row = result.scalars().first()
         if row is None:
             row = cls()
             db.add(row)
@@ -464,6 +494,8 @@ class NodeUpdate(BaseModel):
 
 class NodeWithStatus(NodeSchema):
     online: bool
+    online_peers_count: int = 0
+    online_threshold_seconds: int = 180
 
 
 class UserIn(BaseModel):
@@ -489,6 +521,9 @@ class PeerSchema(BaseModel):
     user_name: str | None = None
     node_name: str | None = None
     vpn_ip: str | None = None
+    endpoint: str | None = None
+    last_handshake: datetime | None = None
+    online: bool = False
 
     model_config = {'from_attributes': True}
 
@@ -498,6 +533,8 @@ class PeerBrief(BaseModel):
     node_name: str
     status: str
     last_handshake: datetime | None = None
+    endpoint: str | None = None
+    online: bool = False
 
 
 class RemnawaveUserBrief(BaseModel):
@@ -521,6 +558,7 @@ class RemnawaveUserBrief(BaseModel):
 
 class UserWithPeers(UserSchema):
     peers: list[PeerBrief] = []
+    online: bool = False
     remnawave: RemnawaveUserBrief | None = None
     local_traffic: LocalAmneziawgUsageTotals | None = None
 
@@ -606,6 +644,7 @@ class LocalAmneziawgTrafficAggregateSchema(BaseModel):
 class LocalAmneziawgTrafficSettingsSchema(BaseModel):
     id: str
     raw_sample_retention_days: int = 90
+    peer_online_threshold_seconds: int = 180
     created_at: datetime
     updated_at: datetime
 
@@ -614,6 +653,7 @@ class LocalAmneziawgTrafficSettingsSchema(BaseModel):
 
 class LocalAmneziawgTrafficSettingsIn(BaseModel):
     raw_sample_retention_days: int = Field(default=90, ge=0)
+    peer_online_threshold_seconds: int = Field(default=180, ge=1)
 
 
 class RemnawaveSettingsIn(BaseModel):

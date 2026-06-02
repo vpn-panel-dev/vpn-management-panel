@@ -14,6 +14,7 @@ from app.models import (
     LocalAmneziawgUserNodeLifetimeTraffic,
     Node,
     Peer,
+    PeerEndpointSession,
     PeerTrafficSample,
 )
 from app.schemas.worker import InterfaceResult, PeerSyncResult
@@ -69,8 +70,11 @@ async def apply_peer_result(
 ) -> PeerTrafficSample | None:
     if data.status in {'active', 'pending', 'pending_delete', 'deleted'}:
         peer.status = data.status
+    if 'endpoint' in data.model_fields_set:
+        peer.endpoint = data.endpoint
     if data.last_handshake is not None:
         peer.last_handshake = data.last_handshake
+    await _apply_peer_endpoint_session(db, peer, data, now)
     if data.rx_bytes is None or data.tx_bytes is None:
         return None
 
@@ -111,6 +115,36 @@ async def apply_peer_result(
     )
     await _apply_local_traffic_aggregates(db, peer, now, delta_rx, delta_tx)
     return sample
+
+
+async def _apply_peer_endpoint_session(
+    db: AsyncSession, peer: Peer, data: PeerSyncResult, observed_at: datetime
+) -> None:
+    if not data.endpoint:
+        return
+
+    session = await db.scalar(
+        select(PeerEndpointSession)
+        .where(PeerEndpointSession.peer_id == peer.id)
+        .order_by(PeerEndpointSession.last_seen_at.desc())
+    )
+    if session is None or session.endpoint != data.endpoint:
+        db.add(
+            PeerEndpointSession(
+                peer_id=peer.id,
+                node_id=peer.node_id,
+                user_id=peer.user_id,
+                endpoint=data.endpoint,
+                first_seen_at=observed_at,
+                last_seen_at=observed_at,
+                last_handshake=data.last_handshake,
+            )
+        )
+        return
+
+    session.last_seen_at = observed_at
+    if data.last_handshake is not None:
+        session.last_handshake = data.last_handshake
 
 
 def _counter_delta(previous: int | None, current: int) -> int:

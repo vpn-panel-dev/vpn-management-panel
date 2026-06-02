@@ -90,6 +90,7 @@ async def get_local_traffic_settings(db: DB):
 async def update_local_traffic_settings(data: LocalAmneziawgTrafficSettingsIn, db: DB):
     settings = await LocalAmneziawgTrafficSettings.get_settings(db)
     settings.raw_sample_retention_days = data.raw_sample_retention_days
+    settings.peer_online_threshold_seconds = data.peer_online_threshold_seconds
     await db.commit()
     await db.refresh(settings)
     return settings

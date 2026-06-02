@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.models import (
     AsyncOperation,
+    LocalAmneziawgTrafficSettings,
     LocalAmneziawgUserDailyTraffic,
     LocalAmneziawgUserLifetimeTraffic,
     LocalAmneziawgUserNodeDailyTraffic,
@@ -99,6 +100,8 @@ async def test_add_node_creates_peers_for_existing_users(client: AsyncClient, au
     assert peers_resp.status_code == HTTPStatus.OK
     assert len(peers_resp.json()) == 1
     assert peers_resp.json()[0]['user_name'] == 'alice'
+    assert peers_resp.json()[0]['online'] is False
+    assert peers_resp.json()[0]['endpoint'] is None
 
 
 async def test_list_nodes_after_create(client: AsyncClient, auth_headers):
@@ -115,6 +118,8 @@ async def test_list_nodes_after_create(client: AsyncClient, auth_headers):
     assert len(data) >= 1
     for node in data:
         assert 'online' in node
+        assert 'online_peers_count' in node
+        assert node['online_threshold_seconds'] == 180
     # Should have our just-created node
     assert any(n['name'] == 'n-list' for n in data)
 
@@ -233,7 +238,63 @@ async def test_list_users_with_peers(client: AsyncClient, auth_headers):
     dave = next(u for u in users if u['name'] == 'dave')
     assert dave['public_key'] is not None
     assert dave['vpn_ip'] is not None
+    assert dave['online'] is False
     assert len(dave['peers']) >= 1
+    assert dave['peers'][0]['online'] is False
+    assert dave['peers'][0]['endpoint'] is None
+
+
+async def test_online_fields_are_derived_from_peer_handshake(client: AsyncClient, auth_headers, db):
+    threshold_settings = await LocalAmneziawgTrafficSettings.get_settings(db)
+    threshold_settings.peer_online_threshold_seconds = 600
+    now = datetime.now(UTC)
+    node = Node(id='online-node', name='online-node', url='http://agent:8000', token='tok')  # noqa: S106
+    user = User(id='online-user', name='online-user')
+    peer = Peer(
+        id='online-peer',
+        node_id=node.id,
+        user_id=user.id,
+        status='active',
+        last_handshake=now - timedelta(seconds=60),
+        endpoint='203.0.113.10:54321',
+    )
+    db.add_all([node, user, peer])
+    await db.commit()
+
+    users_resp = await client.get('/api/users', headers=auth_headers)
+    nodes_resp = await client.get('/api/nodes', headers=auth_headers)
+    peers_resp = await client.get(f'/api/nodes/{node.id}/peers', headers=auth_headers)
+
+    assert users_resp.status_code == HTTPStatus.OK
+    assert nodes_resp.status_code == HTTPStatus.OK
+    assert peers_resp.status_code == HTTPStatus.OK
+    listed_user = next(row for row in users_resp.json() if row['id'] == user.id)
+    listed_node = next(row for row in nodes_resp.json() if row['id'] == node.id)
+    assert listed_user['online'] is True
+    assert listed_user['peers'][0]['online'] is True
+    assert listed_user['peers'][0]['endpoint'] == '203.0.113.10:54321'
+    assert listed_node['online_peers_count'] == 1
+    assert listed_node['online_threshold_seconds'] == 600
+    assert peers_resp.json()[0]['online'] is True
+    assert peers_resp.json()[0]['endpoint'] == '203.0.113.10:54321'
+
+
+async def test_online_fields_tolerate_duplicate_settings_rows(
+    client: AsyncClient, auth_headers, db
+):
+    db.add_all(
+        [
+            LocalAmneziawgTrafficSettings(peer_online_threshold_seconds=120),
+            LocalAmneziawgTrafficSettings(peer_online_threshold_seconds=240),
+        ]
+    )
+    await db.commit()
+
+    users_resp = await client.get('/api/users', headers=auth_headers)
+    nodes_resp = await client.get('/api/nodes', headers=auth_headers)
+
+    assert users_resp.status_code == HTTPStatus.OK
+    assert nodes_resp.status_code == HTTPStatus.OK
 
 
 async def test_list_users_includes_local_traffic_summary(client: AsyncClient, auth_headers, db):

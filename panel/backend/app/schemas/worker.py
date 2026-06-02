@@ -35,6 +35,7 @@ class InterfaceResult(BaseModel):
 class PeerSyncResult(BaseModel):
     public_key: str
     status: str | None = None
+    endpoint: str | None = None
     rx_bytes: int | None = Field(default=None, ge=0)
     tx_bytes: int | None = Field(default=None, ge=0)
     last_handshake: datetime | None = None

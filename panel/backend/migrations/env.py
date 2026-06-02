@@ -11,11 +11,10 @@ if config.config_file_name is not None:
 
 # Import all models so Alembic can see them
 from app import models  # noqa: E402, F401
-from app.database import Base  # noqa: E402
 
-target_metadata = Base.metadata
+target_metadata = models.Base.metadata
 
-DATABASE_URL = os.environ['DATABASE_URL'].replace('+asyncpg', '+psycopg2')
+DATABASE_URL = os.environ['DATABASE_URL'].replace('+asyncpg', '+psycopg2').replace('+aiosqlite', '')
 
 
 def run_migrations_offline() -> None:

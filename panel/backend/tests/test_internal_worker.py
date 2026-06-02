@@ -15,6 +15,7 @@ from app.models import (
     LocalAmneziawgUserNodeLifetimeTraffic,
     Node,
     Peer,
+    PeerEndpointSession,
     PeerTrafficSample,
     RemnawaveUser,
     User,
@@ -132,8 +133,10 @@ async def test_node_results_update_only_allowed_state(
                 {
                     'public_key': 'alice-public',
                     'status': 'active',
+                    'endpoint': '203.0.113.10:54321',
                     'rx_bytes': 100,
                     'tx_bytes': 50,
+                    'last_handshake': '2026-06-02T12:00:00Z',
                 }
             ],
         },
@@ -179,8 +182,15 @@ async def test_node_results_update_only_allowed_state(
     assert saved_node.provision_status == 'failed'
     assert saved_node.last_error == 'boom'
     assert saved_peer.status == 'active'
+    assert saved_peer.endpoint == '203.0.113.10:54321'
+    assert saved_peer.last_handshake is not None
+    assert saved_peer.last_handshake.replace(tzinfo=UTC) == datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
     assert saved_peer.raw_rx == 100
     assert saved_peer.raw_tx == 50
+    sessions = (await db.execute(select(PeerEndpointSession))).scalars().all()
+    assert len(sessions) == 1
+    assert sessions[0].endpoint == '203.0.113.10:54321'
+    assert sessions[0].peer_id == peer.id
     assert samples == []
 
 

@@ -15,6 +15,7 @@ from app.models import (
     PeerSchema,
 )
 from app.routers.api_parts.common import DB
+from app.services.online import is_peer_online, online_threshold_seconds
 from app.services.operations import enqueue_operation, new_operation, operation_response
 from app.services.users import create_pending_peers_for_node
 
@@ -23,11 +24,16 @@ router = APIRouter()
 
 @router.get('/nodes', response_model=list[NodeWithStatus])
 async def api_list_nodes(db: DB):
-    nodes = (await db.execute(select(Node))).scalars().all()
+    threshold_seconds = await online_threshold_seconds(db)
+    nodes = (await db.execute(select(Node).options(selectinload(Node.peers)))).scalars().all()
     return [
         NodeWithStatus(
             **NodeSchema.model_validate(node).model_dump(),
             online=node.health_status in {'healthy', 'online'},
+            online_peers_count=sum(
+                1 for peer in node.peers if is_peer_online(peer, threshold_seconds)
+            ),
+            online_threshold_seconds=threshold_seconds,
         )
         for node in nodes
     ]
@@ -108,6 +114,7 @@ async def api_delete_node(node_id: str, db: DB):
 
 @router.get('/nodes/{node_id}/peers', response_model=list[PeerSchema])
 async def api_node_peers(node_id: str, db: DB):
+    threshold_seconds = await online_threshold_seconds(db)
     rows = (
         (
             await db.execute(
@@ -125,6 +132,7 @@ async def api_node_peers(node_id: str, db: DB):
         s.user_name = p.user.name
         s.node_name = p.node.name
         s.vpn_ip = p.user.vpn_ip
+        s.online = is_peer_online(p, threshold_seconds)
         result.append(s)
     return result
 

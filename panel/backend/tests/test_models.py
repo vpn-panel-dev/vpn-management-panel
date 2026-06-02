@@ -65,9 +65,14 @@ def test_peer_schema():
         user_name='alice',
         node_name='node-1',
         vpn_ip='10.8.0.2',
+        endpoint='203.0.113.10:54321',
+        last_handshake=now,
+        online=True,
     )
     assert schema.status == 'active'
     assert schema.user_name == 'alice'
+    assert schema.endpoint == '203.0.113.10:54321'
+    assert schema.online is True
 
 
 async def test_async_operation_round_trip(db):

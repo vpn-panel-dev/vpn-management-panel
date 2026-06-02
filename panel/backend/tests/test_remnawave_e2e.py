@@ -169,7 +169,14 @@ async def test_full_reconcile_imports_users_and_exposes_ui_state(
     assert users_by_name['bob']['remnawave']['status'] == 'DISABLED'
     assert users_by_name['charlie']['remnawave']['traffic_used_bytes'] == 500_000
     assert users_by_name['alice']['peers'] == [
-        {'node_id': 'node-1', 'node_name': 'node-1', 'status': 'pending', 'last_handshake': None}
+        {
+            'node_id': 'node-1',
+            'node_name': 'node-1',
+            'status': 'pending',
+            'last_handshake': None,
+            'endpoint': None,
+            'online': False,
+        }
     ]
 
     log.info(

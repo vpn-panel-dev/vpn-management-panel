@@ -111,6 +111,7 @@ async def test_local_amneziawg_retention_settings_default_to_90_days(db):
     settings = await LocalAmneziawgTrafficSettings.get_settings(db)
 
     assert settings.raw_sample_retention_days == 90
+    assert settings.peer_online_threshold_seconds == 180
 
     same_settings = await LocalAmneziawgTrafficSettings.get_settings(db)
     assert same_settings.id == settings.id
