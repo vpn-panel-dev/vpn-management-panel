@@ -154,6 +154,7 @@ Node snapshot shape:
     {
       "public_key": "client public key",
       "status": "active",
+      "endpoint": "203.0.113.10:54321 | null",
       "rx_bytes": 100,
       "tx_bytes": 50,
       "last_handshake": "RFC3339 timestamp"
@@ -166,6 +167,7 @@ Node snapshot shape:
   - Response: `{"status":"ok"}` or `{"status":"failed"}`
   - On success the backend sets `node.health_status` to `online` and updates `last_seen_at` to the result handling time. This is a last-successful-sync marker, not an active heartbeat or current reachability check.
   - On failure the backend sets `node.health_status` to `offline` and stores `last_error`.
+  - Peer `endpoint` is the latest endpoint IP:port observed by the node agent from `awg show dump`; it is stored as a local inferred endpoint/session fact, not as a device or HWID identity.
   - Peer counters update local AmneziaWG accounting. If combined Remnawave imported usage plus local AmneziaWG lifetime usage reaches the imported traffic limit, this endpoint can block local peers, queue follow-up node sync for affected nodes, and enqueue `remnawave_disable_user` jobs for affected Remnawave users.
 
 - `POST /internal/worker/nodes/{node_id}/provision-result`

@@ -152,6 +152,7 @@ class FakeNode:
                 {
                     'public_key': 'pub-1',
                     'status': 'active',
+                    'endpoint': '203.0.113.10:54321',
                     'rx_bytes': 10,
                     'tx_bytes': 20,
                 }
@@ -197,6 +198,8 @@ async def test_sync_node_applies_snapshot_and_reports_success() -> None:
     assert ('start', 'op-sync_node') in backend.calls
     assert backend.calls[-1][0] == 'succeed'
     assert any(call[0] == 'sync_result' for call in backend.calls)
+    sync_reports = [call for call in backend.calls if call[0] == 'sync_result']
+    assert sync_reports[0][2]['peers'][0]['endpoint'] == '203.0.113.10:54321'
     assert any(call[0] == 'put_interface' for call in node.calls)
     assert ('delete_peer', 'http://agent.test', 'node-token', 'pub-2') in node.calls
 

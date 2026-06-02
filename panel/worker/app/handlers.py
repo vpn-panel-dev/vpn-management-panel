@@ -307,6 +307,7 @@ class CommandHandler:
                 {
                     'public_key': public_key,
                     'status': peer.get('status') or 'active',
+                    'endpoint': peer.get('endpoint'),
                     'rx_bytes': peer.get('rx_bytes'),
                     'tx_bytes': peer.get('tx_bytes'),
                     'last_handshake': peer.get('last_handshake'),
