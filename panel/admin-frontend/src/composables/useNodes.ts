@@ -132,7 +132,12 @@ export function useNodes() {
     try {
       const node = await nodesApi.addNode(formData)
       if (node) {
-        nodes.value.push({ ...node, online: false })
+        nodes.value.push({
+          ...node,
+          online: false,
+          online_peers_count: 0,
+          online_threshold_seconds: 180,
+        })
         showAdd.value = false
         toast.add({ severity: 'success', summary: 'Добавлено', detail: node.name, life: 3000 })
       }

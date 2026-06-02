@@ -7,6 +7,8 @@ export interface Node {
   server_public_key: string | null
   listen_port: number | null
   online: boolean
+  online_peers_count: number
+  online_threshold_seconds: number
   last_error: string | null
   jc: number
   jmin: number
@@ -32,6 +34,8 @@ export interface Peer {
   node_name: string
   status: string
   last_handshake: string | null
+  endpoint: string | null
+  online: boolean
 }
 
 export interface RemnawaveUserBrief {
@@ -58,6 +62,7 @@ export interface User {
   name: string
   vpn_ip: string | null
   is_blocked: boolean
+  online: boolean
   peers: Peer[]
   remnawave: RemnawaveUserBrief | null
   local_traffic?: LocalAmneziawgUsageTotals | null
@@ -109,6 +114,9 @@ export interface LocalAmneziawgUsageNodeDailyTotals extends LocalAmneziawgUsageD
 }
 
 export interface NodePeer {
+  endpoint: string | null
+  last_handshake: string | null
+  online: boolean
   user_name: string
   vpn_ip: string
   status: string
@@ -180,12 +188,14 @@ export interface RemnawaveSettings {
 export interface LocalAmneziawgTrafficSettings {
   id: string
   raw_sample_retention_days: number
+  peer_online_threshold_seconds: number
   created_at: string
   updated_at: string
 }
 
 export interface LocalAmneziawgTrafficSettingsUpdate {
   raw_sample_retention_days: number
+  peer_online_threshold_seconds: number
 }
 
 export interface RemnawaveSettingsUpdate {

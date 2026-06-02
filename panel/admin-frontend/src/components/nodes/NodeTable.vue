@@ -83,11 +83,29 @@
           </Column>
           <Column field="status" header="Статус">
             <template #body="{ data: p }">
-              <Tag
-                :severity="peerSeverity(p.status)"
-                :value="p.status"
-                style="font-size: 0.75rem"
-              />
+              <div class="node-peer-status">
+                <span
+                  :style="{
+                    display: 'inline-block',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: p.online ? 'var(--p-green-400)' : 'var(--p-surface-400)',
+                    flexShrink: 0,
+                  }"
+                />
+                <Tag
+                  :severity="peerSeverity(p.status)"
+                  :value="p.status"
+                  style="font-size: 0.75rem"
+                />
+              </div>
+            </template>
+          </Column>
+          <Column header="Endpoint">
+            <template #body="{ data: p }">
+              <code v-if="p.endpoint">{{ p.endpoint }}</code>
+              <span v-else class="dim">—</span>
             </template>
           </Column>
         </DataTable>
@@ -135,5 +153,11 @@ defineEmits<{
   color: var(--p-red-500);
   font-size: 0.9rem;
   cursor: help;
+}
+
+.node-peer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 </style>

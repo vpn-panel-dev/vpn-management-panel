@@ -285,6 +285,19 @@
               />
               <small class="section-note">По умолчанию — 90 дней. 0 отключает очистку.</small>
             </div>
+            <div class="field">
+              <label>Online threshold peer'а (сек)</label>
+              <InputNumber
+                v-model="form.peer_online_threshold_seconds"
+                :min="1"
+                :useGrouping="false"
+                style="width: 100%"
+                data-testid="peer-online-threshold"
+              />
+              <small class="section-note"
+                >Backend считает peer online по последнему handshake.</small
+              >
+            </div>
           </div>
         </section>
 
@@ -362,6 +375,7 @@ const form = reactive({
   polling_enabled: false,
   polling_interval_seconds: 300,
   raw_sample_retention_days: 90,
+  peer_online_threshold_seconds: 180,
 })
 
 const syncUserUuidValue = computed(() => syncUserUuid.value.trim())
@@ -452,6 +466,7 @@ async function loadSettings() {
     form.polling_enabled = data.polling_enabled
     form.polling_interval_seconds = data.polling_interval_seconds
     form.raw_sample_retention_days = localTrafficSettings.raw_sample_retention_days
+    form.peer_online_threshold_seconds = localTrafficSettings.peer_online_threshold_seconds
     loaded.value = true
     hydrateStatusFromSettings(data)
     void loadStatus()
@@ -486,6 +501,7 @@ async function saveSettings() {
     const data = await remnawaveApi.updateRemnawaveSettings(payload)
     const localTrafficSettings = await remnawaveApi.updateLocalTrafficSettings({
       raw_sample_retention_days: form.raw_sample_retention_days,
+      peer_online_threshold_seconds: form.peer_online_threshold_seconds,
     })
     if (!data || !localTrafficSettings) {
       throw new Error('Не удалось сохранить настройки')
@@ -495,6 +511,7 @@ async function saveSettings() {
     form.webhook_secret = ''
     hydrateStatusFromSettings(data)
     form.raw_sample_retention_days = localTrafficSettings.raw_sample_retention_days
+    form.peer_online_threshold_seconds = localTrafficSettings.peer_online_threshold_seconds
     toast.add({
       severity: 'success',
       summary: 'Сохранено',

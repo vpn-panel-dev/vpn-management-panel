@@ -2,7 +2,18 @@
   <DataTable class="desktop-table" :value="users" :loading="loading" dataKey="id" size="small">
     <template #empty>Нет пользователей.</template>
 
-    <Column field="name" header="Имя" style="min-width: 10rem" />
+    <Column field="name" header="Имя" style="min-width: 10rem">
+      <template #body="{ data }">
+        <div class="user-name-cell">
+          <span class="user-name">{{ data.name }}</span>
+          <Tag
+            :severity="data.online ? 'success' : 'secondary'"
+            :value="data.online ? 'online' : 'offline'"
+            style="font-size: 0.72rem"
+          />
+        </div>
+      </template>
+    </Column>
 
     <Column header="VPN IP" style="width: 9rem">
       <template #body="{ data }">
@@ -121,7 +132,9 @@
           <span
             :title="
               p.last_handshake
-                ? `Последний хендшейк: ${fmtHandshake(p.last_handshake)}`
+                ? `Последний хендшейк: ${fmtHandshake(p.last_handshake)}${
+                    p.endpoint ? ` · ${p.endpoint}` : ''
+                  }`
                 : 'Никогда не подключался'
             "
             :style="{
@@ -129,13 +142,12 @@
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              background: isOnline(p.last_handshake)
-                ? 'var(--p-green-400)'
-                : 'var(--p-surface-400)',
+              background: p.online ? 'var(--p-green-400)' : 'var(--p-surface-400)',
               flexShrink: 0,
             }"
           />
           <Tag :severity="peerSeverity(p.status)" :value="p.node_name" style="font-size: 0.72rem" />
+          <code v-if="p.endpoint" class="peer-endpoint">{{ p.endpoint }}</code>
         </span>
       </template>
     </Column>
@@ -270,7 +282,6 @@ import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import {
   peerSeverity,
-  isOnline,
   remnawaveSeverity,
   remnawaveBlockedReasonLabel,
   remnawaveBlockedReasonSeverity,
@@ -316,12 +327,27 @@ function formatDateTimeOrDash(iso: string | null): string {
   color: var(--p-surface-500);
 }
 
+.user-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.user-name {
+  font-weight: 650;
+}
+
 .peer-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   margin-right: 0.45rem;
   white-space: nowrap;
+}
+
+.peer-endpoint {
+  font-size: 0.7rem;
 }
 
 .row-actions {

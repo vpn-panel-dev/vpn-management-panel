@@ -14,6 +14,11 @@
             :value="user.is_blocked ? 'заблокирован' : 'активен'"
             style="font-size: 0.75rem"
           />
+          <Tag
+            :severity="user.online ? 'success' : 'secondary'"
+            :value="user.online ? 'online' : 'offline'"
+            style="font-size: 0.72rem"
+          />
           <Tag v-if="user.remnawave" severity="info" value="Remnawave" style="font-size: 0.72rem" />
           <Tag
             v-if="user.remnawave"
@@ -103,7 +108,9 @@
               <span
                 :title="
                   p.last_handshake
-                    ? `Последний хендшейк: ${fmtHandshake(p.last_handshake)}`
+                    ? `Последний хендшейк: ${fmtHandshake(p.last_handshake)}${
+                        p.endpoint ? ` · ${p.endpoint}` : ''
+                      }`
                     : 'Никогда не подключался'
                 "
                 :style="{
@@ -111,9 +118,7 @@
                   width: '8px',
                   height: '8px',
                   borderRadius: '50%',
-                  background: isOnline(p.last_handshake)
-                    ? 'var(--p-green-400)'
-                    : 'var(--p-surface-400)',
+                  background: p.online ? 'var(--p-green-400)' : 'var(--p-surface-400)',
                   flexShrink: 0,
                 }"
               />
@@ -122,6 +127,7 @@
                 :value="p.node_name"
                 style="font-size: 0.72rem"
               />
+              <code v-if="p.endpoint" class="peer-endpoint">{{ p.endpoint }}</code>
             </span>
           </div>
           <b v-else class="dim">нет</b>
@@ -219,7 +225,6 @@ import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import {
   peerSeverity,
-  isOnline,
   remnawaveSeverity,
   remnawaveBlockedReasonLabel,
   remnawaveBlockedReasonSeverity,
@@ -270,6 +275,10 @@ function formatDateTimeOrDash(iso: string | null): string {
   align-items: center;
   gap: 0.45rem;
   white-space: nowrap;
+}
+
+.peer-endpoint {
+  font-size: 0.7rem;
 }
 
 .remnawave-label {
