@@ -51,6 +51,28 @@ async def test_upsert_active_import_creates_user_peer_and_mapping(
     assert rw_user.sync_error is None
 
 
+async def test_upsert_accepts_worker_normalized_remnawave_uuid(
+    client: AsyncClient, db, worker_headers, seeded_node
+):
+    _ = seeded_node
+    profile = _profile(username='worker-alice', active_internal_squads=['squad-a'])
+    profile.pop('uuid')
+    profile['remnawave_uuid'] = 'worker-rw-uuid'
+    profile['remnawave_id'] = 42
+
+    resp = await client.post(
+        '/internal/worker/remnawave/users/upsert',
+        json=[profile],
+        headers=worker_headers,
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    assert rw_user.remnawave_uuid == 'worker-rw-uuid'
+    assert rw_user.remnawave_id == 42
+    assert rw_user.active_internal_squads_json == '["squad-a"]'
+
+
 async def test_upsert_disabled_and_expired_profiles_are_blocked(
     client: AsyncClient, db, worker_headers, seeded_node
 ):

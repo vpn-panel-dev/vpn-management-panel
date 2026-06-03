@@ -1,7 +1,8 @@
+import json
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 
 class OperationResult(BaseModel):
@@ -59,8 +60,8 @@ class RemnawaveReconcileCompleteIn(BaseModel):
 
 
 class RemnawaveUserIn(BaseModel):
-    uuid: str
-    id: int | None = None
+    uuid: str = Field(validation_alias=AliasChoices('uuid', 'remnawave_uuid'))
+    id: int | None = Field(default=None, validation_alias=AliasChoices('id', 'remnawave_id'))
     short_uuid: str | None = None
     username: str
     status: str
@@ -79,5 +80,15 @@ class RemnawaveUserIn(BaseModel):
     last_connected_node_uuid: str | None = None
     hwid_device_limit: int | None = None
     external_squad_uuid: str | None = None
-    active_internal_squads_json: str | None = None
+    active_internal_squads_json: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices('active_internal_squads_json', 'active_internal_squads'),
+    )
     subscription_url: str | None = None
+
+    @field_validator('active_internal_squads_json', mode='before')
+    @classmethod
+    def _serialize_active_internal_squads(cls, value: Any) -> str | None:
+        if value is None or isinstance(value, str):
+            return value
+        return json.dumps(value, separators=(',', ':'))
