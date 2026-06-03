@@ -660,7 +660,7 @@ class RemnawaveSettingsIn(BaseModel):
     base_url: str | None = None
     enabled: bool = False
     polling_enabled: bool = False
-    polling_interval_seconds: int = 300
+    polling_interval_seconds: int = Field(default=300, ge=60)
     api_token: str | None = None
     webhook_secret: str | None = None
     subscription_url: str | None = None

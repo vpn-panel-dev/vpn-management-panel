@@ -69,6 +69,18 @@ async def test_update_settings(client: AsyncClient, auth_headers):
     assert data['subscription_url'] == 'https://sub.example.com'
 
 
+async def test_update_settings_rejects_polling_interval_below_minimum(
+    client: AsyncClient, auth_headers
+):
+    resp = await client.put(
+        '/api/remnawave/settings',
+        json={'polling_interval_seconds': 59},
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
 async def test_local_traffic_settings_round_trip(client: AsyncClient, auth_headers):
     resp = await client.get('/api/remnawave/local-traffic/settings', headers=auth_headers)
     assert resp.status_code == HTTPStatus.OK
@@ -231,9 +243,11 @@ async def test_trigger_sync_user(client: AsyncClient, db, auth_headers):
     assert resp.status_code == HTTPStatus.ACCEPTED
     assert resp.json()['operation_id']
     enqueue.assert_awaited_once()
-    assert enqueue.await_args.args == (user_uuid,)
-    assert 'operation_id' in enqueue.await_args.kwargs
-    assert 'idempotency_key' in enqueue.await_args.kwargs
+    await_args = enqueue.await_args
+    assert await_args is not None
+    assert await_args.args == (user_uuid,)
+    assert 'operation_id' in await_args.kwargs
+    assert 'idempotency_key' in await_args.kwargs
 
     operation = await db.scalar(
         select(AsyncOperation).where(AsyncOperation.kind == 'remnawave_sync_user')
@@ -376,6 +390,47 @@ async def test_get_status_includes_reconcile_observability(client: AsyncClient, 
     assert data['last_tested_at'] is None
     assert data['last_test_status'] is None
     assert data['last_test_error'] is None
+
+
+async def test_get_status_hides_failed_reconcile_older_than_success(
+    client: AsyncClient,
+    db,
+    auth_headers,
+):
+    await client.put(
+        '/api/remnawave/settings',
+        json={'base_url': 'https://remnawave.example.com', 'enabled': True},
+        headers=auth_headers,
+    )
+
+    failed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    successful_at = datetime(2026, 1, 2, tzinfo=UTC)
+    db.add(
+        AsyncOperation(
+            id='older-reconcile-failed',
+            kind='remnawave_full_reconcile',
+            target_type='remnawave',
+            target_id=None,
+            status='failed',
+            error='old sync exploded',
+            idempotency_key='older-reconcile-failed-key',
+            updated_at=failed_at,
+            finished_at=failed_at,
+        )
+    )
+
+    settings = await db.scalar(select(RemnawaveSettings))
+    assert settings is not None
+    settings.last_synced_at = successful_at
+    await db.commit()
+
+    resp = await client.get('/api/remnawave/status', headers=auth_headers)
+
+    assert resp.status_code == HTTPStatus.OK
+    data = resp.json()
+    assert data['last_successful_reconcile_at'] == '2026-01-02T00:00:00'
+    assert data['last_failed_reconcile_at'] is None
+    assert data['last_error'] is None
 
 
 async def test_settings_never_returns_decrypted_token(client: AsyncClient, auth_headers):

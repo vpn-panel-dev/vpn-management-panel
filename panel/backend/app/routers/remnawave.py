@@ -47,6 +47,11 @@ async def _remnawave_status(db: AsyncSession) -> dict[str, object]:
                 .where(
                     AsyncOperation.kind == 'remnawave_full_reconcile',
                     AsyncOperation.status.in_({'failed', 'enqueue_failed'}),
+                    *(
+                        (AsyncOperation.updated_at > settings.last_synced_at,)
+                        if settings.last_synced_at
+                        else ()
+                    ),
                 )
                 .order_by(AsyncOperation.updated_at.desc())
             )
