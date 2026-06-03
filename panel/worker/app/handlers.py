@@ -110,7 +110,7 @@ class CommandHandler:
                 str(user['remnawave_uuid']) for user in users if user.get('remnawave_uuid')
             )
             result = await self._backend.upsert_remnawave_users(users)
-            upserted += int(result.get('upserted', len(users)))
+            upserted += self._upserted_count(result, len(users))
             fetched += len(users)
             pages += 1
             start += len(users)
@@ -151,6 +151,14 @@ class CommandHandler:
         user = normalize_user_payload(payload)
         result = await self._backend.upsert_remnawave_users([user])
         return {'uuid': user_uuid, 'deleted': False, **result}
+
+    def _upserted_count(self, result: dict[str, Any], fallback: int) -> int:
+        upserted = result.get('upserted')
+        if isinstance(upserted, list):
+            return len(upserted)
+        if upserted is None:
+            return fallback
+        return int(upserted)
 
     async def _remnawave_disable_user(self, command: WorkerCommand) -> dict[str, Any]:
         user_uuid = self._require_node_id(command)

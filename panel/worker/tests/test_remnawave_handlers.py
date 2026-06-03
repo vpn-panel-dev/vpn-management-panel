@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -36,8 +36,9 @@ def remnawave_user(uuid: str, username: str) -> dict[str, Any]:
 
 
 class FakeBackend:
-    def __init__(self, *, enabled: bool = True) -> None:
+    def __init__(self, *, enabled: bool = True, list_upserted: bool = False) -> None:
         self.calls: list[tuple[Any, ...]] = []
+        self.list_upserted = list_upserted
         self.config = {
             'enabled': enabled,
             'base_url': 'https://remnawave.test',
@@ -69,6 +70,8 @@ class FakeBackend:
 
     async def upsert_remnawave_users(self, users: list[dict[str, Any]]) -> dict[str, Any]:
         self.calls.append(('upsert', users))
+        if self.list_upserted:
+            return {'upserted': [user['remnawave_uuid'] for user in users]}
         return {'upserted': len(users)}
 
     async def mark_remnawave_user_deleted(self, uuid: str) -> dict[str, Any]:
@@ -123,6 +126,7 @@ async def test_full_reconcile_paginates_and_upserts_normalized_users() -> None:
     assert [call[1][0]['remnawave_uuid'] for call in upserts] == ['uuid-1', 'uuid-2']
     assert backend.calls[-1][0] == 'succeed'
     assert backend.calls[-1][2]['users'] == EXPECTED_RECONCILED_USERS
+    assert result.result is not None
     assert result.result['completion'] == {'status': 'ok', 'affected_node_ids': ['node-1']}
 
 
@@ -140,6 +144,25 @@ async def test_full_reconcile_stops_on_empty_page() -> None:
         'complete',
         {'pages': 0, 'seen_uuids': [], 'total': 100, 'upserted': 0, 'users': 0},
     ) in backend.calls
+
+
+async def test_full_reconcile_counts_backend_upserted_uuid_list() -> None:
+    backend = FakeBackend(list_upserted=True)
+    remnawave = FakeRemnawaveClient(
+        [
+            {
+                'users': [remnawave_user('uuid-1', 'alice'), remnawave_user('uuid-2', 'bob')],
+                'total': 2,
+            }
+        ]
+    )
+    handler = CommandHandler(backend, object(), lambda _base_url, _token: remnawave)
+
+    result = await handler.handle(command('remnawave_full_reconcile'))
+
+    assert result.ok is True
+    complete_call = next(call for call in backend.calls if call[0] == 'complete')
+    assert complete_call[1]['upserted'] == EXPECTED_RECONCILED_TOTAL
 
 
 async def test_sync_user_upserts_single_user_idempotently() -> None:
@@ -239,7 +262,9 @@ async def test_scheduler_does_not_enqueue_when_disabled_or_not_due() -> None:
     backend = PollingBackend([{'enabled': False, 'due': True}, {'enabled': True, 'due': False}])
     queue = FakeQueue()
 
-    task = asyncio.create_task(schedule_remnawave_reconcile(backend, queue, interval_sec=0))
+    task = asyncio.create_task(
+        schedule_remnawave_reconcile(cast(Any, backend), cast(Any, queue), interval_sec=0)
+    )
     await backend.wait_for_calls(EXPECTED_SCHEDULER_SKIPPED_STATES)
     task.cancel()
 
@@ -250,7 +275,9 @@ async def test_scheduler_enqueues_when_enabled_and_due() -> None:
     backend = PollingBackend([{'enabled': True, 'due': True}])
     queue = FakeQueue()
 
-    task = asyncio.create_task(schedule_remnawave_reconcile(backend, queue, interval_sec=0))
+    task = asyncio.create_task(
+        schedule_remnawave_reconcile(cast(Any, backend), cast(Any, queue), interval_sec=0)
+    )
     await queue.wait_for_commands(EXPECTED_SCHEDULER_COMMANDS)
     task.cancel()
 
