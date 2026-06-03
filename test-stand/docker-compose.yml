@@ -1,0 +1,235 @@
+name: amnezia-test-stand
+
+services:
+  frontend:
+    build: ../panel/admin-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8088:80"
+    depends_on:
+      - panel
+      - user-frontend
+
+  user-frontend:
+    build: ../panel/user-frontend
+    restart: unless-stopped
+    depends_on:
+      - panel
+
+  rabbitmq:
+    image: rabbitmq:4-alpine
+    hostname: rabbitmq
+    restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    environment:
+      POSTGRES_USER: amnezia
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: amnezia
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amnezia"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  panel:
+    build: ../panel/backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://amnezia:secret@db:5432/amnezia
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      WORKER_TOKEN: test-stand-worker-token
+      SYNC_INTERVAL_SEC: "300"
+      ADMIN_PASSWORD: admin
+      SECRET_KEY: test-stand-secret-key-change-before-public-use
+      REMNAWAVE_SECRET_KEY: test-stand-remnawave-secret-key-32b
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/openapi.json')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  panel-worker:
+    build: ../panel/worker
+    restart: unless-stopped
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      BACKEND_INTERNAL_URL: http://panel:8080
+      WORKER_TOKEN: test-stand-worker-token
+      SYNC_INTERVAL_SEC: "300"
+      WORKER_CONCURRENCY: "4"
+    depends_on:
+      panel:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  remna:
+    image: remnawave/backend:2
+    restart: unless-stopped
+    volumes:
+      - remna_valkey_socket:/var/run/valkey
+    environment:
+      APP_PORT: "3000"
+      METRICS_PORT: "3001"
+      API_INSTANCES: "1"
+      DATABASE_URL: postgresql://postgres:postgres@remna-db:5432/postgres
+      REDIS_SOCKET: /var/run/valkey/valkey.sock
+      JWT_AUTH_SECRET: test-stand-remnawave-auth-secret-64-characters-local-only-000001
+      JWT_API_TOKENS_SECRET: test-stand-remnawave-api-token-secret-64-characters-local-000001
+      FRONT_END_DOMAIN: "*"
+      PANEL_DOMAIN: localhost:18081
+      SUB_PUBLIC_DOMAIN: localhost:18081/api/sub
+      IS_DOCS_ENABLED: "true"
+      SWAGGER_PATH: /docs
+      SCALAR_PATH: /scalar
+      METRICS_USER: admin
+      METRICS_PASS: test-stand-remnawave-metrics-password
+      WEBHOOK_ENABLED: "false"
+      WEBHOOK_URL: http://panel:8080/api/remnawave/webhook
+      WEBHOOK_SECRET_HEADER: teststandRemnawaveWebhookSecretHeaderLocalOnly000000000000
+      BANDWIDTH_USAGE_NOTIFICATIONS_ENABLED: "false"
+      NOT_CONNECTED_USERS_NOTIFICATIONS_ENABLED: "false"
+      IS_TELEGRAM_NOTIFICATIONS_ENABLED: "false"
+      TELEGRAM_BOT_TOKEN: test-stand-disabled
+      TELEGRAM_NOTIFY_USERS: test-stand-disabled
+      TELEGRAM_NOTIFY_NODES: test-stand-disabled
+      TELEGRAM_NOTIFY_CRM: test-stand-disabled
+      TELEGRAM_NOTIFY_SERVICE: test-stand-disabled
+      TELEGRAM_NOTIFY_TBLOCKER: test-stand-disabled
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    depends_on:
+      remna-db:
+        condition: service_healthy
+      remna-redis:
+        condition: service_healthy
+
+  remna-proxy:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./remna_nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:18081:8080"
+    depends_on:
+      remna:
+        condition: service_healthy
+
+  remna-db:
+    image: postgres:17.6
+    restart: unless-stopped
+    volumes:
+      - remna_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      TZ: UTC
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  remna-redis:
+    image: valkey/valkey:9-alpine
+    restart: unless-stopped
+    volumes:
+      - remna_valkey_socket:/var/run/valkey
+    command: >
+      valkey-server
+      --save ""
+      --appendonly no
+      --maxmemory-policy noeviction
+      --loglevel warning
+      --unixsocket /var/run/valkey/valkey.sock
+      --unixsocketperm 777
+      --port 0
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-s", "/var/run/valkey/valkey.sock", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  node:
+    build: ../node
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv6.conf.all.forwarding=1
+    volumes:
+      - node_config:/etc/amnezia/amneziawg
+    ports:
+      - "127.0.0.1:51821:51820/udp"
+      - "127.0.0.1:18000:8000"
+    environment:
+      WG_INTERFACE: awg0
+      AGENT_TOKEN: test-stand-node-token
+      SERVER_ENDPOINT: 127.0.0.1:51821
+      WG_CONFIG: /etc/amnezia/amneziawg/awg0.conf
+
+  seed:
+    build: ../panel/backend
+    restart: "no"
+    command: ["python", "/seed/seed.py"]
+    volumes:
+      - ./seed.py:/seed/seed.py:ro
+    environment:
+      PANEL_URL: http://panel:8080
+      ADMIN_PASSWORD: admin
+      DEMO_NODE_NAME: Local demo node
+      DEMO_NODE_URL: http://node:8000
+      DEMO_NODE_AGENT_URL: http://node:8000
+      DEMO_NODE_TOKEN: test-stand-node-token
+      DEMO_NODE_ENDPOINT: 127.0.0.1:51821
+      REMNA_BASE_URL: http://remna-proxy:8080
+      REMNA_PUBLIC_BASE_URL: http://localhost:18081
+      REMNA_HEALTH_URL: http://remna:3001/health
+      REMNA_ADMIN_USERNAME: admin
+      REMNA_ADMIN_PASSWORD: TestStandRemnawaveAdmin123
+      REMNA_API_TOKEN_NAME: amnezia-test-stand
+      REMNA_WEBHOOK_SECRET: test-stand-remna-webhook-secret
+      REMNA_EXPECTED_USERS: "3"
+      DEMO_USERS: alice,bob,charlie
+      DEMO_BLOCKED_USERS: charlie
+    depends_on:
+      panel:
+        condition: service_healthy
+      panel-worker:
+        condition: service_started
+      node:
+        condition: service_started
+      remna-proxy:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  node_config:
+  remna_db_data:
+  remna_valkey_socket:
