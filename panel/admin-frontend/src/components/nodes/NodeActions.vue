@@ -2,7 +2,7 @@
   <div class="row-actions">
     <Button
       icon="pi pi-refresh"
-      :label="mobile ? 'Sync' : undefined"
+      :label="mobile ? 'Применить конфиг' : undefined"
       text
       size="small"
       severity="secondary"
@@ -59,5 +59,9 @@ defineEmits<{
   gap: 0.15rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.row-actions :deep(.p-button) {
+  border-radius: 999px;
 }
 </style>

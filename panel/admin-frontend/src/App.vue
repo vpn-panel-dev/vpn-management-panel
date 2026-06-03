@@ -5,11 +5,17 @@
   <template v-else>
     <div class="layout">
       <header class="topbar">
-        <span class="brand">AmneziaWG Panel</span>
-        <nav>
-          <RouterLink to="/nodes">Ноды</RouterLink>
-          <RouterLink to="/users">Пользователи</RouterLink>
-          <RouterLink to="/integrations/remnawave">Remnawave</RouterLink>
+        <div class="brand-block">
+          <span class="brand-mark">AWG</span>
+          <div>
+            <span class="brand">Amnezia Ops</span>
+            <span class="brand-subtitle">VPN control desk</span>
+          </div>
+        </div>
+        <nav aria-label="Основная навигация">
+          <RouterLink to="/nodes"><i class="pi pi-server" /> Ноды</RouterLink>
+          <RouterLink to="/users"><i class="pi pi-users" /> Пользователи</RouterLink>
+          <RouterLink to="/integrations/remnawave"><i class="pi pi-sync" /> Remnawave</RouterLink>
         </nav>
         <div class="topbar-actions">
           <Button
@@ -96,15 +102,10 @@ function logout() {
 
 body {
   margin: 0;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: 'Avenir Next Condensed', 'DIN Alternate', 'Trebuchet MS', sans-serif;
   background: var(--app-bg);
   color: var(--app-text);
+  font-variant-numeric: tabular-nums;
 }
 
 body::before {
@@ -113,81 +114,151 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(
-      circle at 14% 10%,
-      color-mix(in srgb, var(--p-primary-300) 34%, transparent),
-      transparent 34rem
+  background-image: linear-gradient(var(--app-gridline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--app-gridline) 1px, transparent 1px),
+    radial-gradient(
+      circle at 18% 14%,
+      color-mix(in srgb, var(--app-accent) 18%, transparent),
+      transparent 30rem
     ),
     radial-gradient(
-      circle at 82% 6%,
-      color-mix(in srgb, var(--p-cyan-300) 24%, transparent),
-      transparent 28rem
+      circle at 90% 10%,
+      color-mix(in srgb, var(--app-cyan) 16%, transparent),
+      transparent 26rem
     ),
     linear-gradient(135deg, var(--app-bg), var(--app-bg-accent));
+  background-size:
+    42px 42px,
+    42px 42px,
+    auto,
+    auto,
+    auto;
 }
 
 .layout {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 17rem minmax(0, 1fr);
   min-height: 100vh;
 }
 
 .topbar {
   display: flex;
-  align-items: center;
-  gap: 2rem;
-  padding: 0 1.5rem;
-  height: 4rem;
-  background: var(--app-shell);
-  border-bottom: 1px solid var(--app-border);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
-  flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 10;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-5);
+  min-height: 100vh;
+  padding: var(--app-space-5) var(--app-space-4);
+  background: linear-gradient(
+    180deg,
+    var(--app-shell),
+    color-mix(in srgb, var(--app-shell-solid) 82%, transparent)
+  );
+  border-right: 1px solid var(--app-border-strong);
+  backdrop-filter: blur(18px) saturate(130%);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+.brand-block {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  width: 100%;
+  align-items: center;
+}
+
+.brand-mark {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg,
+    var(--app-accent),
+    color-mix(in srgb, var(--app-cyan) 70%, #000)
+  );
+  color: #10120f;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--app-accent) 20%, transparent);
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 1rem;
+  display: block;
+  font-weight: 900;
+  font-size: 1.05rem;
   color: var(--app-text);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.brand-subtitle {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--app-text-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 nav {
-  display: flex;
-  gap: 0.25rem;
+  display: grid;
+  gap: var(--app-space-2);
+  width: 100%;
 }
 
 nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
   text-decoration: none;
   color: var(--app-text-muted);
-  padding: 0.35rem 0.85rem;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 600;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-md);
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   transition:
     background 0.15s,
-    color 0.15s;
+    color 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
 }
 
 nav a:hover {
   background: var(--app-hover);
   color: var(--app-text);
+  border-color: var(--app-border);
+  transform: translateX(2px);
 }
 
 nav a.router-link-active {
-  background: linear-gradient(135deg, var(--p-primary-500), var(--p-primary-600));
-  color: #fff;
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.2);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--app-accent) 18%, transparent),
+    color-mix(in srgb, var(--app-cyan) 13%, transparent)
+  );
+  color: var(--app-text);
+  border-color: color-mix(in srgb, var(--app-accent) 42%, var(--app-border));
+  box-shadow:
+    inset 3px 0 0 var(--app-accent),
+    0 10px 26px rgba(0, 0, 0, 0.13);
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  margin-left: auto;
+  gap: 0.35rem;
+  width: 100%;
+  margin-top: auto;
+  padding-top: var(--app-space-4);
+  border-top: 1px solid var(--app-border);
 }
 
 .theme-btn {
@@ -207,16 +278,16 @@ nav a.router-link-active {
 }
 
 .content {
-  flex: 1;
-  padding: 2rem 1.5rem;
-  max-width: 1400px;
+  min-width: 0;
+  padding: clamp(1rem, 2.4vw, 2.5rem);
+  max-width: 1560px;
   width: 100%;
   margin: 0 auto;
 }
 
 .p-datatable {
-  border: 1px solid var(--app-border);
-  border-radius: 18px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-lg);
   overflow: hidden;
   background: var(--app-shell-solid);
   box-shadow: var(--app-shadow);
@@ -231,12 +302,12 @@ nav a.router-link-active {
 }
 
 .p-datatable .p-datatable-thead > tr > th {
-  background: color-mix(in srgb, var(--app-shell-solid) 84%, var(--p-primary-100));
+  background: color-mix(in srgb, var(--app-shell-solid) 78%, var(--app-accent) 10%);
   border-color: var(--app-border);
   color: var(--app-text-muted);
-  font-size: 0.76rem;
-  font-weight: 750;
-  letter-spacing: 0.045em;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
@@ -249,7 +320,7 @@ nav a.router-link-active {
 }
 
 .p-datatable .p-datatable-row-expansion > td {
-  background: color-mix(in srgb, var(--app-shell-solid) 78%, var(--p-primary-50));
+  background: color-mix(in srgb, var(--app-shell-solid) 82%, var(--app-cyan) 8%);
 }
 
 .p-dialog,
@@ -259,35 +330,71 @@ nav a.router-link-active {
   box-shadow: var(--app-shadow);
 }
 
+.p-button {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.p-tag {
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.p-inputtext,
+.p-inputnumber-input,
+.p-password-input,
+.p-textarea {
+  background: color-mix(in srgb, var(--app-surface-raised) 92%, transparent);
+  border-color: var(--app-border-strong);
+  color: var(--app-text);
+}
+
 @media (max-width: 760px) {
+  .layout {
+    display: block;
+  }
+
   .topbar {
-    height: auto;
+    position: sticky;
     min-height: 4rem;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     flex-wrap: wrap;
     gap: 0.7rem 1rem;
     padding: 0.75rem 1rem;
+    border-right: none;
+    border-bottom: 1px solid var(--app-border-strong);
   }
 
-  .brand {
+  .brand-block {
     flex: 1 1 auto;
     min-width: 12rem;
-    line-height: 2rem;
   }
 
   nav {
     order: 3;
     width: 100%;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
     padding-bottom: 0.1rem;
   }
 
   nav a {
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.55rem 0.35rem;
+    font-size: 0.78rem;
     white-space: nowrap;
   }
 
   .topbar-actions {
+    width: auto;
     margin-left: 0;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
 
   .content {

@@ -1,7 +1,23 @@
 <template>
   <div class="login-page">
+    <section class="login-brief" aria-label="Описание панели">
+      <span class="page-kicker">secure operations</span>
+      <h1>VPN control desk</h1>
+      <p>
+        Управление нодами, пользователями, конфигами и Remnawave-синхронизацией из одной
+        операторской панели.
+      </p>
+      <div class="login-signals">
+        <span><i class="pi pi-server" /> Ноды</span>
+        <span><i class="pi pi-users" /> Пользователи</span>
+        <span><i class="pi pi-shield" /> Конфиги</span>
+      </div>
+    </section>
     <div class="login-card">
-      <div class="login-title">AmneziaWG Panel</div>
+      <div class="login-title">
+        <span>AmneziaWG</span>
+        <strong>Вход оператора</strong>
+      </div>
       <form class="login-form" @submit.prevent="submit">
         <div class="field">
           <label for="password">Пароль</label>
@@ -54,41 +70,103 @@ async function submit() {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
   align-items: center;
-  justify-content: center;
-  background: radial-gradient(
-      circle at 25% 20%,
-      color-mix(in srgb, var(--p-primary-300) 32%, transparent),
-      transparent 30rem
-    ),
+  gap: clamp(1.5rem, 6vw, 5rem);
+  background: radial-gradient(circle at 18% 20%, var(--app-accent-soft), transparent 30rem),
     linear-gradient(135deg, var(--app-bg), var(--app-bg-accent));
-  padding: 1.5rem;
+  padding: clamp(1.2rem, 5vw, 5rem);
+}
+
+.login-brief {
+  max-width: 46rem;
+}
+
+.login-brief h1 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: clamp(3rem, 8vw, 6.5rem);
+  font-weight: 950;
+  line-height: 0.88;
+  letter-spacing: -0.07em;
+  text-transform: uppercase;
+}
+
+.login-brief p {
+  max-width: 34rem;
+  margin: 1.2rem 0 0;
+  color: var(--app-text-muted);
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.login-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+}
+
+.login-signals span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 999px;
+  background: var(--app-shell);
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .login-card {
-  background: var(--app-shell);
-  border: 1px solid var(--app-border);
-  border-radius: 22px;
-  padding: 2.5rem 2rem;
+  background: linear-gradient(180deg, var(--app-shell), var(--app-shell-solid));
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-lg);
+  padding: 2rem;
   width: 100%;
-  max-width: 22rem;
   box-shadow: var(--app-shadow);
   backdrop-filter: blur(18px);
 }
 
 .login-title {
-  font-size: 1.15rem;
-  font-weight: 700;
+  display: grid;
+  gap: 0.25rem;
   color: var(--app-text);
   margin-bottom: 1.75rem;
-  text-align: center;
-  letter-spacing: 0.02em;
+}
+
+.login-title span {
+  color: var(--app-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.login-title strong {
+  font-size: 1.45rem;
+  letter-spacing: -0.04em;
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+@media (max-width: 780px) {
+  .login-page {
+    grid-template-columns: 1fr;
+    align-content: center;
+  }
+
+  .login-brief h1 {
+    font-size: clamp(2.4rem, 14vw, 4.2rem);
+  }
 }
 </style>

@@ -1,7 +1,14 @@
 <template>
   <div>
     <div class="page-header">
-      <h2>Remnawave</h2>
+      <div>
+        <span class="page-kicker"><i class="pi pi-sync" /> Integration control</span>
+        <h2>Remnawave</h2>
+        <p class="page-description">
+          Наблюдение за reconcile, ручная синхронизация пользователей и настройка секретов
+          интеграции.
+        </p>
+      </div>
     </div>
 
     <div v-if="loading" class="settings-card muted-card">Загрузка настроек…</div>

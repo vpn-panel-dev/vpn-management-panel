@@ -11,7 +11,12 @@
           to="/nodes"
           style="padding-left: 0; margin-bottom: 0.35rem"
         />
+        <span class="page-kicker"><i class="pi pi-sliders-h" /> Node profile</span>
         <h2>Настройки ноды</h2>
+        <p class="page-description">
+          Изменение агентского подключения и AWG-параметров. Сохранение сразу запускает
+          перепровижонинг.
+        </p>
       </div>
       <Tag
         v-if="node"

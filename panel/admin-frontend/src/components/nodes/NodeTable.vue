@@ -7,7 +7,13 @@
     dataKey="id"
     size="small"
   >
-    <template #empty>Нет нод. Добавьте первую.</template>
+    <template #empty>
+      <div class="table-empty-state">
+        <i class="pi pi-server" />
+        <strong>Флот нод пуст</strong>
+        <span>Добавьте первый VPN-узел, чтобы начать провижонинг пользователей.</span>
+      </div>
+    </template>
 
     <Column expander style="width: 3rem" />
 
@@ -67,14 +73,14 @@
     </Column>
 
     <template #expansion="{ data }">
-      <div style="padding: 0.75rem 1rem">
+      <div class="node-expansion">
         <DataTable
           :value="peersCache[data.id]"
           :loading="!peersCache[data.id]"
           size="small"
-          style="max-width: 600px"
+          class="peer-table"
         >
-          <template #empty>Нет пиров.</template>
+          <template #empty>Пиры ещё не назначены.</template>
           <Column field="user_name" header="Пользователь" />
           <Column field="vpn_ip" header="IP">
             <template #body="{ data: p }">
@@ -146,7 +152,8 @@ defineEmits<{
 }
 
 .node-name {
-  font-weight: 650;
+  font-weight: 900;
+  letter-spacing: 0.01em;
 }
 
 .node-error-icon {
@@ -159,5 +166,14 @@ defineEmits<{
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+}
+
+.node-expansion {
+  padding: 0.9rem 1rem;
+}
+
+.peer-table {
+  max-width: 720px;
+  box-shadow: none;
 }
 </style>

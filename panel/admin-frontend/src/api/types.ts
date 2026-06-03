@@ -60,12 +60,45 @@ export interface RemnawaveUserBrief {
 export interface User {
   id: string
   name: string
+  created_at?: string
+  public_key?: string | null
   vpn_ip: string | null
   is_blocked: boolean
   online: boolean
   peers: Peer[]
   remnawave: RemnawaveUserBrief | null
   local_traffic?: LocalAmneziawgUsageTotals | null
+}
+
+export type UserSourceFilter = 'all' | 'local' | 'remnawave'
+export type UserStatusFilter = 'all' | 'active' | 'blocked' | 'expired' | 'expiring' | 'sync_issues'
+export type UserSortKey = 'name' | 'status' | 'source' | 'traffic' | 'expiration' | 'sync'
+
+export interface UserListQuery {
+  search: string
+  source: UserSourceFilter
+  status: UserStatusFilter
+  sort: UserSortKey
+  page: number
+  pageSize: number
+}
+
+export interface UserListFacets {
+  total: number
+  online: number
+  blocked: number
+  local: number
+  remnawave: number
+  syncIssues: number
+  expiring: number
+}
+
+export interface UserListResponse {
+  items: User[]
+  total: number
+  page: number
+  pageSize: number
+  facets: UserListFacets
 }
 
 export interface TrafficPoint {
