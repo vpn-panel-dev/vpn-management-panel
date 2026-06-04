@@ -20,6 +20,7 @@ from app.remnawave_client import (
 
 NodeLockMap = defaultdict[str, asyncio.Lock]
 RemnawaveClientFactory = Callable[[str, str], RemnawaveClient | Any]
+OperationHandler = Callable[[WorkerCommand], Awaitable[dict[str, Any]]]
 
 
 class CommandHandler:
@@ -33,6 +34,15 @@ class CommandHandler:
         self._node_client = node_client
         self._remnawave_client_factory = remnawave_client_factory
         self._node_locks: NodeLockMap = defaultdict(asyncio.Lock)
+        self._operation_handlers: dict[str, OperationHandler] = {
+            'sync_all': self._handle_sync_all,
+            'sync_node': self._sync_node,
+            'provision_node': self._provision_node,
+            'cleanup_raw_traffic_samples': self._cleanup_raw_traffic_samples,
+            'remnawave_full_reconcile': self._handle_remnawave_full_reconcile,
+            'remnawave_sync_user': self._remnawave_sync_user,
+            'remnawave_disable_user': self._remnawave_disable_user,
+        }
 
     async def handle(self, command: WorkerCommand) -> CommandResult:
         try:
@@ -69,24 +79,22 @@ class CommandHandler:
                 return None
             raise
 
-        match command.command:
-            case 'sync_all':
-                result = await self._sync_all()
-            case 'sync_node':
-                result = await self._sync_node(command)
-            case 'provision_node':
-                result = await self._provision_node(command)
-            case 'cleanup_raw_traffic_samples':
-                result = await self._backend.cleanup_raw_traffic_samples()
-            case 'remnawave_full_reconcile':
-                result = await self._remnawave_full_reconcile()
-            case 'remnawave_sync_user':
-                result = await self._remnawave_sync_user(command)
-            case 'remnawave_disable_user':
-                result = await self._remnawave_disable_user(command)
+        result = await self._operation_handlers[command.command](command)
 
         await self._backend.succeed_operation(command.operation_id, result)
         return result
+
+    async def _handle_sync_all(self, command: WorkerCommand) -> dict[str, Any]:
+        _ = command
+        return await self._sync_all()
+
+    async def _cleanup_raw_traffic_samples(self, command: WorkerCommand) -> dict[str, Any]:
+        _ = command
+        return await self._backend.cleanup_raw_traffic_samples()
+
+    async def _handle_remnawave_full_reconcile(self, command: WorkerCommand) -> dict[str, Any]:
+        _ = command
+        return await self._remnawave_full_reconcile()
 
     async def _remnawave_full_reconcile(self) -> dict[str, Any]:
         client = await self._remnawave_client()

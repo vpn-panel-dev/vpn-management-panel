@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from .queue import PROVISION_ROUTING_KEY, SYNC_ROUTING_KEY, publish_command
+from .queue import publish_command, routing_key_for_command
 
 
 def _now() -> str:
@@ -42,7 +42,7 @@ def provision_node(node_id: str, **overrides: Any) -> dict[str, Any]:
 
 async def enqueue_sync_all(*, url: str | None = None, **overrides: Any) -> dict[str, Any]:
     payload = sync_all(**overrides)
-    await publish_command(payload, SYNC_ROUTING_KEY, url=url)
+    await publish_command(payload, routing_key_for_command('sync_all'), url=url)
     return payload
 
 
@@ -53,7 +53,7 @@ async def enqueue_sync_node(
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = sync_node(node_id, **overrides)
-    await publish_command(payload, SYNC_ROUTING_KEY, url=url)
+    await publish_command(payload, routing_key_for_command('sync_node'), url=url)
     return payload
 
 
@@ -64,7 +64,7 @@ async def enqueue_provision_node(
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = provision_node(node_id, **overrides)
-    await publish_command(payload, PROVISION_ROUTING_KEY, url=url)
+    await publish_command(payload, routing_key_for_command('provision_node'), url=url)
     return payload
 
 
@@ -110,7 +110,7 @@ async def enqueue_remnawave_full_reconcile(
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = remnawave_full_reconcile(**overrides)
-    await publish_command(payload, SYNC_ROUTING_KEY, url=url)
+    await publish_command(payload, routing_key_for_command('remnawave_full_reconcile'), url=url)
     return payload
 
 
@@ -120,7 +120,7 @@ async def enqueue_cleanup_raw_traffic_samples(
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = cleanup_raw_traffic_samples(**overrides)
-    await publish_command(payload, SYNC_ROUTING_KEY, url=url)
+    await publish_command(payload, routing_key_for_command('cleanup_raw_traffic_samples'), url=url)
     return payload
 
 
@@ -131,7 +131,7 @@ async def enqueue_remnawave_sync_user(
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = remnawave_sync_user(user_uuid, **overrides)
-    await publish_command(payload, SYNC_ROUTING_KEY, url=url)
+    await publish_command(payload, routing_key_for_command('remnawave_sync_user'), url=url)
     return payload
 
 
@@ -142,5 +142,5 @@ async def enqueue_remnawave_disable_user(
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = remnawave_disable_user(user_uuid, **overrides)
-    await publish_command(payload, SYNC_ROUTING_KEY, url=url)
+    await publish_command(payload, routing_key_for_command('remnawave_disable_user'), url=url)
     return payload

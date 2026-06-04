@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
+
 from app.job_commands import (
     cleanup_raw_traffic_samples,
     provision_node,
@@ -11,6 +13,7 @@ from app.job_commands import (
     sync_all,
     sync_node,
 )
+from app.queue import REMNAWAVE_SYNC_USER_QUEUE, SYNC_NODE_QUEUE
 
 
 def test_sync_all_payload_shape():
@@ -78,3 +81,24 @@ def test_remnawave_disable_user_payload_shape():
     uuid.UUID(payload['idempotency_key'])
     uuid.UUID(payload['operation_id'])
     assert payload['created_at'].endswith('+00:00')
+
+
+@pytest.mark.asyncio
+async def test_enqueue_uses_per_operation_routing_key(monkeypatch):
+    published = []
+
+    async def _publish(payload, routing_key: str, *, url: str | None = None) -> None:
+        published.append((payload, routing_key, url))
+
+    monkeypatch.setattr('app.job_commands.publish_command', _publish)
+
+    from app.job_commands import enqueue_remnawave_sync_user, enqueue_sync_node
+
+    await enqueue_sync_node('node-1', url='amqp://example/')
+    await enqueue_remnawave_sync_user('user-1')
+
+    assert published[0][0]['command'] == 'sync_node'
+    assert published[0][1] == SYNC_NODE_QUEUE
+    assert published[0][2] == 'amqp://example/'
+    assert published[1][0]['command'] == 'remnawave_sync_user'
+    assert published[1][1] == REMNAWAVE_SYNC_USER_QUEUE

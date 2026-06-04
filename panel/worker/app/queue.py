@@ -13,14 +13,50 @@ MessageHandler = Callable[[WorkerCommand], Awaitable[None]]
 
 EXCHANGE = 'amnezia.jobs'
 DEAD_LETTER_EXCHANGE = 'amnezia.jobs.dlx'
-SYNC_QUEUE = 'amnezia.sync'
-PROVISION_QUEUE = 'amnezia.provision'
+LEGACY_SYNC_QUEUE = 'amnezia.sync'
+LEGACY_PROVISION_QUEUE = 'amnezia.provision'
+SYNC_QUEUE = LEGACY_SYNC_QUEUE
+PROVISION_QUEUE = LEGACY_PROVISION_QUEUE
+NODE_OPERATIONS_QUEUE = 'amnezia.node_operations'
+SYNC_ALL_QUEUE = NODE_OPERATIONS_QUEUE
+SYNC_NODE_QUEUE = NODE_OPERATIONS_QUEUE
+PROVISION_NODE_QUEUE = NODE_OPERATIONS_QUEUE
+CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE = 'amnezia.cleanup_raw_traffic_samples'
+REMNAWAVE_FULL_RECONCILE_QUEUE = 'amnezia.remnawave_full_reconcile'
+REMNAWAVE_SYNC_USER_QUEUE = 'amnezia.remnawave_sync_user'
+REMNAWAVE_DISABLE_USER_QUEUE = 'amnezia.remnawave_disable_user'
 POISON_QUEUE = 'amnezia.poison'
 RETRY_QUEUES = (
     ('amnezia.retry.10s', 10_000),
     ('amnezia.retry.1m', 60_000),
     ('amnezia.retry.10m', 600_000),
 )
+RETRY_DELAYS = (
+    ('10s', 10_000),
+    ('1m', 60_000),
+    ('10m', 600_000),
+)
+
+
+@dataclass(frozen=True)
+class QueueSpec:
+    command: str
+    queue_name: str
+    sequential: bool
+
+
+QUEUE_SPECS = (
+    QueueSpec('sync_all', SYNC_ALL_QUEUE, True),
+    QueueSpec('sync_node', SYNC_NODE_QUEUE, True),
+    QueueSpec('provision_node', PROVISION_NODE_QUEUE, True),
+    QueueSpec('cleanup_raw_traffic_samples', CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE, False),
+    QueueSpec('remnawave_full_reconcile', REMNAWAVE_FULL_RECONCILE_QUEUE, False),
+    QueueSpec('remnawave_sync_user', REMNAWAVE_SYNC_USER_QUEUE, False),
+    QueueSpec('remnawave_disable_user', REMNAWAVE_DISABLE_USER_QUEUE, False),
+)
+ROUTING_KEYS = {spec.command: spec.queue_name for spec in QUEUE_SPECS}
+LEGACY_QUEUE_NAMES = (LEGACY_SYNC_QUEUE, LEGACY_PROVISION_QUEUE)
+SEQUENTIAL_QUEUE_ARGS = {'x-single-active-consumer': True}
 
 
 @dataclass(frozen=True)
@@ -37,21 +73,51 @@ class RabbitQueue:
         aio_pika = importlib.import_module('aio_pika')
         connection = await aio_pika.connect_robust(self._url)
         async with connection:
-            channel = await connection.channel()
-            await channel.set_qos(prefetch_count=concurrency)
-            exchange, dlx = await self._declare_topology(channel, aio_pika)
-            queues = [
-                await channel.declare_queue(SYNC_QUEUE, durable=True),
-                await channel.declare_queue(PROVISION_QUEUE, durable=True),
-            ]
-            for queue in queues:
-                await queue.bind(exchange, routing_key=queue.name)
-            semaphore = asyncio.Semaphore(concurrency)
+            sequential_channel = await connection.channel()
+            await sequential_channel.set_qos(prefetch_count=1)
+            parallel_channel = await connection.channel()
+            await parallel_channel.set_qos(prefetch_count=concurrency)
+            sequential_exchange, sequential_dlx = await self._declare_topology(
+                sequential_channel,
+                aio_pika,
+            )
+            parallel_exchange, parallel_dlx = await self._declare_topology(
+                parallel_channel,
+                aio_pika,
+            )
+            sequential_queues = await self._declare_consumer_queues(
+                sequential_channel,
+                sequential_exchange,
+                sequential=True,
+            )
+            parallel_queues = await self._declare_consumer_queues(
+                parallel_channel,
+                parallel_exchange,
+                sequential=False,
+            )
+            sequential_limiter = asyncio.Semaphore(1)
+            parallel_limiter = asyncio.Semaphore(concurrency)
 
             async with asyncio.TaskGroup() as task_group:
-                for queue in queues:
+                for queue in sequential_queues:
                     task_group.create_task(
-                        self._consume_queue(queue, semaphore, handler, dlx, aio_pika)
+                        self._consume_queue(
+                            queue,
+                            sequential_limiter,
+                            handler,
+                            sequential_dlx,
+                            aio_pika,
+                        )
+                    )
+                for queue in parallel_queues:
+                    task_group.create_task(
+                        self._consume_queue(
+                            queue,
+                            parallel_limiter,
+                            handler,
+                            parallel_dlx,
+                            aio_pika,
+                        )
                     )
 
     async def publish_command(self, command: WorkerCommand) -> None:
@@ -61,6 +127,34 @@ class RabbitQueue:
             channel = await connection.channel()
             exchange, _ = await self._declare_topology(channel, aio_pika)
             await self._publish(exchange, aio_pika, command, self._routing_key(command))
+
+    async def _declare_consumer_queues(
+        self,
+        channel: Any,
+        exchange: Any,
+        *,
+        sequential: bool,
+    ) -> list[Any]:
+        queues = []
+        declared_queue_names = set()
+        for spec in QUEUE_SPECS:
+            if spec.sequential is not sequential:
+                continue
+            if spec.queue_name in declared_queue_names:
+                continue
+            queue = await channel.declare_queue(
+                spec.queue_name,
+                durable=True,
+                arguments=SEQUENTIAL_QUEUE_ARGS if spec.sequential else {},
+            )
+            await queue.bind(exchange, routing_key=spec.queue_name)
+            queues.append(queue)
+            declared_queue_names.add(spec.queue_name)
+        if sequential:
+            for legacy_queue_name in LEGACY_QUEUE_NAMES:
+                queue = await channel.declare_queue(legacy_queue_name, durable=True)
+                queues.append(queue)
+        return queues
 
     async def _consume_queue(
         self,
@@ -106,6 +200,21 @@ class RabbitQueue:
         )
         poison_queue = await channel.declare_queue(POISON_QUEUE, durable=True)
         await poison_queue.bind(dlx, routing_key=POISON_QUEUE)
+        declared_queue_names = set()
+        for spec in QUEUE_SPECS:
+            if spec.queue_name in declared_queue_names:
+                continue
+            queue = await channel.declare_queue(
+                spec.queue_name,
+                durable=True,
+                arguments=SEQUENTIAL_QUEUE_ARGS if spec.sequential else {},
+            )
+            await queue.bind(exchange, routing_key=spec.queue_name)
+            declared_queue_names.add(spec.queue_name)
+        legacy_sync_queue = await channel.declare_queue(LEGACY_SYNC_QUEUE, durable=True)
+        legacy_provision_queue = await channel.declare_queue(LEGACY_PROVISION_QUEUE, durable=True)
+        await legacy_sync_queue.bind(exchange, routing_key='sync')
+        await legacy_provision_queue.bind(exchange, routing_key='provision')
         for name, delay_ms in RETRY_QUEUES:
             queue = await channel.declare_queue(
                 name,
@@ -116,6 +225,22 @@ class RabbitQueue:
                 },
             )
             await queue.bind(dlx, routing_key=name)
+        for spec in QUEUE_SPECS:
+            for delay_name, delay_ms in RETRY_DELAYS:
+                name = self._retry_queue_name(spec.command, delay_name)
+                if name in declared_queue_names:
+                    continue
+                queue = await channel.declare_queue(
+                    name,
+                    durable=True,
+                    arguments={
+                        'x-message-ttl': delay_ms,
+                        'x-dead-letter-exchange': EXCHANGE,
+                        'x-dead-letter-routing-key': spec.queue_name,
+                    },
+                )
+                await queue.bind(dlx, routing_key=name)
+                declared_queue_names.add(name)
         return exchange, dlx
 
     async def _retry_or_dead_letter(
@@ -129,7 +254,8 @@ class RabbitQueue:
         if attempts >= self._retry_policy.max_attempts:
             await self._publish(dlx, aio_pika, command, POISON_QUEUE, {'x-retry-count': attempts})
             return
-        retry_queue = RETRY_QUEUES[min(attempts - 1, len(RETRY_QUEUES) - 1)][0]
+        delay_name = RETRY_DELAYS[min(attempts - 1, len(RETRY_DELAYS) - 1)][0]
+        retry_queue = self._retry_queue_name(command.command, delay_name)
         await self._publish(dlx, aio_pika, command, retry_queue, {'x-retry-count': attempts})
 
     async def _publish(
@@ -150,6 +276,7 @@ class RabbitQueue:
         )
 
     def _routing_key(self, command: WorkerCommand) -> str:
-        if command.command == 'provision_node':
-            return PROVISION_QUEUE
-        return SYNC_QUEUE
+        return ROUTING_KEYS[command.command]
+
+    def _retry_queue_name(self, command: str, delay_name: str) -> str:
+        return f'{ROUTING_KEYS[command]}.retry.{delay_name}'

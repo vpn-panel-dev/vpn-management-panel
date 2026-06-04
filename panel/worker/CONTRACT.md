@@ -27,11 +27,28 @@ Rules:
 
 - Exchange: `amnezia.jobs`
 - Dead-letter exchange: `amnezia.jobs.dlx`
-- Main queues: `amnezia.sync`, `amnezia.provision`
-- Retry queues: `amnezia.retry.10s`, `amnezia.retry.1m`, `amnezia.retry.10m`
+- Operation queues:
+  - `amnezia.node_operations` for `sync_all`, `sync_node`, and `provision_node`
+  - `amnezia.cleanup_raw_traffic_samples`
+  - `amnezia.remnawave_full_reconcile`
+  - `amnezia.remnawave_sync_user`
+  - `amnezia.remnawave_disable_user`
+- Sequential operation queue: `amnezia.node_operations`. It is declared with RabbitMQ
+  `x-single-active-consumer=true`, so only one of `sync_all`, `sync_node`, or `provision_node` can be
+  delivered to active workers at a time.
+- Parallel operation queues: cleanup and Remnawave queues. They are consumed with
+  `WORKER_CONCURRENCY`.
+- Per-operation retry queues: `<operation queue>.retry.10s`, `<operation queue>.retry.1m`,
+  `<operation queue>.retry.10m`. Each retry queue dead-letters back to its own operation queue.
+- Legacy main queues still consumed for migration: `amnezia.sync`, `amnezia.provision`.
+- Legacy retry queues still declared for compatibility: `amnezia.retry.10s`,
+  `amnezia.retry.1m`, `amnezia.retry.10m`.
 - Poison queue: `amnezia.poison`
 
-Main and retry queues use quorum queue arguments where supported.
+Smooth migration rule: deploy workers that consume both legacy and new operation queues before
+deploying a backend that publishes to per-operation routing keys. Existing messages already present in
+`amnezia.sync` or `amnezia.provision` continue to be consumed; new backend publishes go directly to the
+new operation queues.
 
 ## Internal backend API
 
