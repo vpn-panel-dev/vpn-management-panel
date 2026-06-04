@@ -14,16 +14,16 @@
           @click="$emit('update:tab', tab.key)"
           :class="{ 'qr-tab-active': currentTab === tab.key }"
         >
-          {{ tab.label }}
+          {{ $t(tab.labelKey) }}
         </button>
       </div>
       <div class="qr-stage">
         <template v-if="currentTab === 'wg'">
-          <img v-if="srcWg" :src="srcWg" alt="AmneziaWG QR" />
+          <img v-if="srcWg" :src="srcWg" :alt="$t('qrDialog.qrWgAlt')" />
           <ProgressSpinner v-else style="width: 60px; height: 60px" />
         </template>
         <template v-else>
-          <img v-if="srcAmnezia" :src="srcAmnezia" alt="AmneziaVPN QR" />
+          <img v-if="srcAmnezia" :src="srcAmnezia" :alt="$t('qrDialog.qrVpnAlt')" />
           <ProgressSpinner v-else style="width: 60px; height: 60px" />
         </template>
       </div>

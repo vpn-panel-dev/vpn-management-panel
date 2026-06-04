@@ -1,3 +1,4 @@
+import { i18n } from '../i18n'
 import type { LoginResponse } from './types'
 
 export function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -52,6 +53,6 @@ export async function login(password: string): Promise<LoginResponse> {
     body: JSON.stringify({ password }),
   })
   const data = (await res.json()) as LoginResponse & { detail?: string }
-  if (!res.ok) throw new Error(data.detail || 'Ошибка входа')
+  if (!res.ok) throw new Error(data.detail || i18n.global.t('login.error'))
   return data
 }

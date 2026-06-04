@@ -1,0 +1,39 @@
+{
+  "app": {
+    "brand": "Secure Access"
+  },
+  "userPage": {
+    "title": "Настройка подключения",
+    "subtitle": "Выберите приложение, отсканируйте QR-код или скачайте конфигурацию.",
+    "tabAwg": "AmneziaWG",
+    "tabVpn": "AmneziaVPN"
+  },
+  "states": {
+    "loading": "Загрузка…",
+    "errorTitle": "Ошибка загрузки",
+    "error404Title": "Страница не найдена",
+    "error404Text": "Проверьте ссылку.",
+    "errorText": "Попробуйте обновить страницу.",
+    "blockedTitle": "Доступ закрыт",
+    "blockedText": "Аккаунт деактивирован. Обратитесь к администратору.",
+    "emptyTitle": "Серверы не настроены",
+    "emptyText": "Обратитесь к администратору."
+  },
+  "configCard": {
+    "ready": "Готово",
+    "pending": "Готовится",
+    "showQr": "Показать QR-код",
+    "hideQr": "Скрыть QR-код",
+    "configPreparing": "Конфигурация готовится",
+    "configPreparingHint": "Обновите страницу через минуту или обратитесь к администратору.",
+    "scanHint": "Нажмите на QR-код, затем сканируйте в AmneziaWG.",
+    "scanHintVpn": "Нажмите на QR-код, затем сканируйте в AmneziaVPN",
+    "qrUnavailable": "QR недоступен",
+    "qrUnavailableHint": "Используйте ссылку ниже или скачайте файл.",
+    "copied": "Скопировано",
+    "copy": "Скопировать",
+    "downloadConf": "Скачать конфигурацию .conf",
+    "downloadVpn": "Скачать профиль .vpn",
+    "part": "часть"
+  }
+}

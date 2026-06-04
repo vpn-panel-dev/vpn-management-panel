@@ -1,21 +1,24 @@
 <template>
-  <Dialog v-model:visible="visible" header="Добавить ноду" modal :closable="!submitting">
+  <Dialog v-model:visible="visible" :header="$t('nodeForm.title')" modal :closable="!submitting">
     <form @submit.prevent="submit" class="dialog-form">
       <div class="field">
-        <label>Название</label>
+        <label>{{ $t('nodeForm.name') }}</label>
         <InputText v-model="form.name" autofocus required />
       </div>
       <div class="field">
-        <label>URL агента</label>
-        <InputText v-model="form.url" placeholder="http://1.2.3.4:8000" required />
+        <label>{{ $t('nodeForm.agentUrl') }}</label>
+        <InputText v-model="form.url" :placeholder="$t('nodeForm.agentUrlPlaceholder')" required />
       </div>
       <div class="field">
-        <label>Токен</label>
+        <label>{{ $t('nodeForm.token') }}</label>
         <InputText v-model="form.token" required />
       </div>
       <div class="field">
-        <label>Публичный эндпоинт (для конфигов клиентов)</label>
-        <InputText v-model="form.server_endpoint" placeholder="1.2.3.4:51820" />
+        <label>{{ $t('nodeForm.publicEndpoint') }}</label>
+        <InputText
+          v-model="form.server_endpoint"
+          :placeholder="$t('nodeForm.publicEndpointPlaceholder')"
+        />
       </div>
 
       <div style="margin-top: 0.75rem">
@@ -24,13 +27,13 @@
             :class="showAdvanced ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
             style="font-size: 0.7rem"
           />
-          Параметры обфускации
+          {{ $t('nodeForm.obfuscationParams') }}
         </button>
         <div v-show="showAdvanced" style="margin-top: 0.5rem">
           <div style="display: flex; justify-content: flex-end; margin-bottom: 0.5rem">
             <Button
               type="button"
-              label="Рандомизировать"
+              :label="$t('nodeForm.randomize')"
               icon="pi pi-refresh"
               size="small"
               text
@@ -100,13 +103,13 @@
 
       <div class="dialog-actions">
         <Button
-          label="Отмена"
+          :label="$t('nodeForm.cancel')"
           text
           severity="secondary"
           @click="visible = false"
           :disabled="submitting"
         />
-        <Button type="submit" label="Добавить" :loading="submitting" />
+        <Button type="submit" :label="$t('nodeForm.add')" :loading="submitting" />
       </div>
     </form>
   </Dialog>

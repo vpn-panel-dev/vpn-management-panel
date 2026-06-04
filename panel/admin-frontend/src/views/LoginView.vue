@@ -1,26 +1,23 @@
 <template>
   <div class="login-page">
-    <section class="login-brief" aria-label="Описание панели">
-      <span class="page-kicker">secure operations</span>
-      <h1>VPN control desk</h1>
-      <p>
-        Управление нодами, пользователями, конфигами и Remnawave-синхронизацией из одной
-        операторской панели.
-      </p>
+    <section class="login-brief" :aria-label="$t('login.kicker')">
+      <span class="page-kicker">{{ $t('login.kicker') }}</span>
+      <h1>{{ $t('login.title') }}</h1>
+      <p>{{ $t('login.description') }}</p>
       <div class="login-signals">
-        <span><i class="pi pi-server" /> Ноды</span>
-        <span><i class="pi pi-users" /> Пользователи</span>
-        <span><i class="pi pi-shield" /> Конфиги</span>
+        <span><i class="pi pi-server" /> {{ $t('login.signalsNodes') }}</span>
+        <span><i class="pi pi-users" /> {{ $t('login.signalsUsers') }}</span>
+        <span><i class="pi pi-shield" /> {{ $t('login.signalsConfigs') }}</span>
       </div>
     </section>
     <div class="login-card">
       <div class="login-title">
-        <span>AmneziaWG</span>
-        <strong>Вход оператора</strong>
+        <span>{{ $t('login.brand') }}</span>
+        <strong>{{ $t('login.subtitle') }}</strong>
       </div>
       <form class="login-form" @submit.prevent="submit">
         <div class="field">
-          <label for="password">Пароль</label>
+          <label for="password">{{ $t('login.password') }}</label>
           <Password
             id="password"
             v-model="password"
@@ -32,7 +29,7 @@
           />
         </div>
         <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
-        <Button type="submit" label="Войти" :loading="loading" fluid />
+        <Button type="submit" :label="$t('login.submit')" :loading="loading" fluid />
       </form>
     </div>
   </div>
@@ -41,12 +38,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import Password from 'primevue/password'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import { login } from '../api/client'
 
 const router = useRouter()
+const { t } = useI18n()
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -60,7 +59,7 @@ async function submit() {
     localStorage.setItem('token', data.token)
     router.push('/nodes')
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Ошибка входа'
+    error.value = e instanceof Error ? e.message : t('login.error')
   } finally {
     loading.value = false
   }

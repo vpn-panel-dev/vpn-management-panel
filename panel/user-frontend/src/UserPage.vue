@@ -9,9 +9,9 @@
 
       <template v-else-if="info">
         <div class="page-head">
-          <div class="page-title">Настройка подключения</div>
+          <div class="page-title">{{ $t('userPage.title') }}</div>
           <div class="page-sub">
-            Выберите приложение, отсканируйте QR-код или скачайте конфигурацию.
+            {{ $t('userPage.subtitle') }}
           </div>
         </div>
 
@@ -24,14 +24,14 @@
               @click="activeTab = 'awg'"
             >
               <MonitorIcon />
-              AmneziaWG
+              {{ $t('userPage.tabAwg') }}
             </button>
             <button
               :class="['tab-btn', activeTab === 'vpn' && 'active']"
               @click="activeTab = 'vpn'"
             >
               <ShieldTabIcon />
-              AmneziaVPN
+              {{ $t('userPage.tabVpn') }}
             </button>
           </div>
 

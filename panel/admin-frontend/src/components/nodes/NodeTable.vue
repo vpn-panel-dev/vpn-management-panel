@@ -10,20 +10,20 @@
     <template #empty>
       <div class="table-empty-state">
         <i class="pi pi-server" />
-        <strong>Флот нод пуст</strong>
-        <span>Добавьте первый VPN-узел, чтобы начать провижонинг пользователей.</span>
+        <strong>{{ $t('nodeTable.emptyTitle') }}</strong>
+        <span>{{ $t('nodeTable.emptyText') }}</span>
       </div>
     </template>
 
     <Column expander style="width: 3rem" />
 
-    <Column field="name" header="Название">
+    <Column field="name" :header="$t('nodeTable.name')">
       <template #body="{ data }">
         <div class="node-name-cell">
           <span class="node-name">{{ data.name }}</span>
           <Tag
             :severity="data.online ? 'success' : 'danger'"
-            :value="data.online ? 'online' : 'offline'"
+            :value="data.online ? $t('status.online') : $t('status.offline')"
             class="status-tag"
           />
           <i
@@ -35,33 +35,37 @@
       </template>
     </Column>
 
-    <Column field="url" header="URL агента">
+    <Column field="url" :header="$t('nodeTable.agentUrl')">
       <template #body="{ data }">
         <code>{{ data.url }}</code>
       </template>
     </Column>
 
-    <Column header="Эндпоинт">
+    <Column :header="$t('nodeTable.endpoint')">
       <template #body="{ data }">
         <code v-if="data.server_endpoint">{{ data.server_endpoint }}</code>
         <span v-else class="dim">—</span>
       </template>
     </Column>
 
-    <Column header="Метаданные">
+    <Column :header="$t('nodeTable.metadata')">
       <template #body="{ data }">
         <div v-if="data.server_public_key" class="metadata-list">
           <code :title="data.server_public_key">{{ data.server_public_key.slice(0, 18) }}…</code>
-          <span class="meta-chip">port {{ data.listen_port }}</span>
-          <span class="meta-chip">Jc {{ data.jc }} · {{ data.jmin }}–{{ data.jmax }}ms</span>
-          <span v-if="data.mtu" class="meta-chip">MTU {{ data.mtu }}</span>
+          <span class="meta-chip">{{ $t('nodeTable.port', { port: data.listen_port }) }}</span>
+          <span class="meta-chip">{{
+            $t('nodeTable.jc', { jc: data.jc, jmin: data.jmin, jmax: data.jmax })
+          }}</span>
+          <span v-if="data.mtu" class="meta-chip">{{
+            $t('nodeTable.mtu', { mtu: data.mtu })
+          }}</span>
           <span v-if="data.i1" class="meta-chip muted-chip">I✓</span>
         </div>
-        <Tag v-else severity="warn" value="ожидание sync" class="status-tag" />
+        <Tag v-else severity="warn" :value="$t('nodeTable.waitingSync')" class="status-tag" />
       </template>
     </Column>
 
-    <Column header="Действия" style="width: 12rem; text-align: right">
+    <Column :header="$t('nodeTable.actions')" style="width: 12rem; text-align: right">
       <template #body="{ data }">
         <NodeActions
           :node-id="data.id"
@@ -80,14 +84,14 @@
           size="small"
           class="peer-table"
         >
-          <template #empty>Пиры ещё не назначены.</template>
-          <Column field="user_name" header="Пользователь" />
-          <Column field="vpn_ip" header="IP">
+          <template #empty>{{ $t('nodeTable.noPeers') }}</template>
+          <Column field="user_name" :header="$t('nodeTable.user')" />
+          <Column field="vpn_ip" :header="$t('nodeTable.ip')">
             <template #body="{ data: p }">
               <code>{{ p.vpn_ip }}/32</code>
             </template>
           </Column>
-          <Column field="status" header="Статус">
+          <Column field="status" :header="$t('nodeTable.status')">
             <template #body="{ data: p }">
               <div class="node-peer-status">
                 <span
@@ -108,7 +112,7 @@
               </div>
             </template>
           </Column>
-          <Column header="Endpoint">
+          <Column :header="$t('nodeTable.endpoint')">
             <template #body="{ data: p }">
               <code v-if="p.endpoint">{{ p.endpoint }}</code>
               <span v-else class="dim">—</span>

@@ -2,53 +2,50 @@
   <div>
     <div class="page-header">
       <div>
-        <span class="page-kicker"><i class="pi pi-sync" /> Integration control</span>
-        <h2>Remnawave</h2>
-        <p class="page-description">
-          Наблюдение за reconcile, ручная синхронизация пользователей и настройка секретов
-          интеграции.
-        </p>
+        <span class="page-kicker"><i class="pi pi-sync" /> {{ $t('remnawave.kicker') }}</span>
+        <h2>{{ $t('remnawave.title') }}</h2>
+        <p class="page-description">{{ $t('remnawave.description') }}</p>
       </div>
     </div>
 
-    <div v-if="loading" class="settings-card muted-card">Загрузка настроек…</div>
-    <div v-else-if="!loaded" class="settings-card muted-card">Не удалось загрузить настройки.</div>
+    <div v-if="loading" class="settings-card muted-card">{{ $t('remnawave.loading') }}</div>
+    <div v-else-if="!loaded" class="settings-card muted-card">{{ $t('remnawave.loadError') }}</div>
 
     <div v-else class="settings-stack">
       <section class="settings-card observability-card" data-testid="remnawave-status">
         <div class="section-header">
-          <h3>Обзор синхронизации</h3>
-          <p>Состояние Remnawave, reconcile-метрики и ручные операции без раскрытия секретов.</p>
+          <h3>{{ $t('remnawave.syncOverview') }}</h3>
+          <p>{{ $t('remnawave.syncOverviewHint') }}</p>
         </div>
 
-        <div v-if="statusLoading" class="muted-card">Загрузка статуса…</div>
+        <div v-if="statusLoading" class="muted-card">{{ $t('common.loading') }}</div>
         <div v-else-if="statusLoadError" class="muted-card">{{ statusLoadError }}</div>
         <div v-else-if="status" class="metric-grid">
           <article class="metric-card metric-card--state">
-            <span class="metric-label">Состояние</span>
+            <span class="metric-label">{{ $t('remnawave.status') }}</span>
             <Tag
               :severity="status.enabled ? 'success' : 'danger'"
-              :value="status.enabled ? 'Включён' : 'Выключен'"
+              :value="status.enabled ? $t('remnawave.enabled') : $t('remnawave.disabled')"
               class="status-tag"
             />
             <span class="metric-sub">
               <code v-if="status.base_url">{{ status.base_url }}</code>
-              <span v-else class="dim">Base URL не задан</span>
+              <span v-else class="dim">{{ $t('remnawave.baseUrlNotSet') }}</span>
             </span>
           </article>
 
           <article class="metric-card">
-            <span class="metric-label">Импортировано пользователей</span>
+            <span class="metric-label">{{ $t('remnawave.importedUsers') }}</span>
             <strong class="metric-value">{{ formatCount(status.imported_users_count) }}</strong>
           </article>
 
           <article class="metric-card">
-            <span class="metric-label">Ожидают node-sync</span>
+            <span class="metric-label">{{ $t('remnawave.pendingNodeSync') }}</span>
             <strong class="metric-value">{{ formatCount(status.pending_node_sync_count) }}</strong>
           </article>
 
           <article class="metric-card">
-            <span class="metric-label">Последняя успешная reconcile</span>
+            <span class="metric-label">{{ $t('remnawave.lastSuccessfulReconcile') }}</span>
             <span v-if="status.last_successful_reconcile_at" class="metric-value">
               {{ formatDate(status.last_successful_reconcile_at) }}
             </span>
@@ -56,7 +53,7 @@
           </article>
 
           <article class="metric-card">
-            <span class="metric-label">Последняя неудачная reconcile</span>
+            <span class="metric-label">{{ $t('remnawave.lastFailedReconcile') }}</span>
             <span v-if="status.last_failed_reconcile_at" class="metric-value">
               {{ formatDate(status.last_failed_reconcile_at) }}
             </span>
@@ -64,13 +61,13 @@
           </article>
 
           <article class="metric-card metric-card--wide">
-            <span class="metric-label">Последняя ошибка reconcile</span>
+            <span class="metric-label">{{ $t('remnawave.lastReconcileError') }}</span>
             <code v-if="status.last_error" class="metric-code">{{ status.last_error }}</code>
             <span v-else class="dim">—</span>
           </article>
 
           <article class="metric-card">
-            <span class="metric-label">Последняя проверка</span>
+            <span class="metric-label">{{ $t('remnawave.lastTest') }}</span>
             <span v-if="status.last_tested_at" class="metric-inline">
               <Tag
                 :severity="remnawaveTestSeverity(status.last_test_status)"
@@ -83,25 +80,22 @@
           </article>
 
           <article v-if="status.last_test_error" class="metric-card metric-card--wide">
-            <span class="metric-label">Ошибка проверки</span>
+            <span class="metric-label">{{ $t('remnawave.testError') }}</span>
             <code class="metric-code">{{ status.last_test_error }}</code>
           </article>
         </div>
 
-        <div v-else class="muted-card">Статус пока недоступен.</div>
+        <div v-else class="muted-card">{{ $t('remnawave.statusUnavailable') }}</div>
 
         <div class="sync-console">
           <div class="section-header sync-header">
-            <h3>Точечная синхронизация</h3>
-            <p>
-              Введите UUID пользователя. Проверка на клиенте только подсказывает формат; backend
-              остаётся последней инстанцией.
-            </p>
+            <h3>{{ $t('remnawave.targetedSync') }}</h3>
+            <p>{{ $t('remnawave.targetedSyncHint') }}</p>
           </div>
 
           <div class="sync-form">
             <div class="field">
-              <label>UUID пользователя</label>
+              <label>{{ $t('remnawave.userUuid') }}</label>
               <InputText
                 v-model="syncUserUuid"
                 placeholder="11111111-1111-4111-8111-111111111111"
@@ -120,7 +114,7 @@
 
             <Button
               type="button"
-              label="Синхронизировать пользователя"
+              :label="$t('remnawave.syncUser')"
               icon="pi pi-refresh"
               severity="secondary"
               :loading="syncingUser"
@@ -137,21 +131,25 @@
               data-testid="remnawave-full-sync-result"
             >
               <div class="operation-head">
-                <span class="operation-title">Последняя полная синхронизация</span>
+                <span class="operation-title">{{ $t('remnawave.lastFullSync') }}</span>
                 <Tag
                   :severity="fullSyncError ? 'danger' : 'success'"
-                  :value="fullSyncError ? 'Ошибка' : 'Операция создана'"
+                  :value="
+                    fullSyncError
+                      ? $t('remnawave.operationError')
+                      : $t('remnawave.operationCreated')
+                  "
                   class="status-tag"
                 />
               </div>
               <p v-if="fullSyncError" class="operation-message">{{ fullSyncError }}</p>
               <div v-else class="operation-details">
                 <div class="operation-row">
-                  <span class="operation-label">Operation ID</span>
+                  <span class="operation-label">{{ $t('remnawave.operationId') }}</span>
                   <code>{{ fullSyncResult?.operation_id }}</code>
                 </div>
                 <div class="operation-row">
-                  <span class="operation-label">Status URL</span>
+                  <span class="operation-label">{{ $t('remnawave.statusUrl') }}</span>
                   <code>{{ fullSyncResult?.status_url }}</code>
                 </div>
               </div>
@@ -163,21 +161,25 @@
               data-testid="remnawave-user-sync-result"
             >
               <div class="operation-head">
-                <span class="operation-title">Последняя синхронизация по UUID</span>
+                <span class="operation-title">{{ $t('remnawave.lastTargetedSync') }}</span>
                 <Tag
                   :severity="userSyncError ? 'danger' : 'success'"
-                  :value="userSyncError ? 'Ошибка' : 'Операция создана'"
+                  :value="
+                    userSyncError
+                      ? $t('remnawave.operationError')
+                      : $t('remnawave.operationCreated')
+                  "
                   class="status-tag"
                 />
               </div>
               <p v-if="userSyncError" class="operation-message">{{ userSyncError }}</p>
               <div v-else class="operation-details">
                 <div class="operation-row">
-                  <span class="operation-label">Operation ID</span>
+                  <span class="operation-label">{{ $t('remnawave.operationId') }}</span>
                   <code>{{ userSyncResult?.operation_id }}</code>
                 </div>
                 <div class="operation-row">
-                  <span class="operation-label">Status URL</span>
+                  <span class="operation-label">{{ $t('remnawave.statusUrl') }}</span>
                   <code>{{ userSyncResult?.status_url }}</code>
                 </div>
               </div>
@@ -189,24 +191,26 @@
       <form class="settings-card settings-form" @submit.prevent="saveSettings">
         <section>
           <div class="section-header">
-            <h3>Подключение</h3>
-            <p>Адрес и токен для связи с Remnawave.</p>
+            <h3>{{ $t('remnawave.connection') }}</h3>
+            <p>{{ $t('remnawave.connectionHint') }}</p>
           </div>
 
           <div class="form-grid">
             <div class="field">
-              <label>Base URL</label>
+              <label>{{ $t('remnawave.baseUrl') }}</label>
               <InputText
                 v-model="form.base_url"
-                placeholder="https://remnawave.example.com"
+                :placeholder="$t('remnawave.baseUrlPlaceholder')"
                 data-testid="remnawave-base-url"
               />
             </div>
             <div class="field">
-              <label>API-токен</label>
+              <label>{{ $t('remnawave.apiToken') }}</label>
               <InputText
                 v-model="form.api_token"
-                :placeholder="settings?.api_token_set ? 'Настроен ✓' : 'Не задан'"
+                :placeholder="
+                  settings?.api_token_set ? $t('remnawave.configured') : $t('remnawave.notSet')
+                "
                 type="password"
                 autocomplete="new-password"
                 data-testid="remnawave-api-token"
@@ -217,16 +221,18 @@
 
         <section>
           <div class="section-header">
-            <h3>Состояние</h3>
-            <p>Включённая интеграция участвует в автоматическом и ручном reconcile.</p>
+            <h3>{{ $t('remnawave.integrationState') }}</h3>
+            <p>{{ $t('remnawave.integrationStateHint') }}</p>
           </div>
 
           <div class="form-grid">
             <div class="field">
-              <label>Включён</label>
+              <label>{{ $t('remnawave.integrationEnabled') }}</label>
               <div class="switch-row">
                 <InputSwitch v-model="form.enabled" data-testid="remnawave-enabled" />
-                <span class="switch-state">{{ form.enabled ? 'Активно' : 'Выключено' }}</span>
+                <span class="switch-state">{{
+                  form.enabled ? $t('remnawave.active') : $t('remnawave.inactive')
+                }}</span>
               </div>
             </div>
           </div>
@@ -234,23 +240,25 @@
 
         <section>
           <div class="section-header">
-            <h3>Webhook</h3>
-            <p>Секрет для проверки подписи webhook-уведомлений от Remnawave.</p>
+            <h3>{{ $t('remnawave.webhook') }}</h3>
+            <p>{{ $t('remnawave.webhookHint') }}</p>
           </div>
 
           <div class="form-grid">
             <div class="field">
-              <label>Webhook-секрет</label>
+              <label>{{ $t('remnawave.webhookSecret') }}</label>
               <InputText
                 v-model="form.webhook_secret"
-                :placeholder="settings?.webhook_secret_set ? 'Настроен ✓' : 'Не задан'"
+                :placeholder="
+                  settings?.webhook_secret_set ? $t('remnawave.configured') : $t('remnawave.notSet')
+                "
                 type="password"
                 autocomplete="new-password"
                 data-testid="remnawave-webhook-secret"
               />
             </div>
             <div class="field">
-              <label>URL для подписки</label>
+              <label>{{ $t('remnawave.subscriptionUrl') }}</label>
               <code class="webhook-url">{{ webhookUrl }}</code>
             </div>
           </div>
@@ -258,17 +266,17 @@
 
         <section>
           <div class="section-header">
-            <h3>Поллинг</h3>
-            <p>Автоматическая синхронизация пользователей по расписанию.</p>
+            <h3>{{ $t('remnawave.polling') }}</h3>
+            <p>{{ $t('remnawave.pollingHint') }}</p>
           </div>
 
           <div class="form-grid">
             <div class="field">
-              <label>Включён</label>
+              <label>{{ $t('remnawave.pollingEnabled') }}</label>
               <InputSwitch v-model="form.polling_enabled" />
             </div>
             <div class="field">
-              <label>Интервал (сек)</label>
+              <label>{{ $t('remnawave.intervalSeconds') }}</label>
               <InputNumber v-model="form.polling_interval_seconds" :min="60" style="width: 100%" />
             </div>
           </div>
@@ -276,13 +284,13 @@
 
         <section>
           <div class="section-header">
-            <h3>Local AmneziaWG</h3>
-            <p>Очистка raw-сэмплов локального трафика. Значение 0 отключает cleanup.</p>
+            <h3>{{ $t('remnawave.localAmneziawg') }}</h3>
+            <p>{{ $t('remnawave.localAmneziawgHint') }}</p>
           </div>
 
           <div class="form-grid">
             <div class="field">
-              <label>Хранение raw-сэмплов (дней)</label>
+              <label>{{ $t('remnawave.rawRetention') }}</label>
               <InputNumber
                 v-model="form.raw_sample_retention_days"
                 :min="0"
@@ -290,10 +298,10 @@
                 style="width: 100%"
                 data-testid="local-traffic-retention"
               />
-              <small class="section-note">По умолчанию — 90 дней. 0 отключает очистку.</small>
+              <small class="section-note">{{ $t('remnawave.rawRetentionHint') }}</small>
             </div>
             <div class="field">
-              <label>Online threshold peer'а (сек)</label>
+              <label>{{ $t('remnawave.peerOnlineThreshold') }}</label>
               <InputNumber
                 v-model="form.peer_online_threshold_seconds"
                 :min="1"
@@ -301,9 +309,7 @@
                 style="width: 100%"
                 data-testid="peer-online-threshold"
               />
-              <small class="section-note"
-                >Backend считает peer online по последнему handshake.</small
-              >
+              <small class="section-note">{{ $t('remnawave.peerOnlineThresholdHint') }}</small>
             </div>
           </div>
         </section>
@@ -311,14 +317,14 @@
         <div class="settings-actions">
           <Button
             type="submit"
-            label="Сохранить"
+            :label="$t('remnawave.save')"
             icon="pi pi-check"
             :loading="saving"
             data-testid="remnawave-save"
           />
           <Button
             type="button"
-            label="Проверить связь"
+            :label="$t('remnawave.testConnection')"
             icon="pi pi-search"
             severity="secondary"
             :loading="testing"
@@ -327,7 +333,7 @@
           />
           <Button
             type="button"
-            label="Синхронизировать"
+            :label="$t('remnawave.runSync')"
             icon="pi pi-refresh"
             severity="secondary"
             :loading="syncing"
@@ -343,6 +349,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import InputText from 'primevue/inputtext'
@@ -352,9 +359,15 @@ import { remnawaveApi } from '../api/remnawave'
 import type { RemnawaveSettings, RemnawaveStatus, RemnawaveSyncResult } from '../api/types'
 
 const UUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-const countFormatter = new Intl.NumberFormat('ru-RU')
 
 const toast = useToast()
+const { t } = useI18n()
+import { i18n } from '../i18n'
+
+const locale = computed(() => i18n.global.locale.value)
+const countFormatter = computed(
+  () => new Intl.NumberFormat(locale.value === 'zh' ? 'zh-CN' : locale.value),
+)
 
 const loading = ref(true)
 const loaded = ref(false)
@@ -392,12 +405,12 @@ const isSyncUserUuidValid = computed(
 )
 const syncUserUuidHint = computed(() => {
   if (!syncUserUuidHasValue.value) {
-    return 'Формат UUID: 8-4-4-4-12. Backend проверит значение окончательно.'
+    return t('remnawave.uuidFormatHint')
   }
   if (!isSyncUserUuidValid.value) {
-    return 'UUID должен быть в каноническом формате 8-4-4-4-12.'
+    return t('remnawave.uuidInvalid')
   }
-  return 'Синхронизация запустит отдельную операцию для выбранного пользователя.'
+  return t('remnawave.uuidReady')
 })
 
 watch(syncUserUuid, () => {
@@ -414,7 +427,7 @@ function formatDate(iso: string): string {
 }
 
 function formatCount(value: number): string {
-  return countFormatter.format(value)
+  return countFormatter.value.format(value)
 }
 
 function remnawaveTestSeverity(statusValue: string | null): string {
@@ -425,7 +438,7 @@ function remnawaveTestSeverity(statusValue: string | null): string {
 
 function remnawaveTestLabel(statusValue: string | null): string {
   if (statusValue === 'success') return 'OK'
-  if (statusValue === 'failed') return 'Ошибка'
+  if (statusValue === 'failed') return t('status.error')
   return '—'
 }
 
@@ -449,9 +462,9 @@ async function loadStatus() {
       status.value = data
       return
     }
-    statusLoadError.value = 'Не удалось загрузить статус Remnawave.'
+    statusLoadError.value = t('remnawave.loadError')
   } catch (e: unknown) {
-    statusLoadError.value = e instanceof Error ? e.message : 'Не удалось загрузить статус Remnawave'
+    statusLoadError.value = e instanceof Error ? e.message : t('remnawave.loadError')
   } finally {
     statusLoading.value = false
   }
@@ -465,7 +478,7 @@ async function loadSettings() {
       remnawaveApi.getLocalTrafficSettings(),
     ])
     if (!data || !localTrafficSettings) {
-      throw new Error('Не удалось загрузить настройки')
+      throw new Error(t('remnawave.loadError'))
     }
     settings.value = data
     form.base_url = data.base_url ?? ''
@@ -480,8 +493,8 @@ async function loadSettings() {
   } catch (e: unknown) {
     toast.add({
       severity: 'error',
-      summary: 'Ошибка',
-      detail: e instanceof Error ? e.message : 'Не удалось загрузить настройки',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('remnawave.loadError'),
       life: 4000,
     })
     loaded.value = false
@@ -511,7 +524,7 @@ async function saveSettings() {
       peer_online_threshold_seconds: form.peer_online_threshold_seconds,
     })
     if (!data || !localTrafficSettings) {
-      throw new Error('Не удалось сохранить настройки')
+      throw new Error(t('remnawave.loadError'))
     }
     settings.value = data
     form.api_token = ''
@@ -521,15 +534,15 @@ async function saveSettings() {
     form.peer_online_threshold_seconds = localTrafficSettings.peer_online_threshold_seconds
     toast.add({
       severity: 'success',
-      summary: 'Сохранено',
-      detail: 'Настройки Remnawave и очистки raw-сэмплов обновлены.',
+      summary: t('toasts.saved'),
+      detail: t('remnawave.toastSaved'),
       life: 4000,
     })
   } catch (e: unknown) {
     toast.add({
       severity: 'error',
-      summary: 'Ошибка',
-      detail: e instanceof Error ? e.message : 'Не удалось сохранить',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('remnawave.loadError'),
       life: 4000,
     })
   } finally {
@@ -544,15 +557,14 @@ async function testConnection() {
     if (result?.success) {
       toast.add({
         severity: 'success',
-        summary: 'Связь установлена',
-        detail: 'Подключение к Remnawave работает.',
+        summary: t('remnawave.toastConnectionOk'),
         life: 4000,
       })
     } else {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка связи',
-        detail: result?.error ?? 'Не удалось подключиться к Remnawave.',
+        summary: t('toasts.error'),
+        detail: result?.error ?? t('remnawave.toastConnectionError'),
         life: 6000,
       })
     }
@@ -560,8 +572,8 @@ async function testConnection() {
   } catch (e: unknown) {
     toast.add({
       severity: 'error',
-      summary: 'Ошибка',
-      detail: e instanceof Error ? e.message : 'Не удалось проверить связь',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('remnawave.toastConnectionError'),
       life: 4000,
     })
   } finally {
@@ -578,17 +590,17 @@ async function runSync() {
       fullSyncResult.value = result
       toast.add({
         severity: 'success',
-        summary: 'Синхронизация запущена',
-        detail: `Операция ${result.operation_id}`,
+        summary: t('remnawave.toastSyncQueued'),
+        detail: `Operation ${result.operation_id}`,
         life: 4000,
       })
     }
   } catch (e: unknown) {
     fullSyncResult.value = null
-    fullSyncError.value = e instanceof Error ? e.message : 'Не удалось запустить синхронизацию'
+    fullSyncError.value = e instanceof Error ? e.message : t('remnawave.loadError')
     toast.add({
       severity: 'error',
-      summary: 'Ошибка',
+      summary: t('toasts.error'),
       detail: fullSyncError.value,
       life: 4000,
     })
@@ -600,7 +612,7 @@ async function runSync() {
 async function syncUserByUuid() {
   const userUuid = syncUserUuidValue.value
   if (!userUuid || !isSyncUserUuidValid.value) {
-    userSyncError.value = 'UUID должен быть в формате 8-4-4-4-12.'
+    userSyncError.value = t('remnawave.uuidInvalid')
     userSyncResult.value = null
     return
   }
@@ -614,17 +626,16 @@ async function syncUserByUuid() {
       userSyncResult.value = result
       toast.add({
         severity: 'success',
-        summary: 'Синхронизация пользователя запущена',
-        detail: `Операция ${result.operation_id}`,
+        summary: t('remnawave.toastSyncUserQueued'),
+        detail: `Operation ${result.operation_id}`,
         life: 4000,
       })
     }
   } catch (e: unknown) {
-    userSyncError.value =
-      e instanceof Error ? e.message : 'Не удалось запустить синхронизацию пользователя'
+    userSyncError.value = e instanceof Error ? e.message : t('remnawave.loadError')
     toast.add({
       severity: 'error',
-      summary: 'Ошибка',
+      summary: t('toasts.error'),
       detail: userSyncError.value,
       life: 4000,
     })

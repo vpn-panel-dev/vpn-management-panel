@@ -2,39 +2,41 @@
   <div>
     <div class="page-header users-page-header">
       <div>
-        <span class="page-kicker"><i class="pi pi-users" /> Access workspace</span>
-        <h2>Пользователи</h2>
-        <p class="page-description">
-          Компактный roster для быстрого поиска, фильтрации и выбора next action. Remnawave metadata
-          вынесена в detail, чтобы список не превращался в диагностический лог.
-        </p>
+        <span class="page-kicker"><i class="pi pi-users" /> {{ $t('users.kicker') }}</span>
+        <h2>{{ $t('users.title') }}</h2>
+        <p class="page-description">{{ $t('users.description') }}</p>
         <div class="page-stats">
           <span class="stat-pill"
-            ><span>Всего</span><strong>{{ facets.total }}</strong></span
+            ><span>{{ $t('users.total') }}</span
+            ><strong>{{ facets.total }}</strong></span
           >
           <span class="stat-pill"
-            ><span>Online</span><strong>{{ facets.online }}</strong></span
+            ><span>{{ $t('users.online') }}</span
+            ><strong>{{ facets.online }}</strong></span
           >
           <span class="stat-pill"
-            ><span>Blocked</span><strong>{{ facets.blocked }}</strong></span
+            ><span>{{ $t('users.blocked') }}</span
+            ><strong>{{ facets.blocked }}</strong></span
           >
           <span class="stat-pill"
-            ><span>Remnawave</span><strong>{{ facets.remnawave }}</strong></span
+            ><span>{{ $t('users.remnawave') }}</span
+            ><strong>{{ facets.remnawave }}</strong></span
           >
           <span class="stat-pill stat-pill--danger"
-            ><span>Sync issues</span><strong>{{ facets.syncIssues }}</strong></span
+            ><span>{{ $t('users.syncIssues') }}</span
+            ><strong>{{ facets.syncIssues }}</strong></span
           >
         </div>
       </div>
       <div class="user-create-card page-actions">
         <InputText
           v-model="newName"
-          placeholder="Имя локального пользователя"
+          :placeholder="$t('users.addPlaceholder')"
           size="small"
           @keyup.enter="addUser"
         />
         <Button
-          label="Добавить"
+          :label="$t('users.addButton')"
           icon="pi pi-plus"
           size="small"
           :loading="addingUser"
@@ -48,11 +50,11 @@
         <i class="pi pi-search" />
         <InputText
           v-model="query.search"
-          placeholder="Search name, IP, UUID, email, node, sync error"
+          :placeholder="$t('users.searchPlaceholder')"
           size="small"
         />
       </div>
-      <div class="filter-rail" aria-label="Фильтры пользователей">
+      <div class="filter-rail" :aria-label="$t('users.source')">
         <button
           v-for="filter in statusFilters"
           :key="filter.key"
@@ -66,26 +68,26 @@
       </div>
       <div class="control-row">
         <label>
-          Source
+          {{ $t('users.source') }}
           <select v-model="query.source">
-            <option value="all">All</option>
-            <option value="local">Local</option>
-            <option value="remnawave">Remnawave</option>
+            <option value="all">{{ $t('users.sourceAll') }}</option>
+            <option value="local">{{ $t('users.sourceLocal') }}</option>
+            <option value="remnawave">{{ $t('users.sourceRemnawave') }}</option>
           </select>
         </label>
         <label>
-          Sort
+          {{ $t('users.sort') }}
           <select v-model="query.sort">
-            <option value="name">Name</option>
-            <option value="status">Status</option>
-            <option value="source">Source</option>
-            <option value="traffic">Traffic</option>
-            <option value="expiration">Expiration</option>
-            <option value="sync">Sync issues</option>
+            <option value="name">{{ $t('users.sortName') }}</option>
+            <option value="status">{{ $t('users.sortStatus') }}</option>
+            <option value="source">{{ $t('users.sortSource') }}</option>
+            <option value="traffic">{{ $t('users.sortTraffic') }}</option>
+            <option value="expiration">{{ $t('users.sortExpiration') }}</option>
+            <option value="sync">{{ $t('users.sortSync') }}</option>
           </select>
         </label>
         <label>
-          Page size
+          {{ $t('users.pageSize') }}
           <select v-model.number="query.pageSize">
             <option :value="20">20</option>
             <option :value="50">50</option>
@@ -102,8 +104,10 @@
     <div class="users-shell">
       <div class="users-list-column">
         <div class="list-summary-row">
-          <span>Показано {{ visibleUsers.length }} из {{ listResponse.total }}</span>
-          <span v-if="query.search">Search: “{{ query.search }}”</span>
+          <span>{{
+            $t('users.showing', { visible: visibleUsers.length, total: listResponse.total })
+          }}</span>
+          <span v-if="query.search">{{ $t('users.searchActive', { query: query.search }) }}</span>
         </div>
 
         <UserTable
@@ -122,7 +126,7 @@
           data-testid="users-pagination"
         >
           <Button
-            label="Назад"
+            :label="$t('users.back')"
             icon="pi pi-angle-left"
             severity="secondary"
             outlined
@@ -130,9 +134,9 @@
             :disabled="query.page === 1"
             @click="query.page -= 1"
           />
-          <span>Страница {{ query.page }} / {{ pageCount }}</span>
+          <span>{{ $t('users.page', { page: query.page, total: pageCount }) }}</span>
           <Button
-            label="Вперёд"
+            :label="$t('users.forward')"
             icon="pi pi-angle-right"
             icon-pos="right"
             severity="secondary"
@@ -192,6 +196,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'primevue/usetoast'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -210,6 +215,7 @@ import type { User, UserListQuery, UserStatusFilter } from '../api'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const { t } = useI18n()
 
 const {
   users,
@@ -242,20 +248,22 @@ const pageCount = computed(() => Math.max(1, Math.ceil(listResponse.value.total 
 const selectedUser = computed(() => users.value.find((user) => user.id === route.params.id) ?? null)
 
 const statusFilters = computed(() => [
-  { key: 'all' as const, label: 'All', count: facets.value.total },
-  { key: 'active' as const, label: 'Active', count: facets.value.total - facets.value.blocked },
-  { key: 'blocked' as const, label: 'Blocked', count: facets.value.blocked },
-  { key: 'expiring' as const, label: 'Expiring soon', count: facets.value.expiring },
-  { key: 'sync_issues' as const, label: 'Sync issues', count: facets.value.syncIssues },
+  { key: 'all' as const, label: t('users.sourceAll'), count: facets.value.total },
+  {
+    key: 'active' as const,
+    label: t('userTable.statusActive'),
+    count: facets.value.total - facets.value.blocked,
+  },
+  { key: 'blocked' as const, label: t('userTable.statusBlocked'), count: facets.value.blocked },
+  { key: 'expiring' as const, label: t('status.expired'), count: facets.value.expiring },
+  { key: 'sync_issues' as const, label: t('users.syncIssues'), count: facets.value.syncIssues },
 ])
 
 const emptyTitle = computed(() =>
-  users.value.length ? 'Ничего не найдено' : 'Пользователей пока нет',
+  users.value.length ? t('users.emptyTitleWithUsers') : t('users.emptyTitleNoUsers'),
 )
 const emptyText = computed(() =>
-  users.value.length
-    ? 'Сбросьте поиск или фильтры, чтобы увидеть больше пользователей.'
-    : 'Создайте локального пользователя или включите синхронизацию Remnawave.',
+  users.value.length ? t('users.emptyTextWithUsers') : t('users.emptyTextNoUsers'),
 )
 
 const {
@@ -302,15 +310,15 @@ async function syncRemnawaveUser(user: User) {
     const result = await remnawaveApi.syncRemnawaveUser(user.remnawave.uuid)
     toast.add({
       severity: 'success',
-      summary: 'Sync queued',
+      summary: t('toasts.syncQueued'),
       detail: result?.operation_id ?? user.remnawave.uuid,
       life: 3000,
     })
   } catch (e: unknown) {
     toast.add({
       severity: 'error',
-      summary: 'Ошибка sync',
-      detail: e instanceof Error ? e.message : 'Не удалось запустить sync',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('toasts.error'),
       life: 4000,
     })
   } finally {

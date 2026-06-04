@@ -2,16 +2,18 @@
   <aside v-if="user" class="user-detail-drawer" data-testid="user-detail">
     <div class="drawer-head">
       <div>
-        <span class="page-kicker"><i class="pi pi-id-card" /> User detail</span>
+        <span class="page-kicker"><i class="pi pi-id-card" /> {{ $t('userDetail.kicker') }}</span>
         <h3>{{ user.name }}</h3>
-        <p>{{ user.remnawave ? 'Readonly Remnawave identity' : 'Local AmneziaWG identity' }}</p>
+        <p>
+          {{ user.remnawave ? $t('userDetail.identityRemnawave') : $t('userDetail.identityLocal') }}
+        </p>
       </div>
       <Button
         icon="pi pi-times"
         text
         rounded
         severity="secondary"
-        aria-label="Закрыть"
+        :aria-label="$t('userDetail.close')"
         @click="$emit('close')"
       />
     </div>
@@ -19,35 +21,35 @@
     <div class="drawer-status-row">
       <Tag
         :severity="user.is_blocked ? 'danger' : 'success'"
-        :value="user.is_blocked ? 'blocked' : 'active'"
+        :value="user.is_blocked ? $t('userTable.statusBlocked') : $t('userTable.statusActive')"
       />
       <Tag
         :severity="user.online ? 'success' : 'secondary'"
-        :value="user.online ? 'online' : 'offline'"
+        :value="user.online ? $t('userTable.statusOnline') : $t('userTable.statusOffline')"
       />
-      <Tag v-if="user.remnawave" severity="info" value="readonly external" />
+      <Tag v-if="user.remnawave" severity="info" :value="$t('userTable.readonlyExternal')" />
       <Tag
         v-if="user.remnawave"
         :severity="syncSeverity(user.remnawave.sync_status, user.remnawave.sync_error)"
-        :value="user.remnawave.sync_error ? 'sync error' : user.remnawave.sync_status"
+        :value="user.remnawave.sync_error ? $t('userTable.syncError') : user.remnawave.sync_status"
       />
     </div>
 
     <section class="detail-section detail-section--accent">
       <div class="section-header compact-section-header">
-        <h4>Next actions</h4>
-        <p>Самые частые операторские действия без поиска по строке.</p>
+        <h4>{{ $t('userDetail.nextActions') }}</h4>
+        <p>{{ $t('userDetail.nextActionsHint') }}</p>
       </div>
       <div class="drawer-action-grid">
         <Button
-          label="Self-service link"
+          :label="$t('userDetail.copyLink')"
           icon="pi pi-link"
           severity="secondary"
           outlined
           @click="$emit('copyUserLink', user)"
         />
         <Button
-          label="Traffic"
+          :label="$t('userDetail.traffic')"
           icon="pi pi-chart-bar"
           severity="secondary"
           outlined
@@ -55,7 +57,7 @@
         />
         <Button
           v-if="user.remnawave"
-          label="Resync user"
+          :label="$t('userDetail.resyncUser')"
           icon="pi pi-refresh"
           severity="secondary"
           outlined
@@ -65,7 +67,7 @@
         <template v-else>
           <Button
             v-if="user.is_blocked"
-            label="Unblock"
+            :label="$t('userDetail.unblock')"
             icon="pi pi-lock-open"
             severity="success"
             outlined
@@ -73,7 +75,7 @@
           />
           <Button
             v-else
-            label="Block"
+            :label="$t('userDetail.block')"
             icon="pi pi-ban"
             severity="warn"
             outlined
@@ -85,8 +87,8 @@
 
     <section class="detail-section">
       <div class="section-header compact-section-header">
-        <h4>Configs and QR</h4>
-        <p>Доступно только для нод с закешированными metadata.</p>
+        <h4>{{ $t('userDetail.configsAndQr') }}</h4>
+        <p>{{ $t('userDetail.configsHint') }}</p>
       </div>
       <div v-if="readyNodes.length" class="config-node-list">
         <article v-for="node in readyNodes" :key="node.id" class="config-node-card">
@@ -97,7 +99,7 @@
           <div class="config-node-actions">
             <Button
               icon="pi pi-download"
-              label="Config"
+              :label="$t('userDetail.config')"
               size="small"
               text
               severity="secondary"
@@ -105,7 +107,7 @@
             />
             <Button
               icon="pi pi-qrcode"
-              label="QR"
+              :label="$t('userDetail.qr')"
               size="small"
               text
               severity="secondary"
@@ -115,42 +117,47 @@
         </article>
         <Button
           v-if="readyNodes.length > 1"
-          label="Download ZIP"
+          :label="$t('userDetail.downloadZip')"
           icon="pi pi-file-export"
           severity="secondary"
           outlined
           @click="$emit('downloadConfigZip', user)"
         />
       </div>
-      <div v-else class="drawer-empty">Нет готовых нод. Сначала выполните node sync.</div>
+      <div v-else class="drawer-empty">{{ $t('userDetail.noReadyNodes') }}</div>
     </section>
 
     <section class="detail-section">
       <div class="section-header compact-section-header">
-        <h4>Overview</h4>
+        <h4>{{ $t('userDetail.overview') }}</h4>
       </div>
       <div class="detail-grid">
         <div>
-          <span>ID</span><code>{{ user.id }}</code>
+          <span>{{ $t('userDetail.labelId') }}</span
+          ><code>{{ user.id }}</code>
         </div>
         <div>
-          <span>VPN IP</span><b>{{ user.vpn_ip || '—' }}</b>
+          <span>{{ $t('userDetail.labelVpnIp') }}</span
+          ><b>{{ user.vpn_ip || '—' }}</b>
         </div>
         <div>
-          <span>Public key</span><code>{{ user.public_key || '—' }}</code>
+          <span>{{ $t('userDetail.labelPublicKey') }}</span
+          ><code>{{ user.public_key || '—' }}</code>
         </div>
         <div>
-          <span>Created</span><b>{{ formatDateTimeOrDash(user.created_at) }}</b>
+          <span>{{ $t('userDetail.labelCreated') }}</span
+          ><b>{{ formatDateTimeOrDash(user.created_at) }}</b>
         </div>
         <div>
-          <span>Traffic</span><b>{{ trafficValue(user) }}</b>
+          <span>{{ $t('userDetail.labelTraffic') }}</span
+          ><b>{{ trafficValue(user) }}</b>
         </div>
       </div>
     </section>
 
     <section class="detail-section">
       <div class="section-header compact-section-header">
-        <h4>Nodes</h4>
+        <h4>{{ $t('userDetail.nodes') }}</h4>
       </div>
       <div v-if="user.peers.length" class="peer-detail-list">
         <article v-for="peer in user.peers" :key="peer.node_id" class="peer-detail-card">
@@ -160,18 +167,23 @@
           </div>
           <div class="detail-grid detail-grid--single">
             <div>
-              <span>Online</span><b>{{ peer.online ? 'online' : 'offline' }}</b>
+              <span>{{ $t('userDetail.labelOnline') }}</span
+              ><b>{{
+                peer.online ? $t('userTable.statusOnline') : $t('userTable.statusOffline')
+              }}</b>
             </div>
             <div>
-              <span>Last handshake</span><b>{{ fmtHandshake(peer.last_handshake) }}</b>
+              <span>{{ $t('userDetail.labelLastHandshake') }}</span
+              ><b>{{ fmtHandshake(peer.last_handshake) }}</b>
             </div>
             <div>
-              <span>Endpoint</span><code>{{ peer.endpoint || '—' }}</code>
+              <span>{{ $t('userDetail.labelEndpoint') }}</span
+              ><code>{{ peer.endpoint || '—' }}</code>
             </div>
           </div>
         </article>
       </div>
-      <div v-else class="drawer-empty">Пиры ещё не назначены.</div>
+      <div v-else class="drawer-empty">{{ $t('userDetail.noPeers') }}</div>
     </section>
 
     <section
@@ -180,54 +192,64 @@
       data-testid="remnawave-metadata"
     >
       <div class="section-header compact-section-header">
-        <h4>Remnawave metadata</h4>
-        <p>Скрыто из списка, доступно в detail для диагностики.</p>
+        <h4>{{ $t('userDetail.remnawaveData') }}</h4>
+        <p>{{ $t('userDetail.remnawaveDataHint') }}</p>
       </div>
       <div class="detail-grid">
         <div>
-          <span>UUID</span><code>{{ user.remnawave.uuid }}</code>
+          <span>{{ $t('userDetail.labelUuid') }}</span
+          ><code>{{ user.remnawave.uuid }}</code>
         </div>
         <div>
-          <span>Username</span><b>{{ user.remnawave.username }}</b>
+          <span>{{ $t('userDetail.labelUsername') }}</span
+          ><b>{{ user.remnawave.username }}</b>
         </div>
         <div>
-          <span>Email</span><b>{{ user.remnawave.email || '—' }}</b>
+          <span>{{ $t('userDetail.labelEmail') }}</span
+          ><b>{{ user.remnawave.email || '—' }}</b>
         </div>
         <div>
-          <span>Status</span><b>{{ user.remnawave.status }}</b>
+          <span>{{ $t('userDetail.labelStatus') }}</span
+          ><b>{{ user.remnawave.status }}</b>
         </div>
         <div>
-          <span>Expires</span><b>{{ fmtDate(user.remnawave.expire_at) }}</b>
+          <span>{{ $t('userDetail.labelExpires') }}</span
+          ><b>{{ fmtDate(user.remnawave.expire_at) }}</b>
         </div>
         <div>
-          <span>Traffic limit</span><b>{{ trafficLimit(user.remnawave.traffic_limit_bytes) }}</b>
+          <span>{{ $t('userDetail.labelTrafficLimit') }}</span
+          ><b>{{ trafficLimit(user.remnawave.traffic_limit_bytes) }}</b>
         </div>
         <div>
-          <span>Combined used</span
+          <span>{{ $t('userDetail.labelCombinedUsed') }}</span
           ><b>{{ fmtBytes(user.remnawave.combined_traffic_used_bytes) }}</b>
         </div>
         <div>
-          <span>Blocked reason</span><b>{{ user.remnawave.blocked_reason || '—' }}</b>
+          <span>{{ $t('userDetail.labelBlockedReason') }}</span
+          ><b>{{ user.remnawave.blocked_reason || '—' }}</b>
         </div>
         <div>
-          <span>Last sync</span><b>{{ formatDateTimeOrDash(user.remnawave.last_synced_at) }}</b>
+          <span>{{ $t('userDetail.labelLastSync') }}</span
+          ><b>{{ formatDateTimeOrDash(user.remnawave.last_synced_at) }}</b>
         </div>
         <div>
-          <span>Sync reason</span><b>{{ user.remnawave.sync_reason || '—' }}</b>
+          <span>{{ $t('userDetail.labelSyncReason') }}</span
+          ><b>{{ user.remnawave.sync_reason || '—' }}</b>
         </div>
         <div class="detail-wide">
-          <span>Sync error</span><code>{{ user.remnawave.sync_error || '—' }}</code>
+          <span>{{ $t('userDetail.labelSyncError') }}</span
+          ><code>{{ user.remnawave.sync_error || '—' }}</code>
         </div>
       </div>
     </section>
 
     <section v-if="!user.remnawave" class="detail-section detail-section--danger">
       <div class="section-header compact-section-header">
-        <h4>Danger zone</h4>
-        <p>Удаление локального пользователя требует подтверждения.</p>
+        <h4>{{ $t('userDetail.dangerZone') }}</h4>
+        <p>{{ $t('userDetail.dangerZoneHint') }}</p>
       </div>
       <Button
-        label="Delete local user"
+        :label="$t('userDetail.deleteUser')"
         icon="pi pi-trash"
         severity="danger"
         outlined
@@ -238,19 +260,20 @@
 
   <aside v-else class="user-detail-placeholder" data-testid="user-detail-placeholder">
     <i class="pi pi-arrow-left" />
-    <strong>Выберите пользователя</strong>
-    <span
-      >В списке остаются только поля для сканирования, всё диагностическое открывается здесь.</span
-    >
+    <strong>{{ $t('userDetail.placeholderTitle') }}</strong>
+    <span>{{ $t('userDetail.placeholderText') }}</span>
   </aside>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import { fmtBytes, fmtDate, fmtHandshake, formatDateTime } from '../../utils/format'
 import { peerSeverity } from '../../utils/status'
 import type { Node, User } from '../../api'
+
+const { t } = useI18n()
 
 defineProps<{
   user: User | null
@@ -281,7 +304,7 @@ function trafficValue(user: User): string {
 }
 
 function trafficLimit(value: number): string {
-  return value > 0 ? fmtBytes(value) : 'без лимита'
+  return value > 0 ? fmtBytes(value) : t('userDetail.noLimit')
 }
 
 function syncSeverity(status: string, error: string | null): string {

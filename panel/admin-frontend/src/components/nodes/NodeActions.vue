@@ -2,36 +2,36 @@
   <div class="row-actions">
     <Button
       icon="pi pi-refresh"
-      :label="mobile ? 'Применить конфиг' : undefined"
+      :label="mobile ? $t('nodeActions.applyConfig') : undefined"
       text
       size="small"
       severity="secondary"
       :outlined="mobile"
-      :title="mobile ? undefined : 'Применить конфигурацию'"
+      :title="mobile ? undefined : $t('nodeActions.applyConfig')"
       :loading="provisioning"
       @click="$emit('provision')"
     />
     <Button
       icon="pi pi-pencil"
-      :label="mobile ? 'Настройки' : undefined"
+      :label="mobile ? $t('nodeActions.settings') : undefined"
       text
       size="small"
       severity="secondary"
       :outlined="mobile"
-      :title="mobile ? undefined : 'Настройки ноды'"
-      :aria-label="mobile ? undefined : 'Настройки ноды'"
+      :title="mobile ? undefined : $t('nodeActions.settings')"
+      :aria-label="mobile ? undefined : $t('nodeActions.settings')"
       as="router-link"
       :to="`/nodes/${nodeId}/settings`"
     />
     <Button
       icon="pi pi-trash"
-      :label="mobile ? 'Удалить' : undefined"
+      :label="mobile ? $t('nodeActions.delete') : undefined"
       :severity="'danger'"
       text
       size="small"
       :outlined="mobile"
-      :title="mobile ? undefined : 'Удалить ноду'"
-      :aria-label="mobile ? undefined : 'Удалить ноду'"
+      :title="mobile ? undefined : $t('nodeActions.delete')"
+      :aria-label="mobile ? undefined : $t('nodeActions.delete')"
       @click="$emit('confirmDelete', $event)"
     />
   </div>

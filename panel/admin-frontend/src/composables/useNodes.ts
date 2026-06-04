@@ -1,6 +1,7 @@
 import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
+import { useI18n } from 'vue-i18n'
 import { nodesApi } from '../api/nodes'
 import type { Node, NodePeer, NodeCreate } from '../api/types'
 
@@ -61,6 +62,7 @@ export const defaultForm: NodeCreate = {
 export function useNodes() {
   const toast = useToast()
   const confirm = useConfirm()
+  const { t } = useI18n()
 
   const nodes = ref<Node[]>([])
   const loading = ref(false)
@@ -79,8 +81,8 @@ export function useNodes() {
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     } finally {
@@ -107,15 +109,15 @@ export function useNodes() {
       await nodesApi.provisionNode(node.id)
       toast.add({
         severity: 'success',
-        summary: 'Конфигурация применена',
+        summary: t('toasts.configApplied'),
         detail: node.name,
         life: 3000,
       })
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     } finally {
@@ -139,13 +141,18 @@ export function useNodes() {
           online_threshold_seconds: 180,
         })
         showAdd.value = false
-        toast.add({ severity: 'success', summary: 'Добавлено', detail: node.name, life: 3000 })
+        toast.add({
+          severity: 'success',
+          summary: t('toasts.added'),
+          detail: node.name,
+          life: 3000,
+        })
       }
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     } finally {
@@ -156,11 +163,11 @@ export function useNodes() {
   function confirmDelete(event: Event, node: Node) {
     confirm.require({
       target: event.currentTarget as HTMLElement,
-      message: `Удалить ноду «${node.name}»?`,
+      message: t('toasts.deleteNodeConfirm', { name: node.name }),
       icon: 'pi pi-exclamation-triangle',
       acceptClass: 'p-button-danger',
-      acceptLabel: 'Удалить',
-      rejectLabel: 'Отмена',
+      acceptLabel: t('toasts.deleteAccept'),
+      rejectLabel: t('toasts.deleteReject'),
       accept: () => deleteNode(node),
     })
   }
@@ -169,12 +176,17 @@ export function useNodes() {
     try {
       await nodesApi.deleteNode(node.id)
       nodes.value = nodes.value.filter((n) => n.id !== node.id)
-      toast.add({ severity: 'success', summary: 'Удалено', detail: node.name, life: 3000 })
+      toast.add({
+        severity: 'success',
+        summary: t('toasts.deleted'),
+        detail: node.name,
+        life: 3000,
+      })
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     }

@@ -1,5 +1,6 @@
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { nodesApi } from '../api/nodes'
 import type { Node, User } from '../api/types'
@@ -9,6 +10,7 @@ import { makeMockNodes, makeMockUsers, scenarioFromLocation } from '../utils/moc
 export function useUsers() {
   const toast = useToast()
   const confirm = useConfirm()
+  const { t } = useI18n()
 
   const users = ref<User[]>([])
   const allNodes = ref<Node[]>([])
@@ -37,11 +39,11 @@ export function useUsers() {
       }
       if (n) allNodes.value = n
     } catch (e: unknown) {
-      loadError.value = e instanceof Error ? e.message : 'Ошибка'
+      loadError.value = e instanceof Error ? e.message : t('common.error')
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     } finally {
@@ -67,7 +69,7 @@ export function useUsers() {
         }
         users.value = [user, ...users.value]
         newName.value = ''
-        toast.add({ severity: 'success', summary: 'Добавлен mock-user', detail: name, life: 3000 })
+        toast.add({ severity: 'success', summary: t('toasts.added'), detail: name, life: 3000 })
         return
       }
       const user = await usersApi.addUser(name)
@@ -75,13 +77,18 @@ export function useUsers() {
         user.local_traffic = null
         users.value.push(user)
         newName.value = ''
-        toast.add({ severity: 'success', summary: 'Добавлен', detail: user.name, life: 3000 })
+        toast.add({
+          severity: 'success',
+          summary: t('toasts.added'),
+          detail: user.name,
+          life: 3000,
+        })
       }
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     } finally {
@@ -100,12 +107,12 @@ export function useUsers() {
       }
       const updated = await usersApi.blockUser(user.id)
       if (updated) Object.assign(user, updated)
-      toast.add({ severity: 'warn', summary: 'Заблокирован', detail: user.name, life: 3000 })
+      toast.add({ severity: 'warn', summary: t('toasts.blocked'), detail: user.name, life: 3000 })
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     }
@@ -122,12 +129,17 @@ export function useUsers() {
       }
       const updated = await usersApi.unblockUser(user.id)
       if (updated) Object.assign(user, updated)
-      toast.add({ severity: 'success', summary: 'Разблокирован', detail: user.name, life: 3000 })
+      toast.add({
+        severity: 'success',
+        summary: t('toasts.unblocked'),
+        detail: user.name,
+        life: 3000,
+      })
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     }
@@ -136,11 +148,11 @@ export function useUsers() {
   function confirmDelete(event: Event, user: User) {
     confirm.require({
       target: event.currentTarget as HTMLElement,
-      message: `Удалить пользователя «${user.name}»?`,
+      message: t('toasts.deleteUserConfirm', { name: user.name }),
       icon: 'pi pi-exclamation-triangle',
       acceptClass: 'p-button-danger',
-      acceptLabel: 'Удалить',
-      rejectLabel: 'Отмена',
+      acceptLabel: t('toasts.deleteAccept'),
+      rejectLabel: t('toasts.deleteReject'),
       accept: () => deleteUser(user),
     })
   }
@@ -153,12 +165,17 @@ export function useUsers() {
       }
       await usersApi.deleteUser(user.id)
       users.value = users.value.filter((u) => u.id !== user.id)
-      toast.add({ severity: 'success', summary: 'Удалён', detail: user.name, life: 3000 })
+      toast.add({
+        severity: 'success',
+        summary: t('toasts.deleted'),
+        detail: user.name,
+        life: 3000,
+      })
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('common.error'),
+        detail: e instanceof Error ? e.message : t('common.error'),
         life: 4000,
       })
     }

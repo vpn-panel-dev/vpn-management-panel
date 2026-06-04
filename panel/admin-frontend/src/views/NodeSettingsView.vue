@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <Button
-          label="К нодам"
+          :label="$t('nodeSettings.back')"
           icon="pi pi-arrow-left"
           text
           severity="secondary"
@@ -11,45 +11,44 @@
           to="/nodes"
           style="padding-left: 0; margin-bottom: 0.35rem"
         />
-        <span class="page-kicker"><i class="pi pi-sliders-h" /> Node profile</span>
-        <h2>Настройки ноды</h2>
-        <p class="page-description">
-          Изменение агентского подключения и AWG-параметров. Сохранение сразу запускает
-          перепровижонинг.
-        </p>
+        <span class="page-kicker"
+          ><i class="pi pi-sliders-h" /> {{ $t('nodeSettings.kicker') }}</span
+        >
+        <h2>{{ $t('nodeSettings.title') }}</h2>
+        <p class="page-description">{{ $t('nodeSettings.description') }}</p>
       </div>
       <Tag
         v-if="node"
         :severity="node.online ? 'success' : 'danger'"
-        :value="node.online ? 'online' : 'offline'"
+        :value="node.online ? $t('status.online') : $t('status.offline')"
       />
     </div>
 
-    <div v-if="loading" class="settings-card muted-card">Загрузка настроек…</div>
-    <div v-else-if="!node" class="settings-card muted-card">Нода не найдена.</div>
+    <div v-if="loading" class="settings-card muted-card">{{ $t('nodeSettings.loading') }}</div>
+    <div v-else-if="!node" class="settings-card muted-card">{{ $t('nodeSettings.notFound') }}</div>
 
     <form v-else class="settings-card settings-form" @submit.prevent="saveNode">
       <section>
         <div class="section-header">
-          <h3>Основные параметры</h3>
-          <p>Используются панелью для связи с агентом и клиентскими конфигами.</p>
+          <h3>{{ $t('nodeSettings.basicParams') }}</h3>
+          <p>{{ $t('nodeSettings.basicParamsHint') }}</p>
         </div>
 
         <div class="form-grid">
           <div class="field">
-            <label>Название</label>
+            <label>{{ $t('nodeSettings.name') }}</label>
             <InputText v-model="form.name" required />
           </div>
           <div class="field">
-            <label>IP / URL агента</label>
+            <label>{{ $t('nodeSettings.agentIpUrl') }}</label>
             <InputText v-model="form.url" placeholder="http://1.2.3.4:8000" required />
           </div>
           <div class="field">
-            <label>Токен агента</label>
+            <label>{{ $t('nodeSettings.agentToken') }}</label>
             <InputText v-model="form.token" required />
           </div>
           <div class="field">
-            <label>Публичный эндпоинт</label>
+            <label>{{ $t('nodeSettings.publicEndpoint') }}</label>
             <InputText v-model="form.server_endpoint" placeholder="1.2.3.4:51820" />
           </div>
         </div>
@@ -57,10 +56,8 @@
 
       <section>
         <div class="section-header">
-          <h3>Параметры обфускации</h3>
-          <p>
-            После сохранения нода будет перепровижонена, пользователям нужно перескачать конфиги.
-          </p>
+          <h3>{{ $t('nodeSettings.obfuscationParams') }}</h3>
+          <p>{{ $t('nodeSettings.obfuscationHint') }}</p>
         </div>
 
         <div class="obfuscation-grid">
@@ -105,12 +102,10 @@
       <section>
         <button type="button" class="advanced-toggle" @click="showAwg2 = !showAwg2">
           <i :class="showAwg2 ? 'pi pi-chevron-down' : 'pi pi-chevron-right'" />
-          AWG2: Traffic Imitation (I1–I5) / MTU
+          {{ $t('nodeSettings.awg2Title') }}
         </button>
         <div v-show="showAwg2" class="awg2-grid">
-          <p class="section-note">
-            Обычно синкаются с ноды автоматически. Менять вручную только если нода их не отдаёт.
-          </p>
+          <p class="section-note">{{ $t('nodeSettings.awg2Hint') }}</p>
           <div class="field wide-field">
             <label>I1</label><Textarea v-model="form.i1" rows="2" />
           </div>
@@ -125,8 +120,14 @@
       </section>
 
       <div class="settings-actions">
-        <Button label="Отмена" text severity="secondary" as="router-link" to="/nodes" />
-        <Button type="submit" label="Сохранить и перепровижонить" :loading="submitting" />
+        <Button
+          :label="$t('nodeSettings.cancel')"
+          text
+          severity="secondary"
+          as="router-link"
+          to="/nodes"
+        />
+        <Button type="submit" :label="$t('nodeSettings.saveAndProvision')" :loading="submitting" />
       </div>
     </form>
   </div>
@@ -135,6 +136,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
@@ -171,6 +173,7 @@ interface SettingsForm {
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const { t } = useI18n()
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -237,8 +240,8 @@ async function loadNode() {
   } catch (e: unknown) {
     toast.add({
       severity: 'error',
-      summary: 'Ошибка',
-      detail: e instanceof Error ? e.message : 'Ошибка',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('toasts.error'),
       life: 4000,
     })
   } finally {
@@ -260,16 +263,16 @@ async function saveNode() {
     if (updated) node.value = updated
     toast.add({
       severity: 'success',
-      summary: 'Сохранено',
-      detail: 'Нода перепровижонена. Попросите пользователей перескачать конфиги.',
+      summary: t('toasts.saved'),
+      detail: t('toasts.provisionDetail'),
       life: 6000,
     })
     router.push('/nodes')
   } catch (e: unknown) {
     toast.add({
       severity: 'error',
-      summary: 'Ошибка',
-      detail: e instanceof Error ? e.message : 'Ошибка',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('toasts.error'),
       life: 4000,
     })
   } finally {

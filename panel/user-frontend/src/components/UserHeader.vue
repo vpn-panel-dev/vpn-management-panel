@@ -4,7 +4,7 @@
       <div class="logo">
         <ShieldIcon />
       </div>
-      <span class="brand">Secure Access</span>
+      <span class="brand">{{ $t('app.brand') }}</span>
       <div class="spacer" />
       <div v-if="userName" class="user-badge">
         <div class="avatar">{{ userName[0].toUpperCase() }}</div>

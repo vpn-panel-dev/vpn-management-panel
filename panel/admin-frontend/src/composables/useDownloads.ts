@@ -1,4 +1,5 @@
 import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import { reactive } from 'vue'
 import { operationsApi } from '../api/operations'
 import type {
@@ -33,12 +34,13 @@ export interface TrafficDialog {
 }
 
 export const qrTabs = [
-  { key: 'wg' as const, label: 'AmneziaWG' },
-  { key: 'amnezia' as const, label: 'AmneziaVPN' },
+  { key: 'wg' as const, labelKey: 'qrDialog.amneziaWg' },
+  { key: 'amnezia' as const, labelKey: 'qrDialog.amneziaVpn' },
 ]
 
 export function useDownloads() {
   const toast = useToast()
+  const { t } = useI18n()
   const trafficDays = 30
   let trafficRequestId = 0
 
@@ -66,7 +68,7 @@ export function useDownloads() {
   async function showQr(user: User, node: Node) {
     if (qrDialog.srcWg) URL.revokeObjectURL(qrDialog.srcWg)
     if (qrDialog.srcAmnezia) URL.revokeObjectURL(qrDialog.srcAmnezia)
-    qrDialog.title = `QR — ${user.name} / ${node.name}`
+    qrDialog.title = `${user.name} / ${node.name}`
     qrDialog.srcWg = ''
     qrDialog.srcAmnezia = ''
     qrDialog.tab = 'wg'
@@ -81,8 +83,8 @@ export function useDownloads() {
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('toasts.error'),
+        detail: e instanceof Error ? e.message : t('toasts.error'),
         life: 4000,
       })
       qrDialog.visible = false
@@ -105,8 +107,8 @@ export function useDownloads() {
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('toasts.error'),
+        detail: e instanceof Error ? e.message : t('toasts.error'),
         life: 4000,
       })
     }
@@ -119,8 +121,8 @@ export function useDownloads() {
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('toasts.error'),
+        detail: e instanceof Error ? e.message : t('toasts.error'),
         life: 4000,
       })
     }
@@ -129,13 +131,13 @@ export function useDownloads() {
   function copyUserLink(user: User) {
     const url = `${window.location.origin}/u/${user.id}`
     navigator.clipboard.writeText(url).then(() => {
-      toast.add({ severity: 'success', summary: 'Ссылка скопирована', detail: url, life: 3000 })
+      toast.add({ severity: 'success', summary: t('toasts.linkCopied'), detail: url, life: 3000 })
     })
   }
 
   async function showTraffic(user: User) {
     const requestId = ++trafficRequestId
-    trafficDialog.title = `Трафик — ${user.name}`
+    trafficDialog.title = t('trafficDialog.title', { name: user.name })
     trafficDialog.data = []
     trafficDialog.maxVal = 0
     trafficDialog.localTotals = null
@@ -168,8 +170,8 @@ export function useDownloads() {
       if (requestId !== trafficRequestId) return
       toast.add({
         severity: 'error',
-        summary: 'Ошибка',
-        detail: e instanceof Error ? e.message : 'Ошибка',
+        summary: t('toasts.error'),
+        detail: e instanceof Error ? e.message : t('toasts.error'),
         life: 4000,
       })
       trafficDialog.visible = false

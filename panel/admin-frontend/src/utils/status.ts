@@ -1,4 +1,5 @@
 import type { RemnawaveUserBrief } from '../api/types'
+import { i18n } from '../i18n'
 import { fmtBytes, fmtDate } from './format'
 
 /**
@@ -24,11 +25,11 @@ export function remnawaveSeverity(status: string): string {
 }
 
 export function remnawaveBlockedReasonLabel(reason: string | null): string {
-  if (reason === 'disabled') return 'Disabled'
-  if (reason === 'limited') return 'Limited'
-  if (reason === 'expired') return 'Expired'
-  if (reason === 'deleted') return 'Deleted'
-  return 'Not blocked'
+  if (reason === 'disabled') return i18n.global.t('status.disabled')
+  if (reason === 'limited') return i18n.global.t('status.limited')
+  if (reason === 'expired') return i18n.global.t('status.expired')
+  if (reason === 'deleted') return i18n.global.t('status.deleted')
+  return i18n.global.t('status.notBlocked')
 }
 
 export function remnawaveBlockedReasonSeverity(reason: string | null): string {
@@ -49,12 +50,13 @@ export function isOnline(lastHandshake: string | null): boolean {
  * Build a tooltip string for a Remnawave user brief.
  */
 export function remnawaveTooltip(rw: RemnawaveUserBrief): string {
-  const parts: string[] = [`Статус: ${rw.status}`]
-  if (rw.expire_at) parts.push(`Истекает: ${fmtDate(rw.expire_at)}`)
+  const parts: string[] = [i18n.global.t('remnawave.status') + ': ' + rw.status]
+  if (rw.expire_at)
+    parts.push(i18n.global.t('userDetail.labelExpires') + ': ' + fmtDate(rw.expire_at))
   if (rw.traffic_limit_bytes > 0) {
     const used = fmtBytes(rw.combined_traffic_used_bytes)
     const limit = fmtBytes(rw.traffic_limit_bytes)
-    parts.push(`Combined traffic: ${used} / ${limit}`)
+    parts.push(i18n.global.t('userDetail.labelTraffic') + ': ' + used + ' / ' + limit)
   }
   return parts.join('\n')
 }

@@ -28,9 +28,9 @@
             </button>
             <div class="user-subline">
               <code v-if="user.vpn_ip">{{ user.vpn_ip }}</code>
-              <span v-else class="dim">IP не назначен</span>
+              <span v-else class="dim">{{ $t('userTable.ipNotAssigned') }}</span>
               <span>•</span>
-              <span>{{ user.peers.length }} нод</span>
+              <span>{{ $t('userTable.nodesCount', { count: user.peers.length }) }}</span>
             </div>
           </div>
         </div>
@@ -38,15 +38,20 @@
         <div class="user-state-stack">
           <Tag
             :severity="user.is_blocked ? 'danger' : 'success'"
-            :value="user.is_blocked ? 'blocked' : 'active'"
+            :value="user.is_blocked ? $t('userTable.statusBlocked') : $t('userTable.statusActive')"
             class="status-tag"
           />
           <Tag
             :severity="user.online ? 'success' : 'secondary'"
-            :value="user.online ? 'online' : 'offline'"
+            :value="user.online ? $t('userTable.statusOnline') : $t('userTable.statusOffline')"
             class="status-tag"
           />
-          <Tag v-if="user.remnawave" severity="info" value="readonly RW" class="status-tag" />
+          <Tag
+            v-if="user.remnawave"
+            severity="info"
+            :value="$t('userTable.readonlyExternal')"
+            class="status-tag"
+          />
         </div>
 
         <div class="user-signal-block">
@@ -56,11 +61,13 @@
               <span>{{ user.remnawave.username }}</span>
               <Tag
                 :severity="syncSeverity(user.remnawave.sync_status, user.remnawave.sync_error)"
-                :value="user.remnawave.sync_error ? 'sync error' : user.remnawave.sync_status"
+                :value="
+                  user.remnawave.sync_error ? $t('userTable.syncError') : user.remnawave.sync_status
+                "
                 class="status-tag"
               />
             </template>
-            <template v-else>Local AmneziaWG</template>
+            <template v-else>{{ $t('userTable.localUser') }}</template>
           </div>
         </div>
 
@@ -76,8 +83,8 @@
             text
             rounded
             severity="secondary"
-            title="Скопировать self-service link"
-            aria-label="Скопировать self-service link"
+            :title="$t('userTable.copyLink')"
+            :aria-label="$t('userTable.copyLink')"
             @click="$emit('copyUserLink', user)"
           />
           <Button
@@ -86,8 +93,8 @@
             text
             rounded
             severity="secondary"
-            title="Открыть детали и QR"
-            aria-label="Открыть детали и QR"
+            :title="$t('userTable.openDetails')"
+            :aria-label="$t('userTable.openDetails')"
             @click="$emit('select', user)"
           />
           <Button
@@ -96,8 +103,8 @@
             text
             rounded
             severity="secondary"
-            title="Детали"
-            aria-label="Детали"
+            :title="$t('userTable.details')"
+            :aria-label="$t('userTable.details')"
             @click="$emit('select', user)"
           />
         </div>
@@ -107,10 +114,13 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import { fmtBytes, fmtDate } from '../../utils/format'
 import type { User } from '../../api'
+
+const { t } = useI18n()
 
 defineProps<{
   users: User[]
@@ -135,13 +145,15 @@ function initials(name: string): string {
 }
 
 function sourceLabel(user: User): string {
-  if (!user.remnawave) return 'Local user'
-  const expires = user.remnawave.expire_at ? ` · exp ${fmtDate(user.remnawave.expire_at)}` : ''
-  return `Remnawave${expires}`
+  if (!user.remnawave) return t('userTable.localUser')
+  const expires = user.remnawave.expire_at
+    ? ` · ${t('userTable.expires', { date: fmtDate(user.remnawave.expire_at) })}`
+    : ''
+  return `${t('userTable.remnawaveUser')}${expires}`
 }
 
 function usageLabel(user: User): string {
-  return user.remnawave ? 'Combined traffic' : 'Local traffic'
+  return user.remnawave ? t('userTable.combinedTraffic') : t('userTable.localTraffic')
 }
 
 function usageValue(user: User): string {

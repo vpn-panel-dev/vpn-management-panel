@@ -1,22 +1,24 @@
 <template>
   <div class="mobile-card-list">
-    <div v-if="loading" class="mobile-empty">Загрузка пользователей…</div>
-    <div v-else-if="!users.length" class="mobile-empty">Нет пользователей.</div>
+    <div v-if="loading" class="mobile-empty">{{ $t('userMobile.loading') }}</div>
+    <div v-else-if="!users.length" class="mobile-empty">{{ $t('userMobile.empty') }}</div>
     <article v-for="user in users" v-else :key="user.id" class="mobile-user-card">
       <div class="mobile-card-head">
         <div>
           <div class="mobile-card-title">{{ user.name }}</div>
-          <div class="mobile-card-sub">{{ user.vpn_ip || 'IP ещё не назначен' }}</div>
+          <div class="mobile-card-sub">{{ user.vpn_ip || $t('userMobile.ipNotAssigned') }}</div>
         </div>
         <div class="mobile-card-tags">
           <Tag
             :severity="user.is_blocked ? 'danger' : 'success'"
-            :value="user.is_blocked ? 'заблокирован' : 'активен'"
+            :value="
+              user.is_blocked ? $t('userMobile.statusBlocked') : $t('userMobile.statusActive')
+            "
             style="font-size: 0.75rem"
           />
           <Tag
             :severity="user.online ? 'success' : 'secondary'"
-            :value="user.online ? 'online' : 'offline'"
+            :value="user.online ? $t('userMobile.statusOnline') : $t('userMobile.statusOffline')"
             style="font-size: 0.72rem"
           />
           <Tag v-if="user.remnawave" severity="info" value="Remnawave" style="font-size: 0.72rem" />
@@ -29,7 +31,7 @@
           <Tag
             v-if="user.remnawave"
             severity="secondary"
-            value="только просмотр"
+            :value="$t('userMobile.readonly')"
             style="font-size: 0.72rem"
           />
         </div>
@@ -37,7 +39,7 @@
 
       <div v-if="user.remnawave" class="mobile-remnawave-info">
         <div class="mobile-remnawave-head">
-          <span class="remnawave-label">Управляется Remnawave</span>
+          <span class="remnawave-label">{{ $t('userMobile.managedByRemnawave') }}</span>
           <Tag
             :severity="remnawaveSeverity(user.remnawave.status)"
             :value="user.remnawave.status"
@@ -46,27 +48,27 @@
         </div>
         <div class="mobile-remnawave-grid">
           <div>
-            <span>UUID</span>
+            <span>{{ $t('userMobile.labelUuid') }}</span>
             <code :title="user.remnawave.uuid">{{ user.remnawave.uuid }}</code>
           </div>
           <div>
-            <span>Источник</span>
-            <b class="remnawave-source">Remnawave</b>
+            <span>{{ $t('userMobile.labelSource') }}</span>
+            <b class="remnawave-source">{{ $t('userMobile.sourceRemnawave') }}</b>
           </div>
           <div>
-            <span>Username</span>
+            <span>{{ $t('userMobile.labelUsername') }}</span>
             <b>{{ user.remnawave.username }}</b>
           </div>
           <div>
-            <span>Истекает</span>
+            <span>{{ $t('userMobile.labelExpires') }}</span>
             <b>{{ fmtDate(user.remnawave.expire_at) }}</b>
           </div>
           <div>
-            <span>Лимит трафика</span>
+            <span>{{ $t('userMobile.labelTrafficLimit') }}</span>
             <b>{{ trafficLimitLabel(user.remnawave.traffic_limit_bytes) }}</b>
           </div>
           <div>
-            <span>Причина блокировки</span>
+            <span>{{ $t('userMobile.labelBlockedReason') }}</span>
             <Tag
               :severity="remnawaveBlockedReasonSeverity(user.remnawave.blocked_reason)"
               :value="remnawaveBlockedReasonLabel(user.remnawave.blocked_reason)"
@@ -74,44 +76,51 @@
             />
           </div>
           <div>
-            <span>Последняя синхронизация</span>
+            <span>{{ $t('userMobile.labelLastSync') }}</span>
             <b>{{ formatDateTimeOrDash(user.remnawave.last_synced_at) }}</b>
           </div>
           <div>
-            <span>Причина sync</span>
+            <span>{{ $t('userMobile.labelSyncReason') }}</span>
             <b>{{ user.remnawave.sync_reason || '—' }}</b>
           </div>
           <div class="mobile-remnawave-error">
-            <span>Ошибка sync</span>
+            <span>{{ $t('userMobile.labelSyncError') }}</span>
             <b>{{ user.remnawave.sync_error || '—' }}</b>
           </div>
         </div>
       </div>
 
       <div class="mobile-local-traffic">
-        <span>{{ user.remnawave ? 'Combined usage' : 'Local AmneziaWG usage' }}</span>
+        <span>{{
+          user.remnawave ? $t('userMobile.combinedUsage') : $t('userMobile.localUsage')
+        }}</span>
         <b v-if="user.remnawave">{{ fmtBytes(user.remnawave.combined_traffic_used_bytes) }}</b>
         <b v-else-if="user.local_traffic">{{ fmtBytes(user.local_traffic.total_bytes) }}</b>
         <b v-else class="dim">—</b>
         <small v-if="user.remnawave">
-          Remnawave {{ fmtBytes(user.remnawave.traffic_used_bytes) }} + Local
-          {{ fmtBytes(user.remnawave.local_amneziawg_traffic_used_bytes) }}
+          {{
+            $t('userMobile.localUsageDetail', {
+              rw: fmtBytes(user.remnawave.traffic_used_bytes),
+              local: fmtBytes(user.remnawave.local_amneziawg_traffic_used_bytes),
+            })
+          }}
         </small>
-        <small v-else>Standalone local usage</small>
+        <small v-else>{{ $t('userMobile.standaloneUsage') }}</small>
       </div>
 
       <div class="mobile-fields">
         <div>
-          <span>Ноды</span>
+          <span>{{ $t('userMobile.nodes') }}</span>
           <div v-if="user.peers?.length" class="mobile-peer-list">
             <span v-for="p in user.peers" :key="p.node_id" class="peer-chip">
               <span
                 :title="
                   p.last_handshake
-                    ? `Последний хендшейк: ${fmtHandshake(p.last_handshake)}${
-                        p.endpoint ? ` · ${p.endpoint}` : ''
-                      }`
-                    : 'Никогда не подключался'
+                    ? $t('userMobile.lastHandshake', {
+                        time: fmtHandshake(p.last_handshake),
+                        endpoint: p.endpoint ? ` · ${p.endpoint}` : '',
+                      })
+                    : $t('userMobile.neverConnected')
                 "
                 :style="{
                   display: 'inline-block',
@@ -130,10 +139,10 @@
               <code v-if="p.endpoint" class="peer-endpoint">{{ p.endpoint }}</code>
             </span>
           </div>
-          <b v-else class="dim">нет</b>
+          <b v-else class="dim">{{ $t('userMobile.noNodes') }}</b>
         </div>
         <div>
-          <span>Конфиги</span>
+          <span>{{ $t('userMobile.configs') }}</span>
           <div v-if="readyNodes.length" class="mobile-config-grid">
             <Button
               v-for="n in readyNodes"
@@ -165,14 +174,14 @@
               @click="$emit('downloadConfigZip', user)"
             />
           </div>
-          <b v-else class="dim">нет нод</b>
+          <b v-else class="dim">{{ $t('userMobile.noNodes') }}</b>
         </div>
       </div>
 
       <div class="mobile-card-actions">
         <Button
           icon="pi pi-chart-bar"
-          label="Трафик"
+          :label="$t('userMobile.traffic')"
           size="small"
           severity="secondary"
           outlined
@@ -180,7 +189,7 @@
         />
         <Button
           icon="pi pi-link"
-          label="Ссылка"
+          :label="$t('userMobile.link')"
           size="small"
           severity="secondary"
           outlined
@@ -190,7 +199,7 @@
           <Button
             v-if="user.is_blocked"
             icon="pi pi-lock-open"
-            label="Разблокировать"
+            :label="$t('userMobile.unblock')"
             size="small"
             severity="success"
             outlined
@@ -199,7 +208,7 @@
           <Button
             v-else
             icon="pi pi-ban"
-            label="Блок"
+            :label="$t('userMobile.blockAction')"
             size="small"
             severity="warn"
             outlined
@@ -207,20 +216,21 @@
           />
           <Button
             icon="pi pi-trash"
-            label="Удалить"
+            :label="$t('userMobile.delete')"
             size="small"
             severity="danger"
             outlined
             @click="$emit('confirmDelete', $event, user)"
           />
         </template>
-        <span v-else class="remnawave-managed-text">Только просмотр</span>
+        <span v-else class="remnawave-managed-text">{{ $t('userMobile.viewOnly') }}</span>
       </div>
     </article>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import {
@@ -231,6 +241,8 @@ import {
 } from '../../utils/status'
 import { fmtHandshake, fmtDate, fmtBytes, formatDateTime } from '../../utils/format'
 import type { User, Node } from '../../api'
+
+const { t } = useI18n()
 
 defineProps<{
   users: User[]
@@ -257,7 +269,7 @@ function syncSeverity(status: string): string {
 }
 
 function trafficLimitLabel(limitBytes: number): string {
-  return limitBytes > 0 ? fmtBytes(limitBytes) : 'без лимита'
+  return limitBytes > 0 ? fmtBytes(limitBytes) : t('userDetail.noLimit')
 }
 
 function formatDateTimeOrDash(iso: string | null): string {

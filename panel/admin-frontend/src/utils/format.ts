@@ -1,3 +1,5 @@
+import { i18n } from '../i18n'
+
 /**
  * Format a byte count into a human-readable string.
  *
@@ -10,14 +12,20 @@ export function fmtBytes(b: number): string {
   return b + ' B'
 }
 
+function resolveBrowserLocale(locale: string): string {
+  if (locale === 'zh') return 'zh-CN'
+  return locale
+}
+
 /**
- * Format an ISO date string into a localized date (ru-RU).
+ * Format an ISO date string into a localized date.
  *
  * @example fmtDate('2025-01-15T10:30:00Z') → "15.01.2025"
  */
 export function fmtDate(iso: string | null): string {
   if (!iso) return '\u2014'
-  return new Date(iso).toLocaleDateString('ru-RU', {
+  const locale = resolveBrowserLocale(i18n.global.locale.value)
+  return new Date(iso).toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -25,29 +33,29 @@ export function fmtDate(iso: string | null): string {
 }
 
 /**
- * Format an ISO date string into a localized date-time (ru-RU).
+ * Format an ISO date string into a localized date-time.
  *
  * @example formatDateTime('2025-01-15T10:30:00Z') → "15.01.2025, 10:30:00"
  */
 export function formatDateTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleString('ru-RU')
+    const locale = resolveBrowserLocale(i18n.global.locale.value)
+    return new Date(iso).toLocaleString(locale)
   } catch {
     return iso
   }
 }
 
 /**
- * Format a last-handshake timestamp as a relative time string (Russian).
+ * Format a last-handshake timestamp as a relative time string.
  *
  * @example fmtHandshake('2025-01-15T10:30:00Z') → "5 мин. назад"
  */
 export function fmtHandshake(lastHandshake: string | null): string {
-  if (!lastHandshake) return '\u043D\u0438\u043A\u043E\u0433\u0434\u0430'
+  if (!lastHandshake) return i18n.global.t('time.never')
   const sec = Math.floor((Date.now() - new Date(lastHandshake).getTime()) / 1000)
-  if (sec < 60) return `${sec} \u0441\u0435\u043A. \u043D\u0430\u0437\u0430\u0434`
-  if (sec < 3600)
-    return `${Math.floor(sec / 60)} \u043C\u0438\u043D. \u043D\u0430\u0437\u0430\u0434`
-  if (sec < 86400) return `${Math.floor(sec / 3600)} \u0447. \u043D\u0430\u0437\u0430\u0434`
-  return `${Math.floor(sec / 86400)} \u0434. \u043D\u0430\u0437\u0430\u0434`
+  if (sec < 60) return i18n.global.t('time.secondsAgo', { n: sec })
+  if (sec < 3600) return i18n.global.t('time.minutesAgo', { n: Math.floor(sec / 60) })
+  if (sec < 86400) return i18n.global.t('time.hoursAgo', { n: Math.floor(sec / 3600) })
+  return i18n.global.t('time.daysAgo', { n: Math.floor(sec / 86400) })
 }

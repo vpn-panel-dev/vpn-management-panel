@@ -2,25 +2,26 @@
   <div>
     <div class="page-header">
       <div>
-        <span class="page-kicker"><i class="pi pi-server" /> Node fleet</span>
-        <h2>Ноды</h2>
-        <p class="page-description">
-          Провижонинг VPN-узлов, проверка готовности ключей и быстрый доступ к peer-состоянию.
-        </p>
+        <span class="page-kicker"><i class="pi pi-server" /> {{ $t('nodes.kicker') }}</span>
+        <h2>{{ $t('nodes.title') }}</h2>
+        <p class="page-description">{{ $t('nodes.description') }}</p>
         <div class="page-stats">
           <span class="stat-pill"
-            ><span>Всего</span><strong>{{ nodes.length }}</strong></span
+            ><span>{{ $t('nodes.total') }}</span
+            ><strong>{{ nodes.length }}</strong></span
           >
           <span class="stat-pill"
-            ><span>Online</span><strong>{{ onlineCount }}</strong></span
+            ><span>{{ $t('nodes.online') }}</span
+            ><strong>{{ onlineCount }}</strong></span
           >
           <span class="stat-pill"
-            ><span>Ошибки</span><strong>{{ errorCount }}</strong></span
+            ><span>{{ $t('nodes.errors') }}</span
+            ><strong>{{ errorCount }}</strong></span
           >
         </div>
       </div>
       <div class="page-actions">
-        <Button label="Добавить ноду" icon="pi pi-plus" @click="openAdd" />
+        <Button :label="$t('nodes.addNode')" icon="pi pi-plus" @click="openAdd" />
       </div>
     </div>
 

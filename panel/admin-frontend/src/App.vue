@@ -8,22 +8,27 @@
         <div class="brand-block">
           <span class="brand-mark">AWG</span>
           <div>
-            <span class="brand">Amnezia Ops</span>
-            <span class="brand-subtitle">VPN control desk</span>
+            <span class="brand">{{ $t('app.brand') }}</span>
+            <span class="brand-subtitle">{{ $t('app.subtitle') }}</span>
           </div>
         </div>
-        <nav aria-label="Основная навигация">
-          <RouterLink to="/nodes"><i class="pi pi-server" /> Ноды</RouterLink>
-          <RouterLink to="/users"><i class="pi pi-users" /> Пользователи</RouterLink>
-          <RouterLink to="/integrations/remnawave"><i class="pi pi-sync" /> Remnawave</RouterLink>
-        </nav>
         <div class="topbar-actions">
+          <Select
+            :modelValue="currentLocale"
+            :options="langOptions"
+            optionLabel="name"
+            optionValue="code"
+            size="small"
+            class="lang-select"
+            :aria-label="$t('navigation.language')"
+            @update:modelValue="switchLocale"
+          />
           <Button
             :icon="isDark ? 'pi pi-sun' : 'pi pi-moon'"
             text
             rounded
             size="small"
-            v-tooltip.bottom="isDark ? 'Светлая тема' : 'Тёмная тема'"
+            v-tooltip.bottom="isDark ? $t('navigation.themeLight') : $t('navigation.themeDark')"
             class="theme-btn"
             @click="toggleTheme"
           />
@@ -32,11 +37,22 @@
             text
             rounded
             size="small"
-            v-tooltip.bottom="'Выйти'"
+            v-tooltip.bottom="$t('navigation.logout')"
             class="logout-btn"
             @click="logout"
           />
         </div>
+        <nav :aria-label="$t('navigation.nodes')">
+          <RouterLink to="/nodes"
+            ><i class="pi pi-server" /> {{ $t('navigation.nodes') }}</RouterLink
+          >
+          <RouterLink to="/users"
+            ><i class="pi pi-users" /> {{ $t('navigation.users') }}</RouterLink
+          >
+          <RouterLink to="/integrations/remnawave"
+            ><i class="pi pi-sync" /> {{ $t('navigation.remnawave') }}</RouterLink
+          >
+        </nav>
       </header>
       <main class="content">
         <RouterView />
@@ -51,13 +67,25 @@ import { computed, ref, onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import Toast from 'primevue/toast'
 import Button from 'primevue/button'
+import Select from 'primevue/select'
+import { useI18n } from 'vue-i18n'
+import { i18n, setLocale } from './i18n'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 const isLoginPage = computed(() => route.path === '/login')
 
 const isDark = ref(true)
+
+const currentLocale = computed(() => i18n.global.locale.value)
+
+const langOptions = [
+  { code: 'ru', name: t('common.languages.ru') },
+  { code: 'en', name: t('common.languages.en') },
+  { code: 'zh', name: t('common.languages.zh') },
+]
 
 const THEME_COOKIE = 'amnezia-theme'
 
@@ -82,6 +110,10 @@ function toggleTheme() {
     html.classList.remove('app-dark')
     saveThemePreference('light')
   }
+}
+
+function switchLocale(locale: string) {
+  setLocale(locale)
 }
 
 function logout() {
@@ -256,9 +288,21 @@ nav a.router-link-active {
   align-items: center;
   gap: 0.35rem;
   width: 100%;
-  margin-top: auto;
-  padding-top: var(--app-space-4);
-  border-top: 1px solid var(--app-border);
+}
+
+.lang-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lang-select .p-select-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.45rem 0.65rem;
+}
+
+.lang-select .p-select-dropdown {
+  width: 2rem;
 }
 
 .theme-btn {
@@ -408,6 +452,10 @@ nav a.router-link-active {
 
   .p-datatable-table {
     min-width: 760px;
+  }
+
+  .lang-select {
+    max-width: 8rem;
   }
 }
 </style>

@@ -4,7 +4,7 @@
       <div :class="['dot', !statusReady && 'offline']" />
       <div class="card-name">{{ node.name }}</div>
       <span :class="['node-status', statusReady ? 'ready' : 'pending']">
-        {{ statusReady ? 'Готово' : 'Готовится' }}
+        {{ statusReady ? $t('configCard.ready') : $t('configCard.pending') }}
       </span>
     </div>
     <div class="card-body">
@@ -26,15 +26,15 @@
           />
           <div v-if="node.ready" class="qr-overlay">
             <EyeIcon />
-            <span>Показать QR-код</span>
+            <span>{{ $t('configCard.showQr') }}</span>
           </div>
           <div v-if="!node.ready" class="qr-placeholder">
             <QrIcon />
-            <span>Конфигурация готовится</span>
-            <small>Обновите страницу через минуту или обратитесь к администратору.</small>
+            <span>{{ $t('configCard.configPreparing') }}</span>
+            <small>{{ $t('configCard.configPreparingHint') }}</small>
           </div>
         </div>
-        <p v-if="node.ready" class="hint">Нажмите на QR-код, затем сканируйте в AmneziaWG.</p>
+        <p v-if="node.ready" class="hint">{{ $t('configCard.scanHint') }}</p>
       </template>
 
       <!-- VPN card -->
@@ -55,8 +55,8 @@
           </div>
           <div v-else-if="qrItem.hasError" class="qr-placeholder">
             <QrIcon />
-            <span>QR недоступен</span>
-            <small>Используйте ссылку ниже или скачайте файл.</small>
+            <span>{{ $t('configCard.qrUnavailable') }}</span>
+            <small>{{ $t('configCard.qrUnavailableHint') }}</small>
           </div>
           <img
             v-else-if="qrItem.hasChunks"
@@ -66,12 +66,12 @@
           />
           <div v-else-if="!node.ready || !node.vpn_uri" class="qr-placeholder">
             <QrIcon />
-            <span>Конфигурация готовится</span>
-            <small>Обновите страницу через минуту или обратитесь к администратору.</small>
+            <span>{{ $t('configCard.configPreparing') }}</span>
+            <small>{{ $t('configCard.configPreparingHint') }}</small>
           </div>
           <div v-if="qrItem.hasChunks" class="qr-overlay">
             <EyeIcon />
-            <span>Показать QR-код</span>
+            <span>{{ $t('configCard.showQr') }}</span>
           </div>
         </div>
         <div
@@ -85,9 +85,9 @@
           />
         </div>
         <p v-if="qrItem.hasChunks && activeQrKey === `vpn-${node.id}`" class="hint">
-          Нажмите на QR-код, затем сканируйте в AmneziaVPN
+          {{ $t('configCard.scanHintVpn') }}
           <template v-if="qrItem.chunkCount > 1">
-            &nbsp;·&nbsp;часть {{ qrItem.idx + 1 }}/{{ qrItem.chunkCount }}
+            &nbsp;·&nbsp;{{ $t('configCard.part') }} {{ qrItem.idx + 1 }}/{{ qrItem.chunkCount }}
           </template>
         </p>
         <div v-if="node.vpn_uri" class="uri-row">
@@ -95,7 +95,7 @@
           <button :class="['copy-btn', node.copied && 'copied']" @click="$emit('copy', node)">
             <CheckIcon v-if="node.copied" />
             <CopyIcon v-else />
-            {{ node.copied ? 'Скопировано' : 'Скопировать' }}
+            {{ node.copied ? $t('configCard.copied') : $t('configCard.copy') }}
           </button>
         </div>
       </template>
@@ -108,8 +108,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { DownloadIcon, CopyIcon, CheckIcon, QrIcon, EyeIcon } from '../icons'
 import type { UserNode, QrMapItem } from '../api/userPage'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   tab: 'awg' | 'vpn'
@@ -137,7 +140,7 @@ const downloadHref = computed(() =>
 )
 
 const downloadLabel = computed(() =>
-  props.tab === 'awg' ? 'Скачать конфигурацию .conf' : 'Скачать профиль .vpn',
+  props.tab === 'awg' ? t('configCard.downloadConf') : t('configCard.downloadVpn'),
 )
 </script>
 

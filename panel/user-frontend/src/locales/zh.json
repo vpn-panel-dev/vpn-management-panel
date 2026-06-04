@@ -1,0 +1,39 @@
+{
+  "app": {
+    "brand": "Secure Access"
+  },
+  "userPage": {
+    "title": "连接设置",
+    "subtitle": "选择应用，扫描二维码或下载配置。",
+    "tabAwg": "AmneziaWG",
+    "tabVpn": "AmneziaVPN"
+  },
+  "states": {
+    "loading": "加载中…",
+    "errorTitle": "加载错误",
+    "error404Title": "页面未找到",
+    "error404Text": "请检查链接。",
+    "errorText": "请尝试刷新页面。",
+    "blockedTitle": "访问被拒绝",
+    "blockedText": "账户已停用。请联系管理员。",
+    "emptyTitle": "服务器未配置",
+    "emptyText": "请联系管理员。"
+  },
+  "configCard": {
+    "ready": "就绪",
+    "pending": "准备中",
+    "showQr": "显示二维码",
+    "hideQr": "隐藏二维码",
+    "configPreparing": "配置准备中",
+    "configPreparingHint": "请一分钟后刷新页面或联系管理员。",
+    "scanHint": "点击二维码，然后在 AmneziaWG 中扫描。",
+    "scanHintVpn": "点击二维码，然后在 AmneziaVPN 中扫描。",
+    "qrUnavailable": "二维码不可用",
+    "qrUnavailableHint": "使用下方链接或下载文件。",
+    "copied": "已复制",
+    "copy": "复制",
+    "downloadConf": "下载配置 .conf",
+    "downloadVpn": "下载配置文件 .vpn",
+    "part": "部分"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "app": {
+    "brand": "Secure Access"
+  },
+  "userPage": {
+    "title": "Connection setup",
+    "subtitle": "Select an app, scan the QR code, or download the configuration.",
+    "tabAwg": "AmneziaWG",
+    "tabVpn": "AmneziaVPN"
+  },
+  "states": {
+    "loading": "Loading…",
+    "errorTitle": "Loading error",
+    "error404Title": "Page not found",
+    "error404Text": "Please check the link.",
+    "errorText": "Please try refreshing the page.",
+    "blockedTitle": "Access denied",
+    "blockedText": "Account deactivated. Please contact your administrator.",
+    "emptyTitle": "Servers not configured",
+    "emptyText": "Please contact your administrator."
+  },
+  "configCard": {
+    "ready": "Ready",
+    "pending": "Preparing",
+    "showQr": "Show QR code",
+    "hideQr": "Hide QR code",
+    "configPreparing": "Configuration is being prepared",
+    "configPreparingHint": "Refresh the page in a minute or contact your administrator.",
+    "scanHint": "Tap the QR code, then scan it in AmneziaWG.",
+    "scanHintVpn": "Tap the QR code, then scan it in AmneziaVPN",
+    "qrUnavailable": "QR unavailable",
+    "qrUnavailableHint": "Use the link below or download the file.",
+    "copied": "Copied",
+    "copy": "Copy",
+    "downloadConf": "Download configuration .conf",
+    "downloadVpn": "Download profile .vpn",
+    "part": "part"
+  }
+}

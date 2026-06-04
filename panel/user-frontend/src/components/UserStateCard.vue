@@ -24,10 +24,10 @@
         <ErrorCircleIcon />
       </div>
       <div class="state-title">
-        {{ is404 ? 'Страница не найдена' : 'Ошибка загрузки' }}
+        {{ is404 ? $t('states.error404Title') : $t('states.errorTitle') }}
       </div>
       <div class="state-sub">
-        {{ is404 ? 'Проверьте ссылку.' : 'Попробуйте обновить страницу.' }}
+        {{ is404 ? $t('states.error404Text') : $t('states.errorText') }}
       </div>
     </div>
   </div>
@@ -38,8 +38,8 @@
       <div class="state-icon error-icon">
         <ErrorCircleIcon />
       </div>
-      <div class="state-title">Доступ закрыт</div>
-      <div class="state-sub">Аккаунт деактивирован. Обратитесь к администратору.</div>
+      <div class="state-title">{{ $t('states.blockedTitle') }}</div>
+      <div class="state-sub">{{ $t('states.blockedText') }}</div>
     </div>
   </div>
 
@@ -49,8 +49,8 @@
       <div class="state-icon">
         <InfoCircleIcon />
       </div>
-      <div class="state-title">Серверы не настроены</div>
-      <div class="state-sub">Обратитесь к администратору.</div>
+      <div class="state-title">{{ $t('states.emptyTitle') }}</div>
+      <div class="state-sub">{{ $t('states.emptyText') }}</div>
     </div>
   </div>
 </template>

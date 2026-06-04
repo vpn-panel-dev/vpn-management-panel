@@ -13,34 +13,34 @@
       <section v-if="user?.remnawave" class="traffic-section traffic-section--combined">
         <div class="traffic-section-head">
           <div>
-            <div class="traffic-kicker">Combined usage</div>
-            <h3>Amnezia local accounting</h3>
-            <p>Imported Remnawave usage plus measured local AmneziaWG usage.</p>
+            <div class="traffic-kicker">{{ $t('trafficDialog.combinedUsage') }}</div>
+            <h3>{{ $t('trafficDialog.combinedTitle') }}</h3>
+            <p>{{ $t('trafficDialog.combinedHint') }}</p>
           </div>
-          <Tag class="traffic-tag" severity="success" value="combined" />
+          <Tag class="traffic-tag" severity="success" :value="$t('trafficDialog.combined')" />
         </div>
 
         <div class="traffic-metrics">
           <article class="traffic-metric">
-            <span class="traffic-metric-label">Remnawave imported</span>
+            <span class="traffic-metric-label">{{ $t('trafficDialog.remnawaveImported') }}</span>
             <strong class="traffic-metric-value">{{
               fmtBytes(user.remnawave.traffic_used_bytes)
             }}</strong>
           </article>
           <article class="traffic-metric">
-            <span class="traffic-metric-label">Local AmneziaWG</span>
+            <span class="traffic-metric-label">{{ $t('trafficDialog.localAmneziawg') }}</span>
             <strong class="traffic-metric-value">{{
               fmtBytes(user.remnawave.local_amneziawg_traffic_used_bytes)
             }}</strong>
           </article>
           <article class="traffic-metric traffic-metric--accent">
-            <span class="traffic-metric-label">Combined</span>
+            <span class="traffic-metric-label">{{ $t('trafficDialog.combined') }}</span>
             <strong class="traffic-metric-value">{{
               fmtBytes(user.remnawave.combined_traffic_used_bytes)
             }}</strong>
           </article>
           <article class="traffic-metric traffic-metric--wide">
-            <span class="traffic-metric-label">Limit comparison</span>
+            <span class="traffic-metric-label">{{ $t('trafficDialog.limitComparison') }}</span>
             <span class="traffic-metric-note">{{ combinedLimitLabel(user) }}</span>
           </article>
         </div>
@@ -49,9 +49,9 @@
       <section class="traffic-section traffic-section--legacy">
         <div class="traffic-section-head">
           <div>
-            <div class="traffic-kicker">Legacy traffic</div>
-            <h3>30-дневный график RX / TX</h3>
-            <p>Старый импортированный трафик оставлен без изменений.</p>
+            <div class="traffic-kicker">{{ $t('trafficDialog.legacyTraffic') }}</div>
+            <h3>{{ $t('trafficDialog.legacyTitle') }}</h3>
+            <p>{{ $t('trafficDialog.legacyHint') }}</p>
           </div>
           <Tag class="traffic-tag" severity="secondary" value="legacy" />
         </div>
@@ -60,11 +60,11 @@
           <div class="traffic-legend">
             <span class="traffic-legend-item">
               <span class="traffic-legend-swatch traffic-legend-swatch--rx" />
-              Загрузка (RX)
+              {{ $t('trafficDialog.rx') }}
             </span>
             <span class="traffic-legend-item">
               <span class="traffic-legend-swatch traffic-legend-swatch--tx" />
-              Отдача (TX)
+              {{ $t('trafficDialog.tx') }}
             </span>
           </div>
 
@@ -98,63 +98,67 @@
           </div>
 
           <div class="traffic-summary">
-            Всего за период: RX {{ fmtBytes(data.reduce((s, p) => s + p.rx_bytes, 0)) }} · TX
-            {{ fmtBytes(data.reduce((s, p) => s + p.tx_bytes, 0)) }}
+            {{
+              $t('trafficDialog.periodTotal', {
+                rx: fmtBytes(data.reduce((s, p) => s + p.rx_bytes, 0)),
+                tx: fmtBytes(data.reduce((s, p) => s + p.tx_bytes, 0)),
+              })
+            }}
           </div>
         </template>
 
-        <div v-else class="traffic-empty">Данных пока нет</div>
+        <div v-else class="traffic-empty">{{ $t('trafficDialog.noData') }}</div>
       </section>
 
       <section class="traffic-section">
         <div class="traffic-section-head">
           <div>
-            <div class="traffic-kicker">Local AmneziaWG usage</div>
-            <h3>Local AmneziaWG usage</h3>
-            <p>Отдельно от legacy/imported usage: итоги, дни и ноды.</p>
+            <div class="traffic-kicker">{{ $t('trafficDialog.localUsage') }}</div>
+            <h3>{{ $t('trafficDialog.localUsageTitle') }}</h3>
+            <p>{{ $t('trafficDialog.localUsageHint') }}</p>
           </div>
           <Tag class="traffic-tag" severity="info" value="local" />
         </div>
 
         <div class="traffic-metrics">
           <article class="traffic-metric">
-            <span class="traffic-metric-label">RX</span>
+            <span class="traffic-metric-label">{{ $t('trafficDialog.rxLabel') }}</span>
             <strong class="traffic-metric-value">{{ fmtBytes(localTotals?.rx_bytes ?? 0) }}</strong>
           </article>
           <article class="traffic-metric">
-            <span class="traffic-metric-label">TX</span>
+            <span class="traffic-metric-label">{{ $t('trafficDialog.txLabel') }}</span>
             <strong class="traffic-metric-value">{{ fmtBytes(localTotals?.tx_bytes ?? 0) }}</strong>
           </article>
           <article class="traffic-metric">
-            <span class="traffic-metric-label">Total</span>
+            <span class="traffic-metric-label">{{ $t('trafficDialog.total') }}</span>
             <strong class="traffic-metric-value">{{
               fmtBytes(localTotals?.total_bytes ?? 0)
             }}</strong>
           </article>
           <article class="traffic-metric traffic-metric--wide">
-            <span class="traffic-metric-label">Updated</span>
+            <span class="traffic-metric-label">{{ $t('trafficDialog.updated') }}</span>
             <span class="traffic-metric-note">{{
               formatDateTimeOrDash(localTotals?.updated_at)
             }}</span>
           </article>
         </div>
 
-        <div class="traffic-note">Эти значения не входят в legacy chart.</div>
+        <div class="traffic-note">{{ $t('trafficDialog.notIncluded') }}</div>
 
         <div class="traffic-breakdown-grid">
           <article class="traffic-panel">
             <div class="traffic-panel-head">
-              <h4>По дням</h4>
-              <span>{{ localDaily.length }} записей</span>
+              <h4>{{ $t('trafficDialog.byDays') }}</h4>
+              <span>{{ $t('trafficDialog.recordsCount', { count: localDaily.length }) }}</span>
             </div>
             <div v-if="localDaily.length" class="traffic-table-wrap">
               <table class="traffic-table">
                 <thead>
                   <tr>
-                    <th>День</th>
-                    <th>RX</th>
-                    <th>TX</th>
-                    <th>Total</th>
+                    <th>{{ $t('trafficDialog.day') }}</th>
+                    <th>{{ $t('trafficDialog.rxLabel') }}</th>
+                    <th>{{ $t('trafficDialog.txLabel') }}</th>
+                    <th>{{ $t('trafficDialog.total') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -167,22 +171,24 @@
                 </tbody>
               </table>
             </div>
-            <div v-else class="traffic-empty traffic-empty--inline">Нет дневных записей</div>
+            <div v-else class="traffic-empty traffic-empty--inline">
+              {{ $t('trafficDialog.noDailyRecords') }}
+            </div>
           </article>
 
           <article class="traffic-panel">
             <div class="traffic-panel-head">
-              <h4>По нодам</h4>
-              <span>{{ localNodes.length }} узлов</span>
+              <h4>{{ $t('trafficDialog.byNodes') }}</h4>
+              <span>{{ $t('trafficDialog.recordsCount', { count: localNodes.length }) }}</span>
             </div>
             <div v-if="localNodes.length" class="traffic-table-wrap">
               <table class="traffic-table">
                 <thead>
                   <tr>
-                    <th>Нода</th>
-                    <th>RX</th>
-                    <th>TX</th>
-                    <th>Total</th>
+                    <th>{{ $t('trafficDialog.node') }}</th>
+                    <th>{{ $t('trafficDialog.rxLabel') }}</th>
+                    <th>{{ $t('trafficDialog.txLabel') }}</th>
+                    <th>{{ $t('trafficDialog.total') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -200,23 +206,25 @@
                 </tbody>
               </table>
             </div>
-            <div v-else class="traffic-empty traffic-empty--inline">Нет данных по нодам</div>
+            <div v-else class="traffic-empty traffic-empty--inline">
+              {{ $t('trafficDialog.noNodeData') }}
+            </div>
           </article>
 
           <article class="traffic-panel traffic-panel--wide">
             <div class="traffic-panel-head">
-              <h4>По нодам / по дням</h4>
-              <span>{{ localNodesDaily.length }} записей</span>
+              <h4>{{ $t('trafficDialog.byNodesDays') }}</h4>
+              <span>{{ $t('trafficDialog.recordsCount', { count: localNodesDaily.length }) }}</span>
             </div>
             <div v-if="localNodesDaily.length" class="traffic-table-wrap">
               <table class="traffic-table">
                 <thead>
                   <tr>
-                    <th>Нода</th>
-                    <th>День</th>
-                    <th>RX</th>
-                    <th>TX</th>
-                    <th>Total</th>
+                    <th>{{ $t('trafficDialog.node') }}</th>
+                    <th>{{ $t('trafficDialog.day') }}</th>
+                    <th>{{ $t('trafficDialog.rxLabel') }}</th>
+                    <th>{{ $t('trafficDialog.txLabel') }}</th>
+                    <th>{{ $t('trafficDialog.total') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -236,7 +244,7 @@
               </table>
             </div>
             <div v-else class="traffic-empty traffic-empty--inline">
-              Нет детальных записей по нодам
+              {{ $t('trafficDialog.noDetailedRecords') }}
             </div>
           </article>
         </div>
@@ -246,6 +254,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import Dialog from 'primevue/dialog'
 import ProgressSpinner from 'primevue/progressspinner'
 import Tag from 'primevue/tag'
@@ -258,6 +267,8 @@ import type {
   TrafficPoint,
   User,
 } from '../../api'
+
+const { t } = useI18n()
 
 defineProps<{
   visible: boolean
@@ -288,7 +299,7 @@ function formatDay(day: string): string {
 
 function combinedLimitLabel(user: User): string {
   const limit = user.remnawave?.traffic_limit_bytes ?? 0
-  if (limit <= 0 || !user.remnawave) return 'Без лимита'
+  if (limit <= 0 || !user.remnawave) return t('trafficDialog.noLimit')
   return `${fmtBytes(user.remnawave.combined_traffic_used_bytes)} / ${fmtBytes(limit)}`
 }
 </script>
