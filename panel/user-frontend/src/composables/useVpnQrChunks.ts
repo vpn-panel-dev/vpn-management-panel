@@ -9,11 +9,11 @@ import {
 import { svgToDataUri } from '../utils/format'
 
 export function useVpnQrChunks(userId: string) {
-  const vpnQr = reactive<Record<number, VpnQrData>>({})
+  const vpnQr = reactive<Record<string, VpnQrData>>({})
   let chunkTimer: ReturnType<typeof setInterval> | null = null
 
-  const qrMap = computed<Record<number, QrMapItem>>(() => {
-    const map: Record<number, QrMapItem> = {}
+  const qrMap = computed<Record<string, QrMapItem>>(() => {
+    const map: Record<string, QrMapItem> = {}
     for (const node of info.value?.nodes || []) {
       const q = vpnQr[node.id]
       if (q && 'chunks' in q) {
@@ -57,7 +57,7 @@ export function useVpnQrChunks(userId: string) {
     if (chunkTimer) return
     chunkTimer = setInterval(() => {
       for (const nodeId of Object.keys(vpnQr)) {
-        const q = vpnQr[Number(nodeId)]
+        const q = vpnQr[nodeId]
         if (q && 'chunks' in q && q.chunks.length > 1) {
           q.idx = (q.idx + 1) % q.chunks.length
         }

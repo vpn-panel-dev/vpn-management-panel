@@ -6,6 +6,24 @@
       </div>
       <span class="brand">{{ $t('app.brand') }}</span>
       <div class="spacer" />
+      <div class="settings" :aria-label="$t('settings.title')">
+        <label>
+          <span>{{ $t('settings.language') }}</span>
+          <select v-model="currentLocale" @change="changeLocale">
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+            <option value="zh">简体中文</option>
+          </select>
+        </label>
+        <label>
+          <span>{{ $t('settings.theme') }}</span>
+          <select v-model="theme" @change="applyTheme">
+            <option value="system">{{ $t('settings.themeSystem') }}</option>
+            <option value="light">{{ $t('settings.themeLight') }}</option>
+            <option value="dark">{{ $t('settings.themeDark') }}</option>
+          </select>
+        </label>
+      </div>
       <div v-if="userName" class="user-badge">
         <div class="avatar">{{ userName[0].toUpperCase() }}</div>
         <span>{{ userName }}</span>
@@ -15,9 +33,39 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ShieldIcon } from '../icons'
+import { setLocale } from '../i18n'
 
 defineProps<{ userName: string | null }>()
+
+type Theme = 'system' | 'light' | 'dark'
+
+const { locale } = useI18n()
+const currentLocale = ref(locale.value)
+const theme = ref<Theme>('system')
+
+function applyTheme() {
+  localStorage.setItem('amnezia-user-theme', theme.value)
+  if (theme.value === 'system') {
+    document.documentElement.removeAttribute('data-theme')
+    return
+  }
+  document.documentElement.dataset.theme = theme.value
+}
+
+function changeLocale() {
+  setLocale(currentLocale.value)
+}
+
+onMounted(() => {
+  const savedTheme = localStorage.getItem('amnezia-user-theme')
+  if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
+    theme.value = savedTheme
+  }
+  applyTheme()
+})
 </script>
 
 <style scoped>
@@ -60,6 +108,30 @@ header {
 .spacer {
   flex: 1;
 }
+.settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.settings select {
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 0 28px 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
 .user-badge {
   display: flex;
   align-items: center;
@@ -85,6 +157,22 @@ header {
   font-weight: 700;
 }
 @media (max-width: 600px) {
+  .header-inner {
+    height: auto;
+    min-height: 60px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+  }
+  .settings {
+    order: 3;
+    width: 100%;
+  }
+  .settings label {
+    flex: 1;
+  }
+  .settings select {
+    width: 100%;
+  }
   .user-badge {
     display: none;
   }

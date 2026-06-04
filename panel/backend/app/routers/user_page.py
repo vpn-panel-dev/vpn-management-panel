@@ -1,14 +1,16 @@
 import io
 import logging
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Node, Peer, User
+from app.models import LocalAmneziawgUserLifetimeTraffic, Node, Peer, User
 from app.services.node_config import (
     QRStyle,
     build_awg_client_config,
@@ -33,6 +35,77 @@ async def _get_psk(db: AsyncSession, user_id: str, node_id: str) -> str:
     return peer.psk_key or '' if peer else ''
 
 
+def _public_status(user: User, local_total: int) -> dict:
+    rw = user.remnawave_user
+    code = 'active'
+    reason = None
+    if user.is_blocked:
+        code = 'blocked'
+        reason = 'blocked'
+    elif rw is not None:
+        status_map = {
+            'DISABLED': ('blocked', 'disabled'),
+            'LIMITED': ('limited', 'limited'),
+            'EXPIRED': ('expired', 'expired'),
+        }
+        if rw.delete_requested_at is not None or rw.sync_status in {'missing', 'stale'}:
+            code = 'blocked'
+            reason = 'deleted'
+        elif rw.status in status_map:
+            code, reason = status_map[rw.status]
+        elif (
+            rw.traffic_limit_bytes > 0
+            and rw.traffic_used_bytes + local_total >= rw.traffic_limit_bytes
+        ):
+            code = 'limited'
+            reason = 'limited'
+        else:
+            expire_at = rw.expire_at
+            if expire_at is not None:
+                if expire_at.tzinfo is None:
+                    expire_at = expire_at.replace(tzinfo=UTC)
+                if expire_at <= datetime.now(UTC):
+                    code = 'expired'
+                    reason = 'expired'
+    return {'code': code, 'reason': reason}
+
+
+async def _public_dashboard_summary(user: User, db: AsyncSession) -> dict:
+    local_traffic = (
+        await db.execute(
+            select(LocalAmneziawgUserLifetimeTraffic).where(
+                LocalAmneziawgUserLifetimeTraffic.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    local_total = local_traffic.total_bytes if local_traffic else 0
+    rw = user.remnawave_user
+    remote_used = rw.traffic_used_bytes if rw else 0
+    total_used = remote_used + local_total
+    traffic_limit = rw.traffic_limit_bytes if rw and rw.traffic_limit_bytes > 0 else None
+    updated_at = None
+    if rw and rw.last_synced_at:
+        updated_at = rw.last_synced_at
+    if local_traffic and (updated_at is None or local_traffic.updated_at > updated_at):
+        updated_at = local_traffic.updated_at
+    return {
+        'status': _public_status(user, local_total),
+        'subscription': {
+            'managed': rw is not None,
+            'expire_at': rw.expire_at if rw else None,
+            'last_synced_at': rw.last_synced_at if rw else None,
+        },
+        'traffic': {
+            'used_bytes': total_used,
+            'limit_bytes': traffic_limit,
+            'local_used_bytes': local_total,
+            'remote_used_bytes': remote_used,
+            'updated_at': local_traffic.updated_at if local_traffic else None,
+        },
+        'updated_at': updated_at,
+    }
+
+
 def _make_vpn_qr_svg(user: User, node: Node, description: str, psk_key: str = '') -> bytes | None:
     try:
         return make_amnezia_qr_svg(
@@ -51,11 +124,12 @@ def _make_vpn_qr_svg(user: User, node: Node, description: str, psk_key: str = ''
 
 @router.get('/pub/u/{user_id}/info')
 async def pub_user_info(user_id: str, db: DB):
-    user = await db.get(User, user_id)
+    user = await db.get(User, user_id, options=[selectinload(User.remnawave_user)])
     if not user:
         raise HTTPException(status_code=404)
+    summary = await _public_dashboard_summary(user, db)
     if user.is_blocked:
-        return {'user_name': user.name, 'blocked': True, 'nodes': []}
+        return {'user_name': user.name, 'blocked': True, 'nodes': [], **summary}
 
     nodes = (await db.execute(select(Node))).scalars().all()
     nodes_data = []
@@ -87,7 +161,7 @@ async def pub_user_info(user_id: str, db: DB):
             }
         )
 
-    return {'user_name': user.name, 'blocked': False, 'nodes': nodes_data}
+    return {'user_name': user.name, 'blocked': False, 'nodes': nodes_data, **summary}
 
 
 @router.get('/pub/u/{user_id}/qr/awg/{node_id}')

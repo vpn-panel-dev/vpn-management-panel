@@ -1,12 +1,116 @@
 {
-  "app": {
-    "brand": "Secure Access"
+  "common": {
+    "notAvailable": "—"
   },
-  "userPage": {
-    "title": "连接设置",
-    "subtitle": "选择应用，扫描二维码或下载配置。",
-    "tabAwg": "AmneziaWG",
-    "tabVpn": "AmneziaVPN"
+  "app": {
+    "brand": "Amnezia"
+  },
+  "settings": {
+    "title": "页面设置",
+    "language": "语言",
+    "theme": "主题",
+    "themeSystem": "跟随系统",
+    "themeLight": "浅色",
+    "themeDark": "深色"
+  },
+  "dashboard": {
+    "eyebrow": "个人账户",
+    "title": "你好，{name}",
+    "summary": "连接概览",
+    "updatedAt": "更新时间：{value}"
+  },
+  "subscription": {
+    "title": "订阅",
+    "expires": "访问权限有效至此日期",
+    "noExpiry": "未设置结束日期",
+    "local": "本地访问，无结束日期"
+  },
+  "traffic": {
+    "title": "流量",
+    "progress": "流量使用情况",
+    "noLimit": "无流量限制",
+    "ofLimit": "已用 {limit} 的 {percent}%"
+  },
+  "connection": {
+    "title": "服务器",
+    "setupTitle": "连接",
+    "setupText": "选择应用，扫描二维码或下载文件。",
+    "appChoice": "应用选择",
+    "amneziaVpn": "AmneziaVPN",
+    "amneziaWg": "AmneziaWG",
+    "readyHint": "可以连接",
+    "pendingHint": "设置仍在准备中"
+  },
+  "platforms": {
+    "title": "如何开始",
+    "subtitle": "选择设备和应用。下面会显示链接、二维码、说明和对应配置。",
+    "choose": "选择平台",
+    "chooseApp": "选择应用",
+    "downloadApp": "下载应用",
+    "openDownload": "打开下载",
+    "scanToDownload": "用手机相机扫描二维码打开链接。",
+    "qrAlt": "用于在 {platform} 下载 {app} 的二维码",
+    "addConfig": "如何添加连接",
+    "configStep1": "安装并打开应用。",
+    "apps": {
+      "vpn": {
+        "name": "AmneziaVPN",
+        "downloadHint": "适用于 .vpn 配置和 AmneziaVPN 二维码。",
+        "configStep": "在应用中添加连接并扫描 AmneziaVPN 二维码，或下载下方的 .vpn 文件。"
+      },
+      "awg": {
+        "name": "AmneziaWG",
+        "downloadHint": "适用于 .conf 配置和 AmneziaWG 二维码。",
+        "configStep": "在应用中导入隧道并扫描 AmneziaWG 二维码，或下载下方的 .conf 文件。"
+      }
+    },
+    "items": {
+      "ios": {
+        "name": "iPhone 和 iPad",
+        "configStep": "在手机上，通常更方便从另一个屏幕扫描配置二维码。"
+      },
+      "android": {
+        "name": "Android",
+        "configStep": "在手机上，通常更方便从另一个屏幕扫描配置二维码。"
+      },
+      "macos": {
+        "name": "macOS",
+        "configStep": "在电脑上，通常更方便下载配置文件并导入。"
+      },
+      "windows": {
+        "name": "Windows",
+        "configStep": "在电脑上，通常更方便下载配置文件并导入。"
+      },
+      "linux": {
+        "name": "Linux",
+        "configStep": "在电脑上，通常更方便下载配置文件并导入。"
+      }
+    }
+  },
+  "help": {
+    "title": "需要帮助？",
+    "text": "如果连接未出现或服务器未就绪，请稍后刷新页面或联系管理员。"
+  },
+  "errors": {
+    "generic": "出了点问题"
+  },
+  "statuses": {
+    "active": {
+      "label": "访问已开启",
+      "text": "连接已准备好。请使用下方二维码或文件。"
+    },
+    "blocked": {
+      "label": "访问已关闭",
+      "text": "当前无法连接。请联系管理员。"
+    },
+    "limited": {
+      "label": "已达限制",
+      "text": "流量已用完。请联系管理员续期。"
+    },
+    "expired": {
+      "label": "已过期",
+      "text": "访问权限已结束。请联系管理员。"
+    }
   },
   "states": {
     "loading": "加载中…",
@@ -14,8 +118,8 @@
     "error404Title": "页面未找到",
     "error404Text": "请检查链接。",
     "errorText": "请尝试刷新页面。",
-    "blockedTitle": "访问被拒绝",
-    "blockedText": "账户已停用。请联系管理员。",
+    "blockedTitle": "访问已关闭",
+    "blockedText": "当前无法连接。请联系管理员。",
     "emptyTitle": "服务器未配置",
     "emptyText": "请联系管理员。"
   },
@@ -24,7 +128,7 @@
     "pending": "准备中",
     "showQr": "显示二维码",
     "hideQr": "隐藏二维码",
-    "configPreparing": "配置准备中",
+    "configPreparing": "设置准备中",
     "configPreparingHint": "请一分钟后刷新页面或联系管理员。",
     "scanHint": "点击二维码，然后在 AmneziaWG 中扫描。",
     "scanHintVpn": "点击二维码，然后在 AmneziaVPN 中扫描。",
@@ -32,8 +136,8 @@
     "qrUnavailableHint": "使用下方链接或下载文件。",
     "copied": "已复制",
     "copy": "复制",
-    "downloadConf": "下载配置 .conf",
-    "downloadVpn": "下载配置文件 .vpn",
+    "downloadConf": "下载 .conf 文件",
+    "downloadVpn": "下载 .vpn 文件",
     "part": "部分"
   }
 }

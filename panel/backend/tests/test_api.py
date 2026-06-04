@@ -664,18 +664,59 @@ async def test_pub_user_info_blocked(client: AsyncClient, auth_headers):
 
     resp = await client.get(f'/pub/u/{user_id}/info')
     assert resp.status_code == HTTPStatus.OK
-    assert resp.json()['blocked'] is True
+    data = resp.json()
+    assert data['blocked'] is True
+    assert data['status'] == {'code': 'blocked', 'reason': 'blocked'}
+    assert data['subscription'] == {
+        'managed': False,
+        'expire_at': None,
+        'last_synced_at': None,
+    }
+    assert data['traffic'] == {
+        'used_bytes': 0,
+        'limit_bytes': None,
+        'local_used_bytes': 0,
+        'remote_used_bytes': 0,
+        'updated_at': None,
+    }
+    assert data['updated_at'] is None
 
 
-async def test_pub_user_info_active(client: AsyncClient, auth_headers):
+async def test_pub_user_info_active(client: AsyncClient, auth_headers, db):
     headers = auth_headers
     user_resp = await client.post('/api/users', json={'name': 'active-user'}, headers=headers)
     user_id = user_resp.json()['id']
+    updated_at = datetime(2026, 1, 2, 3, 4, 6)
+    db.add(
+        LocalAmneziawgUserLifetimeTraffic(
+            user_id=user_id,
+            rx_bytes=120,
+            tx_bytes=340,
+            total_bytes=460,
+            updated_at=updated_at,
+        )
+    )
+    await db.commit()
 
     resp = await client.get(f'/pub/u/{user_id}/info')
     assert resp.status_code == HTTPStatus.OK
-    assert resp.json()['blocked'] is False
-    assert resp.json()['user_name'] == 'active-user'
+    data = resp.json()
+    assert data['blocked'] is False
+    assert data['user_name'] == 'active-user'
+    assert data['status'] == {'code': 'active', 'reason': None}
+    assert data['subscription'] == {
+        'managed': False,
+        'expire_at': None,
+        'last_synced_at': None,
+    }
+    assert data['traffic'] == {
+        'used_bytes': 460,
+        'limit_bytes': None,
+        'local_used_bytes': 460,
+        'remote_used_bytes': 0,
+        'updated_at': '2026-01-02T03:04:06',
+    }
+    assert data['updated_at'] == '2026-01-02T03:04:06'
 
 
 async def test_pub_qr_not_found(client: AsyncClient):

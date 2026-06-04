@@ -1,15 +1,38 @@
 export interface UserNode {
-  id: number
+  id: string
   name: string
   ready: boolean
   vpn_uri?: string
   copied?: boolean
 }
 
+export interface PublicStatus {
+  code: 'active' | 'blocked' | 'limited' | 'expired'
+  reason: string | null
+}
+
+export interface PublicSubscription {
+  managed: boolean
+  expire_at: string | null
+  last_synced_at: string | null
+}
+
+export interface PublicTraffic {
+  used_bytes: number
+  limit_bytes: number | null
+  local_used_bytes: number
+  remote_used_bytes: number
+  updated_at: string | null
+}
+
 export interface UserInfo {
   user_name: string
   blocked: boolean
   nodes: UserNode[]
+  status: PublicStatus
+  subscription: PublicSubscription
+  traffic: PublicTraffic
+  updated_at: string | null
 }
 
 export interface VpnQrState {
@@ -42,7 +65,7 @@ export async function fetchUserInfo(userId: string): Promise<UserInfo> {
 
 export async function fetchVpnChunks(
   userId: string,
-  nodeId: number,
+  nodeId: string,
   svgToDataUri: (svg: string) => string,
 ): Promise<VpnQrData> {
   try {

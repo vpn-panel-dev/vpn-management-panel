@@ -5,6 +5,18 @@ export function fmtBytes(b: number): string {
   return b + ' B'
 }
 
+export function fmtDate(value: string | null, locale: string): string {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(value))
+}
+
+export function fmtDateTime(value: string | null, locale: string): string {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date(value),
+  )
+}
+
 export function svgToDataUri(svg: string): string {
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
 }

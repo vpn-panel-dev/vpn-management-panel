@@ -1,12 +1,116 @@
 {
-  "app": {
-    "brand": "Secure Access"
+  "common": {
+    "notAvailable": "—"
   },
-  "userPage": {
-    "title": "Connection setup",
-    "subtitle": "Select an app, scan the QR code, or download the configuration.",
-    "tabAwg": "AmneziaWG",
-    "tabVpn": "AmneziaVPN"
+  "app": {
+    "brand": "Amnezia"
+  },
+  "settings": {
+    "title": "Page settings",
+    "language": "Language",
+    "theme": "Theme",
+    "themeSystem": "System",
+    "themeLight": "Light",
+    "themeDark": "Dark"
+  },
+  "dashboard": {
+    "eyebrow": "Personal account",
+    "title": "Hello, {name}",
+    "summary": "Connection summary",
+    "updatedAt": "Updated: {value}"
+  },
+  "subscription": {
+    "title": "Subscription",
+    "expires": "Access is available until this date",
+    "noExpiry": "No end date is set",
+    "local": "Local access without an end date"
+  },
+  "traffic": {
+    "title": "Traffic",
+    "progress": "Traffic usage",
+    "noLimit": "No traffic limit",
+    "ofLimit": "{percent}% of {limit}"
+  },
+  "connection": {
+    "title": "Servers",
+    "setupTitle": "Connection",
+    "setupText": "Choose an app, scan the QR code, or download the file.",
+    "appChoice": "App choice",
+    "amneziaVpn": "AmneziaVPN",
+    "amneziaWg": "AmneziaWG",
+    "readyHint": "Ready to connect",
+    "pendingHint": "Setup is still being prepared"
+  },
+  "platforms": {
+    "title": "How to start",
+    "subtitle": "Choose your device and app. The link, QR code, manual, and matching configs will appear below.",
+    "choose": "Platform choice",
+    "chooseApp": "App choice",
+    "downloadApp": "Download app",
+    "openDownload": "Open download",
+    "scanToDownload": "Scan the QR code with your phone camera to open the link.",
+    "qrAlt": "QR code to download {app} for {platform}",
+    "addConfig": "How to add the connection",
+    "configStep1": "Install the app and open it.",
+    "apps": {
+      "vpn": {
+        "name": "AmneziaVPN",
+        "downloadHint": "Use it for the .vpn profile and AmneziaVPN QR code.",
+        "configStep": "In the app, add a connection and scan the AmneziaVPN QR code, or download the .vpn file below."
+      },
+      "awg": {
+        "name": "AmneziaWG",
+        "downloadHint": "Use it for the .conf configuration and AmneziaWG QR code.",
+        "configStep": "In the app, import a tunnel and scan the AmneziaWG QR code, or download the .conf file below."
+      }
+    },
+    "items": {
+      "ios": {
+        "name": "iPhone and iPad",
+        "configStep": "On a phone, it is usually easier to scan the profile QR code from another screen."
+      },
+      "android": {
+        "name": "Android",
+        "configStep": "On a phone, it is usually easier to scan the profile QR code from another screen."
+      },
+      "macos": {
+        "name": "macOS",
+        "configStep": "On a computer, it is usually easier to download the config file and import it."
+      },
+      "windows": {
+        "name": "Windows",
+        "configStep": "On a computer, it is usually easier to download the config file and import it."
+      },
+      "linux": {
+        "name": "Linux",
+        "configStep": "On a computer, it is usually easier to download the config file and import it."
+      }
+    }
+  },
+  "help": {
+    "title": "Need help?",
+    "text": "If the connection does not appear or the server is not ready, refresh the page later or contact your administrator."
+  },
+  "errors": {
+    "generic": "Something went wrong"
+  },
+  "statuses": {
+    "active": {
+      "label": "Access active",
+      "text": "Your connection is ready. Use the QR code or file below."
+    },
+    "blocked": {
+      "label": "Access closed",
+      "text": "Connection is unavailable now. Contact your administrator."
+    },
+    "limited": {
+      "label": "Limit reached",
+      "text": "Traffic has run out. Contact your administrator to renew access."
+    },
+    "expired": {
+      "label": "Expired",
+      "text": "Access has ended. Contact your administrator."
+    }
   },
   "states": {
     "loading": "Loading…",
@@ -14,26 +118,26 @@
     "error404Title": "Page not found",
     "error404Text": "Please check the link.",
     "errorText": "Please try refreshing the page.",
-    "blockedTitle": "Access denied",
-    "blockedText": "Account deactivated. Please contact your administrator.",
-    "emptyTitle": "Servers not configured",
-    "emptyText": "Please contact your administrator."
+    "blockedTitle": "Access closed",
+    "blockedText": "Connection is unavailable now. Contact your administrator.",
+    "emptyTitle": "Servers are not configured",
+    "emptyText": "Contact your administrator."
   },
   "configCard": {
     "ready": "Ready",
     "pending": "Preparing",
     "showQr": "Show QR code",
     "hideQr": "Hide QR code",
-    "configPreparing": "Configuration is being prepared",
+    "configPreparing": "Setup is being prepared",
     "configPreparingHint": "Refresh the page in a minute or contact your administrator.",
     "scanHint": "Tap the QR code, then scan it in AmneziaWG.",
     "scanHintVpn": "Tap the QR code, then scan it in AmneziaVPN",
-    "qrUnavailable": "QR unavailable",
+    "qrUnavailable": "QR code unavailable",
     "qrUnavailableHint": "Use the link below or download the file.",
     "copied": "Copied",
     "copy": "Copy",
-    "downloadConf": "Download configuration .conf",
-    "downloadVpn": "Download profile .vpn",
+    "downloadConf": "Download .conf file",
+    "downloadVpn": "Download .vpn file",
     "part": "part"
   }
 }
