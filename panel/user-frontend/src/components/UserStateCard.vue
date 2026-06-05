@@ -38,8 +38,8 @@
       <div class="state-icon error-icon">
         <ErrorCircleIcon />
       </div>
-      <div class="state-title">{{ $t('states.blockedTitle') }}</div>
-      <div class="state-sub">{{ $t('states.blockedText') }}</div>
+      <div class="state-title">{{ title || $t('states.blockedTitle') }}</div>
+      <div class="state-sub">{{ text || $t('states.blockedText') }}</div>
     </div>
   </div>
 
@@ -61,6 +61,8 @@ import { ErrorCircleIcon, InfoCircleIcon } from '../icons'
 defineProps<{
   state: 'loading' | 'error' | 'blocked' | 'empty'
   is404?: boolean
+  title?: string
+  text?: string
 }>()
 </script>
 

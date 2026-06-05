@@ -91,6 +91,14 @@
     "title": "Need help?",
     "text": "If the connection does not appear or the server is not ready, refresh the page later or contact your administrator."
   },
+  "warnings": {
+    "title": "Attention",
+    "expiring": "Your access is close to expiring. Ask the administrator to extend the subscription.",
+    "traffic": "You are close to the traffic limit. Renew or reset the plan before access is blocked."
+  },
+  "support": {
+    "placeholder": "Need renewal or support? Contact your administrator."
+  },
   "errors": {
     "generic": "Something went wrong"
   },

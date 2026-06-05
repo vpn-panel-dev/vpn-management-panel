@@ -21,7 +21,7 @@
           </div>
         </section>
 
-        <UserStateCard v-if="info.blocked" state="blocked" />
+        <UserStateCard v-if="info.blocked" state="blocked" :title="stateTitle" :text="stateBody" />
         <template v-else>
           <section class="summary-grid" :aria-label="$t('dashboard.summary')">
             <article class="summary-card primary-card">
@@ -44,6 +44,12 @@
               <strong>{{ readyNodes }}/{{ info.nodes.length }}</strong>
               <span>{{ connectionHint }}</span>
             </article>
+          </section>
+
+          <section v-if="warningText" class="notice-card">
+            <strong>{{ $t('warnings.title') }}</strong>
+            <p>{{ warningText }}</p>
+            <span>{{ $t('support.placeholder') }}</span>
           </section>
 
           <section class="guide-grid">
@@ -270,7 +276,11 @@ const subscriptionDate = computed(() =>
   fmtDate(info.value?.subscription.expire_at || null, locale.value),
 )
 const subscriptionText = computed(() =>
-  info.value?.subscription.expire_at ? t('subscription.expires') : t('subscription.noExpiry'),
+  info.value?.subscription.expire_at
+    ? t('subscription.expires')
+    : info.value && !info.value.subscription.managed
+      ? t('subscription.local')
+      : t('subscription.noExpiry'),
 )
 const updatedText = computed(() =>
   info.value?.updated_at
@@ -280,6 +290,14 @@ const updatedText = computed(() =>
 const statusText = computed(() => {
   const code = info.value?.status.code || 'active'
   return t(`statuses.${code}.text`)
+})
+const stateTitle = computed(() => {
+  const code = info.value?.status.code || 'blocked'
+  return t(`statuses.${code}.label`)
+})
+const stateBody = computed(() => {
+  const code = info.value?.status.code || 'blocked'
+  return `${t(`statuses.${code}.text`)} ${t('support.placeholder')}`
 })
 const connectionHint = computed(() =>
   readyNodes.value > 0 ? t('connection.readyHint') : t('connection.pendingHint'),
@@ -294,6 +312,21 @@ const downloadQrUrl = computed(
       activeDownloadUrl.value,
     )}`,
 )
+
+const warningText = computed(() => {
+  if (!info.value || info.value.status.code !== 'active') return ''
+  const expireAt = info.value.subscription.expire_at
+  if (expireAt) {
+    const ms = new Date(expireAt).getTime() - Date.now()
+    if (Number.isFinite(ms) && ms > 0 && ms <= 7 * 24 * 60 * 60 * 1000) {
+      return t('warnings.expiring')
+    }
+  }
+  if (info.value.traffic.limit_bytes && trafficPercent.value >= 80) {
+    return t('warnings.traffic')
+  }
+  return ''
+})
 
 function detectPlatform(): PlatformId {
   const nav = navigator as typeof navigator & { userAgentData?: { platform?: string } }
@@ -376,6 +409,16 @@ body {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+}
+
+.notice-card {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  display: grid;
+  gap: 0.35rem;
 }
 
 main {
