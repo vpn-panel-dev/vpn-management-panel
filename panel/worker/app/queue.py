@@ -71,6 +71,10 @@ class RabbitQueue:
     def __init__(self, url: str, retry_policy: RetryPolicy | None = None) -> None:
         self._url = url
         self._retry_policy = retry_policy or RetryPolicy()
+        self._publish_lock = asyncio.Lock()
+        self._publish_connection: Any | None = None
+        self._publish_channel: Any | None = None
+        self._publish_exchange: Any | None = None
 
     async def consume(self, handler: MessageHandler, concurrency: int) -> None:
         aio_pika = importlib.import_module('aio_pika')
@@ -125,11 +129,21 @@ class RabbitQueue:
 
     async def publish_command(self, command: WorkerCommand) -> None:
         aio_pika = importlib.import_module('aio_pika')
-        connection = await aio_pika.connect_robust(self._url)
-        async with connection:
-            channel = await connection.channel()
-            exchange, _ = await self._declare_topology(channel, aio_pika)
-            await self._publish(exchange, aio_pika, command, self._routing_key(command))
+        exchange = await self._publisher_exchange(aio_pika)
+        await self._publish(exchange, aio_pika, command, self._routing_key(command))
+
+    async def close(self) -> None:
+        if self._publish_channel is not None and not getattr(
+            self._publish_channel, 'is_closed', True
+        ):
+            await self._publish_channel.close()
+        if self._publish_connection is not None and not getattr(
+            self._publish_connection, 'is_closed', True
+        ):
+            await self._publish_connection.close()
+        self._publish_channel = None
+        self._publish_connection = None
+        self._publish_exchange = None
 
     async def _declare_consumer_queues(
         self,
@@ -158,6 +172,26 @@ class RabbitQueue:
                 queue = await channel.declare_queue(legacy_queue_name, durable=True)
                 queues.append(queue)
         return queues
+
+    async def _publisher_exchange(self, aio_pika: Any) -> Any:
+        async with self._publish_lock:
+            if self._publish_exchange is not None and not getattr(
+                self._publish_exchange, 'is_closed', False
+            ):
+                return self._publish_exchange
+
+            if self._publish_connection is None or getattr(
+                self._publish_connection, 'is_closed', True
+            ):
+                self._publish_connection = await aio_pika.connect_robust(self._url)
+            if self._publish_channel is None or getattr(self._publish_channel, 'is_closed', True):
+                self._publish_channel = await self._publish_connection.channel()
+                self._publish_exchange, _ = await self._declare_topology(
+                    self._publish_channel,
+                    aio_pika,
+                )
+
+            return self._publish_exchange
 
     async def _consume_queue(
         self,

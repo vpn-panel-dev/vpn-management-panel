@@ -43,6 +43,7 @@ def test_remnawave_full_reconcile_payload_shape():
     payload = remnawave_full_reconcile()
 
     assert payload['command'] == 'remnawave_full_reconcile'
+    assert payload['track_operation'] is True
     assert payload['target_type'] == 'remnawave'
     assert payload['target_id'] is None
     uuid.UUID(payload['idempotency_key'])
@@ -54,6 +55,7 @@ def test_cleanup_raw_traffic_samples_payload_shape():
     payload = cleanup_raw_traffic_samples()
 
     assert payload['command'] == 'cleanup_raw_traffic_samples'
+    assert payload['track_operation'] is True
     assert payload['target_type'] == 'traffic'
     assert payload['target_id'] is None
     uuid.UUID(payload['idempotency_key'])

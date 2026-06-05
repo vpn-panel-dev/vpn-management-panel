@@ -23,6 +23,7 @@ class WorkerCommand(BaseModel):
     command: CommandName
     idempotency_key: str = Field(min_length=1)
     operation_id: str = Field(min_length=1)
+    track_operation: bool = True
     target_type: TargetType
     target_id: str | None = None
     created_at: datetime

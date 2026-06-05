@@ -48,6 +48,8 @@ export interface AsyncOperation {
   created_at: string
   updated_at: string
   finished_at: string | null
+  resolution_state: 'recoverable' | 'needs_manual_action' | null
+  can_retry: boolean
 }
 
 export interface Peer {

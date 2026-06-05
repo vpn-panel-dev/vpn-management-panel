@@ -43,23 +43,71 @@
       @confirm-delete="confirmDelete"
     />
 
-    <section class="ops-card">
+    <section class="settings-card ops-card">
       <div class="ops-card-head">
-        <div>
+        <div class="section-header ops-section-header">
           <span class="page-kicker"><i class="pi pi-history" /> {{ $t('operations.kicker') }}</span>
           <h3>{{ $t('operations.title') }}</h3>
+          <p>{{ $t('operations.description') }}</p>
         </div>
-        <Button :label="$t('operations.refresh')" size="small" text @click="loadOperations" />
+        <Button
+          :label="$t('operations.refresh')"
+          icon="pi pi-refresh"
+          size="small"
+          severity="secondary"
+          outlined
+          @click="loadOperations"
+        />
       </div>
-      <div v-if="!attentionOperations.length" class="dim">{{ $t('operations.empty') }}</div>
+      <div v-if="!attentionOperations.length" class="muted-card ops-empty">
+        {{ $t('operations.empty') }}
+      </div>
       <div v-else class="ops-list">
-        <div v-for="operation in attentionOperations" :key="operation.id" class="ops-row">
-          <Tag :severity="operationSeverity(operation.status)" :value="operation.status" />
-          <code>{{ operation.kind }}</code>
-          <span>{{ operation.target_id || operation.target_type || 'all' }}</span>
-          <span class="dim">{{ operation.updated_at }}</span>
+        <article
+          v-for="operation in attentionOperations"
+          :key="operation.id"
+          :class="[
+            'ops-item',
+            {
+              'ops-item--manual': operation.resolution_state === 'needs_manual_action',
+              'ops-item--recoverable': operation.resolution_state === 'recoverable',
+            },
+          ]"
+        >
+          <div class="ops-item-head">
+            <div class="ops-item-title-block">
+              <code>{{ operation.kind }}</code>
+              <strong class="ops-target">{{
+                operation.target_id || operation.target_type || 'all'
+              }}</strong>
+            </div>
+            <div class="ops-tags">
+              <Tag :severity="operationSeverity(operation.status)" :value="operation.status" />
+              <Tag
+                v-if="operation.resolution_state"
+                :severity="operationResolutionSeverity(operation.resolution_state)"
+                :value="$t(`operations.${operation.resolution_state}`)"
+              />
+            </div>
+          </div>
+
+          <div class="ops-meta-row">
+            <span class="ops-meta-label">{{ $t('operations.updatedAt') }}</span>
+            <span class="ops-meta-value">{{ formatDateTime(operation.updated_at) }}</span>
+          </div>
+
           <b v-if="operation.error" class="error-text">{{ operation.error }}</b>
-        </div>
+
+          <div v-if="operation.can_retry" class="ops-actions">
+            <Button
+              :label="$t('operations.retry')"
+              size="small"
+              severity="secondary"
+              outlined
+              @click="retryOperation(operation)"
+            />
+          </div>
+        </article>
       </div>
     </section>
 
@@ -70,17 +118,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import Button from 'primevue/button'
 import ConfirmPopup from 'primevue/confirmpopup'
 import Tag from 'primevue/tag'
+import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import NodeTable from '../components/nodes/NodeTable.vue'
 import NodeMobileCards from '../components/nodes/NodeMobileCards.vue'
 import NodeFormDialog from '../components/nodes/NodeFormDialog.vue'
 import { useNodes } from '../composables/useNodes'
 import { operationsApi } from '../api/operations'
 import type { AsyncOperation } from '../api/types'
-import { operationSeverity } from '../utils/status'
+import { formatDateTime } from '../utils/format'
+import { operationResolutionSeverity, operationSeverity } from '../utils/status'
+
+const toast = useToast()
+const { t } = useI18n()
 
 const {
   nodes,
@@ -101,43 +155,167 @@ const onlineCount = computed(() => nodes.value.filter((node) => node.reachable).
 const errorCount = computed(
   () => nodes.value.filter((node) => node.last_error || node.last_heartbeat_error).length,
 )
-const attentionOperations = computed(() =>
-  operations.value.filter((operation) =>
-    ['running', 'failed', 'failed_by_timeout', 'enqueue_failed'].includes(operation.status),
-  ),
-)
+const attentionStatuses = new Set(['running', 'failed', 'failed_by_timeout', 'enqueue_failed'])
 
-async function loadOperations() {
-  operations.value = (await operationsApi.getOperations(undefined, 50)) || []
+function operationKey(operation: AsyncOperation): string {
+  return [operation.kind, operation.target_type || 'all', operation.target_id || 'all'].join('::')
 }
 
-onMounted(loadOperations)
+const attentionOperations = computed(() => {
+  const latestByKey = new Map<string, AsyncOperation>()
+
+  for (const operation of operations.value) {
+    const key = operationKey(operation)
+    if (!latestByKey.has(key)) {
+      latestByKey.set(key, operation)
+    }
+  }
+
+  return [...latestByKey.values()].filter((operation) => attentionStatuses.has(operation.status))
+})
+
+async function loadOperations() {
+  operations.value = (await operationsApi.getOperations(undefined, 200)) || []
+}
+
+async function retryOperation(operation: AsyncOperation) {
+  await operationsApi.retryOperation(operation.id)
+  toast.add({
+    severity: 'success',
+    summary: t('operations.retryQueued'),
+    detail: `${operation.kind} → ${operation.target_id || operation.target_type || 'all'}`,
+    life: 3000,
+  })
+  await loadOperations()
+}
+
+let operationsTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  loadOperations()
+  operationsTimer = setInterval(loadOperations, 20_000)
+})
+onUnmounted(() => {
+  if (operationsTimer) clearInterval(operationsTimer)
+})
 </script>
 
 <style scoped>
 .ops-card {
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px solid var(--p-surface-200);
-  border-radius: var(--radius-lg);
-  background: var(--p-surface-0);
+  margin-top: var(--app-space-4);
 }
 
 .ops-card-head,
-.ops-row {
+.ops-item-head,
+.ops-meta-row,
+.ops-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
   flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .ops-card-head {
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  gap: var(--app-space-4);
+  margin-bottom: var(--app-space-4);
 }
 
 .ops-list {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.85rem;
+}
+
+.ops-section-header {
+  margin-bottom: 0;
+}
+
+.ops-empty {
+  min-height: 0;
+  padding: var(--app-space-4);
+  border: 1px dashed var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: color-mix(in srgb, var(--app-shell-solid) 76%, transparent);
+}
+
+.ops-item {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--app-border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--app-shell-solid) 92%, var(--p-primary-50));
+}
+
+.ops-item--recoverable {
+  border-color: color-mix(in srgb, var(--app-accent) 28%, var(--app-border));
+  background: color-mix(in srgb, var(--app-shell-solid) 90%, var(--p-primary-100));
+}
+
+.ops-item--manual {
+  border-color: color-mix(in srgb, var(--app-red) 34%, var(--app-border));
+  background: color-mix(in srgb, var(--app-shell-solid) 90%, var(--p-red-50));
+}
+
+.ops-item-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.ops-item-title-block {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.ops-target {
+  color: var(--app-text);
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.ops-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.ops-meta-row {
+  gap: 0.45rem;
+  color: var(--app-text-muted);
+  font-size: 0.82rem;
+}
+
+.ops-meta-label {
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-text-soft);
+}
+
+.ops-meta-value {
+  color: var(--app-text-muted);
+}
+
+.ops-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .ops-card-head,
+  .ops-item-head {
+    align-items: stretch;
+  }
+
+  .ops-tags,
+  .ops-actions {
+    width: 100%;
+  }
+
+  .ops-actions :deep(.p-button) {
+    width: 100%;
+  }
 }
 </style>

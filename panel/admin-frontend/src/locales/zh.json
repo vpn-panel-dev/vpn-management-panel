@@ -190,7 +190,10 @@
     "noPeers": "尚未分配对等连接。",
     "user": "用户",
     "ip": "IP",
-    "status": "状态"
+    "status": "状态",
+    "heartbeatError": "心跳错误",
+    "syncError": "同步错误",
+    "lastError": "最近错误"
   },
   "nodeMobile": {
     "loading": "正在加载服务器…",
@@ -198,13 +201,21 @@
     "endpoint": "端点",
     "metadata": "参数",
     "waitingSync": "等待同步",
-    "error": "错误"
+    "error": "错误",
+    "heartbeatError": "心跳错误",
+    "syncError": "同步错误"
   },
   "operations": {
     "kicker": "操作恢复",
     "title": "运行中和失败的操作",
+    "description": "重试失败任务，检查卡住的工作，并区分可恢复故障与需要人工处理的项目。",
     "refresh": "刷新",
-    "empty": "没有需要处理的运行中或失败操作。"
+    "empty": "没有需要处理的运行中或失败操作。",
+    "recoverable": "可恢复",
+    "needs_manual_action": "需要手动处理",
+    "updatedAt": "更新时间",
+    "retry": "重试",
+    "retryQueued": "已加入重试队列"
   },
   "nodeForm": {
     "title": "添加服务器",

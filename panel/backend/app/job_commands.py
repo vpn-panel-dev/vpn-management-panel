@@ -22,6 +22,7 @@ def _payload(
         'command': command,
         'idempotency_key': overrides.get('idempotency_key') or str(uuid.uuid4()),
         'operation_id': overrides.get('operation_id') or str(uuid.uuid4()),
+        'track_operation': overrides.get('track_operation', True),
         'target_type': target_type,
         'target_id': target_id,
         'created_at': overrides.get('created_at') or _now(),

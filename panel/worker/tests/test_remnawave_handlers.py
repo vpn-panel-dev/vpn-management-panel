@@ -24,6 +24,7 @@ def command(name: CommandName, target_id: str | None = None) -> WorkerCommand:
             'command': name,
             'idempotency_key': f'idem-{name}-{target_id}',
             'operation_id': f'op-{name}-{target_id}',
+            'track_operation': True,
             'target_type': 'remnawave_user' if target_id else 'remnawave',
             'target_id': target_id,
             'created_at': datetime.now(UTC).isoformat(),

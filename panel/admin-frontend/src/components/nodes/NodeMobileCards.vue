@@ -35,6 +35,14 @@
           <span>{{ $t('nodeMobile.error') }}</span>
           <b class="error-text">{{ node.last_error }}</b>
         </div>
+        <div v-if="node.last_heartbeat_error">
+          <span>{{ $t('nodeMobile.heartbeatError') }}</span>
+          <b class="error-text">{{ node.last_heartbeat_error }}</b>
+        </div>
+        <div v-if="node.sync_error">
+          <span>{{ $t('nodeMobile.syncError') }}</span>
+          <b class="error-text">{{ node.sync_error }}</b>
+        </div>
         <div>
           <span>{{ $t('nodeTable.sync') }}</span>
           <b>{{ node.sync_status }}</b>
@@ -48,7 +56,7 @@
       <div class="mobile-card-actions">
         <NodeActions
           :node-id="node.id"
-          :provisioning="provisioning[node.id]"
+          :provisioning="!!provisioning[node.id]"
           :mobile="true"
           @provision="$emit('provision', node)"
           @confirm-delete="$emit('confirmDelete', $event, node)"

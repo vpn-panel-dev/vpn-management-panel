@@ -165,6 +165,7 @@ def command_from_operation(operation: dict[str, Any]) -> WorkerCommand:
             'command': operation['kind'],
             'idempotency_key': operation['id'],
             'operation_id': operation['id'],
+            'track_operation': True,
             'target_type': operation.get('target_type') or 'all',
             'target_id': operation.get('target_id'),
             'created_at': operation['updated_at'],

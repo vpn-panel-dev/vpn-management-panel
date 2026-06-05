@@ -64,6 +64,7 @@ def _command(command: str) -> WorkerCommand:
             'command': command,
             'idempotency_key': f'idem-{command}',
             'operation_id': f'op-{command}',
+            'track_operation': True,
             'target_type': target_type,
             'target_id': target_id,
             'created_at': datetime.now(UTC).isoformat(),

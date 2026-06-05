@@ -72,6 +72,15 @@
             :value="`${$t('nodeTable.provision')}: ${data.provision_status}`"
           />
         </div>
+        <div v-if="data.last_heartbeat_error" class="node-error-line">
+          {{ $t('nodeTable.heartbeatError') }}: {{ data.last_heartbeat_error }}
+        </div>
+        <div v-if="data.sync_error" class="node-error-line">
+          {{ $t('nodeTable.syncError') }}: {{ data.sync_error }}
+        </div>
+        <div v-if="data.last_error" class="node-error-line">
+          {{ $t('nodeTable.lastError') }}: {{ data.last_error }}
+        </div>
       </template>
     </Column>
 
@@ -79,7 +88,7 @@
       <template #body="{ data }">
         <NodeActions
           :node-id="data.id"
-          :provisioning="provisioning[data.id]"
+          :provisioning="!!provisioning[data.id]"
           @provision="$emit('provision', data)"
           @confirm-delete="$emit('confirmDelete', $event, data)"
         />
@@ -191,6 +200,13 @@ defineEmits<{
 
 .node-expansion {
   padding: 0.9rem 1rem;
+}
+
+.node-error-line {
+  margin-top: 0.35rem;
+  color: var(--p-red-600);
+  font-size: 0.82rem;
+  word-break: break-word;
 }
 
 .peer-table {

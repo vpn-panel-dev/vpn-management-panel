@@ -190,7 +190,10 @@
     "noPeers": "No peers assigned yet.",
     "user": "User",
     "ip": "IP",
-    "status": "Status"
+    "status": "Status",
+    "heartbeatError": "Heartbeat error",
+    "syncError": "Sync error",
+    "lastError": "Last error"
   },
   "nodeMobile": {
     "loading": "Loading servers…",
@@ -198,13 +201,21 @@
     "endpoint": "Endpoint",
     "metadata": "Parameters",
     "waitingSync": "Waiting for sync",
-    "error": "Error"
+    "error": "Error",
+    "heartbeatError": "Heartbeat error",
+    "syncError": "Sync error"
   },
   "operations": {
     "kicker": "Operation recovery",
     "title": "Running and failed operations",
+    "description": "Retry failed jobs, inspect stuck work, and distinguish recoverable failures from items that need manual action.",
     "refresh": "Refresh",
-    "empty": "No running or failed operations need attention."
+    "empty": "No running or failed operations need attention.",
+    "recoverable": "Recoverable",
+    "needs_manual_action": "Needs manual action",
+    "updatedAt": "Updated",
+    "retry": "Retry",
+    "retryQueued": "Retry queued"
   },
   "nodeForm": {
     "title": "Add server",

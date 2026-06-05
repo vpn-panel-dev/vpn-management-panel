@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from collections.abc import Mapping
@@ -78,6 +79,17 @@ RETRY_10M_ARGS = {
     'x-dead-letter-exchange': EXCHANGE_NAME,
 }
 POISON_ARGS = {}
+
+
+@dataclass
+class PublisherState:
+    lock: asyncio.Lock
+    connection: Any | None = None
+    channel: Any | None = None
+    exchange: Any | None = None
+
+
+_publisher_state = PublisherState(lock=asyncio.Lock())
 
 
 def _rabbitmq_url(url: str | None = None) -> str:
@@ -192,15 +204,30 @@ async def publish_command(
     *,
     url: str | None = None,
 ) -> None:
-    connection = await connect_robust(_rabbitmq_url(url))
-    try:
-        channel = await connection.channel(publisher_confirms=True)
-        topology = await declare_topology(channel)
-        message = Message(
-            body=_message_body(payload),
-            delivery_mode=DeliveryMode.PERSISTENT,
-            content_type='application/json',
-        )
-        await topology['exchange'].publish(message, routing_key=routing_key, mandatory=True)
-    finally:
-        await connection.close()
+    exchange = await _publisher_exchange_for_url(url)
+    message = Message(
+        body=_message_body(payload),
+        delivery_mode=DeliveryMode.PERSISTENT,
+        content_type='application/json',
+    )
+    await exchange.publish(message, routing_key=routing_key, mandatory=True)
+
+
+async def _publisher_exchange_for_url(url: str | None = None) -> Any:
+    async with _publisher_state.lock:
+        exchange = _publisher_state.exchange
+        if exchange is not None and not getattr(exchange, 'is_closed', False):
+            return exchange
+
+        channel = _publisher_state.channel
+        if channel is None or getattr(channel, 'is_closed', True):
+            connection = _publisher_state.connection
+            if connection is None or getattr(connection, 'is_closed', True):
+                connection = await connect_robust(_rabbitmq_url(url))
+                _publisher_state.connection = connection
+            channel = await connection.channel(publisher_confirms=True)
+            _publisher_state.channel = channel
+            topology = await declare_topology(channel)
+            _publisher_state.exchange = topology['exchange']
+
+        return _publisher_state.exchange

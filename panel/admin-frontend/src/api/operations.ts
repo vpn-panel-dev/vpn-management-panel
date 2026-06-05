@@ -16,6 +16,8 @@ export const operationsApi = {
     if (status) params.set('status', status)
     return req<AsyncOperation[]>('GET', `/operations?${params.toString()}`)
   },
+  retryOperation: (operationId: string) =>
+    req<{ operation_id: string; status_url: string }>('POST', `/operations/${operationId}/retry`),
   getUserTraffic: (uid: string, days = 30) =>
     req<TrafficPoint[]>('GET', `/users/${uid}/traffic?days=${days}`),
   getUserLocalTraffic: (uid: string) =>

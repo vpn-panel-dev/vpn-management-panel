@@ -128,6 +128,9 @@ async def test_run_schedules_cleanup_job_in_steady_state_loop(
         async def consume(self, handler: Any, concurrency: int) -> None:
             scheduled.append(('consume', (handler, concurrency)))
 
+        async def close(self) -> None:
+            scheduled.append(('close', ()))
+
     async def fake_sync_all(queue: Any, interval_sec: float) -> None:
         scheduled.append(('sync_all', (queue, interval_sec)))
 

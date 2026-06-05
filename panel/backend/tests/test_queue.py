@@ -72,8 +72,11 @@ class _FakeConnection:
 
 def test_publish_command_is_lazy_and_persistent(monkeypatch):
     connection = _FakeConnection()
+    connect_calls = 0
 
     async def _fake_connect(_):
+        nonlocal connect_calls
+        connect_calls += 1
         return connection
 
     monkeypatch.setattr('app.queue.connect_robust', _fake_connect)
@@ -90,8 +93,11 @@ def test_publish_command_is_lazy_and_persistent(monkeypatch):
     import asyncio
 
     asyncio.run(publish_command(payload, 'sync', url='amqp://example/'))
+    asyncio.run(publish_command(payload, 'sync', url='amqp://example/'))
 
-    assert connection.closed is True
+    assert connect_calls == 1
+    assert connection.closed is False
+    assert len(connection.channel_obj.exchange.published) == 2
     message, routing_key, mandatory = connection.channel_obj.exchange.published[0]
     assert routing_key == 'sync'
     assert mandatory is True

@@ -18,6 +18,7 @@ def command(name: CommandName, node_id: str | None = 'node-1') -> WorkerCommand:
             'command': name,
             'idempotency_key': f'idem-{name}',
             'operation_id': f'op-{name}',
+            'track_operation': True,
             'target_type': target_type if node_id is None else 'node',
             'target_id': node_id,
             'created_at': datetime.now(UTC).isoformat(),
@@ -194,6 +195,28 @@ class ReplayBackend(FakeBackend):
         raise httpx.HTTPStatusError('conflict', request=request, response=response)
 
 
+class UntrackedBackend(FakeBackend):
+    async def start_operation(self, operation_id: str) -> dict[str, Any]:
+        raise AssertionError(f'start_operation should not be called for {operation_id}')
+
+    async def succeed_operation(
+        self,
+        operation_id: str,
+        result: dict[str, Any] | None = None,
+    ) -> None:
+        _ = result
+        raise AssertionError(f'succeed_operation should not be called for {operation_id}')
+
+    async def fail_operation(
+        self,
+        operation_id: str,
+        error: str,
+        result: dict[str, Any] | None = None,
+    ) -> None:
+        _ = (error, result)
+        raise AssertionError(f'fail_operation should not be called for {operation_id}')
+
+
 async def test_sync_node_applies_snapshot_and_reports_success() -> None:
     backend = FakeBackend()
     node = FakeNode()
@@ -265,6 +288,29 @@ async def test_health_check_all_reports_reachability() -> None:
     assert result.ok is True
     assert result.result == {'nodes': 1, 'reachable': 1, 'unreachable': 0}
     assert ('health', 'http://agent.test') in node.calls
+    assert ('heartbeat_result', 'node-1', {'ok': True}) in backend.calls
+
+
+async def test_untracked_command_skips_operation_lifecycle() -> None:
+    backend = UntrackedBackend()
+    node = FakeNode()
+    handler = CommandHandler(backend, node)
+    untracked = WorkerCommand.model_validate(
+        {
+            'command': 'health_check_all',
+            'idempotency_key': 'idem-health-check-all',
+            'operation_id': 'op-health-check-all',
+            'track_operation': False,
+            'target_type': 'all',
+            'target_id': None,
+            'created_at': datetime.now(UTC).isoformat(),
+        }
+    )
+
+    result = await handler.handle(untracked)
+
+    assert result.ok is True
+    assert ('fetch_sync_snapshot', None) in backend.calls
     assert ('heartbeat_result', 'node-1', {'ok': True}) in backend.calls
 
 

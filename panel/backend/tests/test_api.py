@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
@@ -5,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models import (
     AsyncOperation,
@@ -46,6 +48,26 @@ def _mock_job_producer():
             'operation_id': kwargs['operation_id'],
         }
 
+    async def _remnawave_full_reconcile(**kwargs):
+        return {
+            'command': 'remnawave_full_reconcile',
+            'operation_id': kwargs['operation_id'],
+        }
+
+    async def _remnawave_sync_user(user_uuid, **kwargs):
+        return {
+            'command': 'remnawave_sync_user',
+            'target_id': user_uuid,
+            'operation_id': kwargs['operation_id'],
+        }
+
+    async def _remnawave_disable_user(user_uuid, **kwargs):
+        return {
+            'command': 'remnawave_disable_user',
+            'target_id': user_uuid,
+            'operation_id': kwargs['operation_id'],
+        }
+
     with (
         patch('app.routers.api.enqueue_sync_all', new=AsyncMock(side_effect=_sync_all)),
         patch('app.routers.api.enqueue_sync_node', new=AsyncMock(side_effect=_sync_node)),
@@ -56,6 +78,18 @@ def _mock_job_producer():
         patch(
             'app.routers.api.enqueue_cleanup_raw_traffic_samples',
             new=AsyncMock(side_effect=_cleanup_raw_traffic_samples),
+        ),
+        patch(
+            'app.routers.api.enqueue_remnawave_full_reconcile',
+            new=AsyncMock(side_effect=_remnawave_full_reconcile),
+        ),
+        patch(
+            'app.routers.api.enqueue_remnawave_sync_user',
+            new=AsyncMock(side_effect=_remnawave_sync_user),
+        ),
+        patch(
+            'app.routers.api.enqueue_remnawave_disable_user',
+            new=AsyncMock(side_effect=_remnawave_disable_user),
         ),
     ):
         yield
@@ -129,6 +163,84 @@ async def test_create_pending_peers_is_idempotent(client: AsyncClient, auth_head
     assert len(peers) == 1
 
 
+async def test_create_pending_peers_for_user_is_concurrency_safe(db):
+    node = Node(
+        id='node-race',
+        name='node-race',
+        url='http://agent:8000',
+        token='tok',  # noqa: S106
+    )
+    user = User(
+        id='user-race',
+        name='alice-race',
+        public_key='alice-race-public',
+        private_key='alice-race-private',
+        vpn_ip='10.8.0.2',
+    )
+    db.add_all([node, user])
+    await db.commit()
+
+    session_factory = async_sessionmaker(bind=db.bind, expire_on_commit=False)
+
+    from app.services.users import create_pending_peers_for_user
+
+    async def create_once() -> set[str]:
+        async with session_factory() as session:
+            loaded_user = await session.get(User, user.id)
+            created = await create_pending_peers_for_user(session, loaded_user)
+            await session.commit()
+            return created
+
+    first, second = await asyncio.gather(create_once(), create_once())
+
+    peers = (
+        (await db.execute(select(Peer).where(Peer.node_id == node.id, Peer.user_id == user.id)))
+        .scalars()
+        .all()
+    )
+    assert len(peers) == 1
+    assert sorted([first, second], key=len) == [set(), {node.id}]
+
+
+async def test_create_pending_peers_for_node_is_concurrency_safe(db):
+    node = Node(
+        id='node-race-2',
+        name='node-race-2',
+        url='http://agent:8000',
+        token='tok',  # noqa: S106
+    )
+    user = User(
+        id='user-race-2',
+        name='alice-race-2',
+        public_key='alice-race-2-public',
+        private_key='alice-race-2-private',
+        vpn_ip='10.8.0.3',
+    )
+    db.add_all([node, user])
+    await db.commit()
+
+    session_factory = async_sessionmaker(bind=db.bind, expire_on_commit=False)
+
+    from app.services.users import create_pending_peers_for_node
+
+    async def create_once() -> set[str]:
+        async with session_factory() as session:
+            loaded_node = await session.get(Node, node.id)
+            created = await create_pending_peers_for_node(session, loaded_node)
+            await session.commit()
+            return created
+
+    first, second = await asyncio.gather(create_once(), create_once())
+
+    peers = (
+        (await db.execute(select(Peer).where(Peer.node_id == node.id, Peer.user_id == user.id)))
+        .scalars()
+        .all()
+    )
+    assert len(peers) == 1
+    assert sorted([first, second], key=len) == [set(), {user.id}]
+
+
 async def test_list_nodes_after_create(client: AsyncClient, auth_headers):
     headers = auth_headers
     # Create a node in this same test (DB is reset between tests)
@@ -167,6 +279,63 @@ async def test_list_nodes_online_uses_heartbeat_reachability(client: AsyncClient
     listed = next(item for item in resp.json() if item['id'] == 'reachable-node')
     assert listed['online'] is True
     assert listed['reachable'] is True
+
+
+async def test_list_operations_exposes_resolution_state(client: AsyncClient, auth_headers, db):
+    failed = AsyncOperation(
+        id='op-failed',
+        kind='sync_node',
+        target_type='node',
+        target_id='node-1',
+        status='failed',
+        error='node-agent unavailable',
+        idempotency_key='failed-key',
+    )
+    timed_out = AsyncOperation(
+        id='op-timeout',
+        kind='provision_node',
+        target_type='node',
+        target_id='node-2',
+        status='failed_by_timeout',
+        error='Operation exceeded running timeout and needs manual action',
+        idempotency_key='timeout-key',
+    )
+    db.add_all([failed, timed_out])
+    await db.commit()
+
+    resp = await client.get('/api/operations', headers=auth_headers)
+
+    assert resp.status_code == HTTPStatus.OK
+    data = {item['id']: item for item in resp.json()}
+    assert data['op-failed']['resolution_state'] == 'recoverable'
+    assert data['op-failed']['can_retry'] is True
+    assert data['op-timeout']['resolution_state'] == 'needs_manual_action'
+    assert data['op-timeout']['can_retry'] is True
+
+
+async def test_retry_failed_operation_creates_new_operation(client: AsyncClient, auth_headers, db):
+    operation = AsyncOperation(
+        id='retry-source',
+        kind='sync_node',
+        target_type='node',
+        target_id='node-1',
+        status='failed_by_timeout',
+        error='Operation exceeded running timeout and needs manual action',
+        idempotency_key='retry-source-key',
+    )
+    db.add(operation)
+    await db.commit()
+
+    resp = await client.post('/api/operations/retry-source/retry', headers=auth_headers)
+
+    assert resp.status_code == HTTPStatus.ACCEPTED
+    payload = resp.json()
+    retried = await db.get(AsyncOperation, payload['operation_id'])
+    assert retried is not None
+    assert retried.id != operation.id
+    assert retried.kind == 'sync_node'
+    assert retried.target_id == 'node-1'
+    assert retried.status == 'queued'
 
 
 async def test_update_node(client: AsyncClient, auth_headers):

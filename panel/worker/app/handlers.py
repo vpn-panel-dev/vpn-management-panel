@@ -58,7 +58,8 @@ class CommandHandler:
                 )
         except Exception as exc:
             error = str(exc)
-            await self._backend.fail_operation(command.operation_id, error)
+            if command.track_operation:
+                await self._backend.fail_operation(command.operation_id, error)
             return CommandResult(
                 command=command.command,
                 node_id=command.node_id,
@@ -74,16 +75,18 @@ class CommandHandler:
         )
 
     async def _dispatch(self, command: WorkerCommand) -> dict[str, Any] | None:
-        try:
-            await self._backend.start_operation(command.operation_id)
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == HTTPStatus.CONFLICT:
-                return None
-            raise
+        if command.track_operation:
+            try:
+                await self._backend.start_operation(command.operation_id)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == HTTPStatus.CONFLICT:
+                    return None
+                raise
 
         result = await self._operation_handlers[command.command](command)
 
-        await self._backend.succeed_operation(command.operation_id, result)
+        if command.track_operation:
+            await self._backend.succeed_operation(command.operation_id, result)
         return result
 
     async def _handle_sync_all(self, command: WorkerCommand) -> dict[str, Any]:

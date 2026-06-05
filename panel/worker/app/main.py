@@ -59,15 +59,22 @@ async def run(settings: Settings) -> None:
     async def handle_queue_command(command):
         await command_handler.handle(command)
 
-    async with asyncio.TaskGroup() as task_group:
-        task_group.create_task(queue.consume(handle_queue_command, settings.worker_concurrency))
-        task_group.create_task(schedule_sync_all(queue, settings.sync_interval_sec))
-        task_group.create_task(schedule_health_check_all(queue, settings.heartbeat_interval_sec))
-        task_group.create_task(
-            schedule_cleanup_raw_traffic_samples(queue, settings.sync_interval_sec)
-        )
-        task_group.create_task(schedule_remnawave_reconcile(backend, queue))
-        task_group.create_task(recover_stale_operations(backend, queue, settings))
+    try:
+        async with asyncio.TaskGroup() as task_group:
+            task_group.create_task(queue.consume(handle_queue_command, settings.worker_concurrency))
+            task_group.create_task(schedule_sync_all(queue, settings.sync_interval_sec))
+            task_group.create_task(
+                schedule_health_check_all(queue, settings.heartbeat_interval_sec)
+            )
+            task_group.create_task(
+                schedule_cleanup_raw_traffic_samples(queue, settings.sync_interval_sec)
+            )
+            task_group.create_task(schedule_remnawave_reconcile(backend, queue))
+            task_group.create_task(recover_stale_operations(backend, queue, settings))
+    finally:
+        close = getattr(queue, 'close', None)
+        if close is not None:
+            await close()
 
 
 async def schedule_sync_all(queue: RabbitQueue, interval_sec: float) -> None:
@@ -134,6 +141,7 @@ def _new_command(command: CommandName, target_type: str, target_id: str | None) 
             'command': command,
             'idempotency_key': operation_id,
             'operation_id': operation_id,
+            'track_operation': False,
             'target_type': target_type,
             'target_id': target_id,
             'created_at': datetime.now(UTC).isoformat(),

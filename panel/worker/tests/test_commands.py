@@ -12,6 +12,7 @@ def test_worker_command_accepts_remnawave_commands():
         command='remnawave_full_reconcile',
         idempotency_key=str(uuid.uuid4()),
         operation_id=str(uuid.uuid4()),
+        track_operation=True,
         target_type='remnawave',
         target_id=None,
         created_at=now,
@@ -26,6 +27,7 @@ def test_worker_command_accepts_cleanup_raw_traffic_samples():
             'command': 'cleanup_raw_traffic_samples',
             'idempotency_key': 'idem-traffic-cleanup',
             'operation_id': 'op-traffic-cleanup',
+            'track_operation': False,
             'target_type': 'traffic',
             'target_id': None,
             'created_at': '2026-01-01T00:00:00Z',
@@ -35,6 +37,7 @@ def test_worker_command_accepts_cleanup_raw_traffic_samples():
     assert cmd.name == 'cleanup_raw_traffic_samples'
     assert cmd.target_type == 'traffic'
     assert cmd.node_id is None
+    assert cmd.track_operation is False
 
 
 def test_worker_command_accepts_remnawave_sync_user():
@@ -43,6 +46,7 @@ def test_worker_command_accepts_remnawave_sync_user():
         command='remnawave_sync_user',
         idempotency_key=str(uuid.uuid4()),
         operation_id=str(uuid.uuid4()),
+        track_operation=True,
         target_type='remnawave_user',
         target_id='user-123',
         created_at=now,
@@ -59,6 +63,7 @@ def test_worker_command_accepts_remnawave_disable_user():
         command='remnawave_disable_user',
         idempotency_key=str(uuid.uuid4()),
         operation_id=str(uuid.uuid4()),
+        track_operation=True,
         target_type='remnawave_user',
         target_id='user-123',
         created_at=now,

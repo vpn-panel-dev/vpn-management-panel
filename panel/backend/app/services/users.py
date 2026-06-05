@@ -2,6 +2,7 @@ import uuid
 from typing import Protocol
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crypto import allocate_ip, generate_keypair, generate_psk
@@ -26,24 +27,33 @@ async def list_nodes(db: AsyncSession) -> list[Node]:
     return list((await db.execute(select(Node))).scalars().all())
 
 
+async def _create_pending_peer(db: AsyncSession, *, node_id: str, user_id: str) -> bool:
+    existing_peer_id = await db.scalar(
+        select(Peer.id).where(Peer.node_id == node_id, Peer.user_id == user_id)
+    )
+    if existing_peer_id is not None:
+        return False
+
+    try:
+        async with db.begin_nested():
+            db.add(Peer(node_id=node_id, user_id=user_id, status='pending', psk_key=generate_psk()))
+            await db.flush()
+    except IntegrityError:
+        return False
+    return True
+
+
 async def create_pending_peers_for_user(db: AsyncSession, user: User) -> set[str]:
     node_ids: set[str] = set()
     nodes = await list_nodes(db)
-    existing_node_ids = set(
-        (await db.execute(select(Peer.node_id).where(Peer.user_id == user.id))).scalars().all()
-    )
     for node in nodes:
-        if node.id in existing_node_ids:
-            continue
-        db.add(Peer(node_id=node.id, user_id=user.id, status='pending', psk_key=generate_psk()))
-        node_ids.add(node.id)
+        created = await _create_pending_peer(db, node_id=node.id, user_id=user.id)
+        if created:
+            node_ids.add(node.id)
     return node_ids
 
 
 async def create_pending_peers_for_node(db: AsyncSession, node: Node) -> set[str]:
-    existing_user_ids = set(
-        (await db.execute(select(Peer.user_id).where(Peer.node_id == node.id))).scalars().all()
-    )
     users = (
         (
             await db.execute(
@@ -55,10 +65,9 @@ async def create_pending_peers_for_node(db: AsyncSession, node: Node) -> set[str
     )
     user_ids: set[str] = set()
     for user in users:
-        if user.id in existing_user_ids:
-            continue
-        db.add(Peer(node_id=node.id, user_id=user.id, status='pending', psk_key=generate_psk()))
-        user_ids.add(user.id)
+        created = await _create_pending_peer(db, node_id=node.id, user_id=user.id)
+        if created:
+            user_ids.add(user.id)
     return user_ids
 
 

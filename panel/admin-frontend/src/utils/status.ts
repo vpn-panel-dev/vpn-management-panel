@@ -22,6 +22,12 @@ export function operationSeverity(status: string): string {
   return 'secondary'
 }
 
+export function operationResolutionSeverity(state: string | null): string {
+  if (state === 'recoverable') return 'warn'
+  if (state === 'needs_manual_action') return 'danger'
+  return 'secondary'
+}
+
 /**
  * Map a Remnawave user status to a PrimeVue Tag severity.
  *
@@ -59,13 +65,13 @@ export function isOnline(lastHandshake: string | null): boolean {
  * Build a tooltip string for a Remnawave user brief.
  */
 export function remnawaveTooltip(rw: RemnawaveUserBrief): string {
-  const parts: string[] = [i18n.global.t('remnawave.status') + ': ' + rw.status]
+  const parts: string[] = [`${i18n.global.t('remnawave.status')}: ${rw.status}`]
   if (rw.expire_at)
-    parts.push(i18n.global.t('userDetail.labelExpires') + ': ' + fmtDate(rw.expire_at))
+    parts.push(`${i18n.global.t('userDetail.labelExpires')}: ${fmtDate(rw.expire_at)}`)
   if (rw.traffic_limit_bytes > 0) {
     const used = fmtBytes(rw.combined_traffic_used_bytes)
     const limit = fmtBytes(rw.traffic_limit_bytes)
-    parts.push(i18n.global.t('userDetail.labelTraffic') + ': ' + used + ' / ' + limit)
+    parts.push(`${i18n.global.t('userDetail.labelTraffic')}: ${used} / ${limit}`)
   }
   return parts.join('\n')
 }
