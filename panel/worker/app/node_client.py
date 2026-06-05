@@ -13,6 +13,10 @@ class NodeClient:
         response = await self._request('GET', endpoint, token, '/status')
         return dict(response.json())
 
+    async def health(self, endpoint: str) -> dict[str, Any]:
+        response = await self._request('GET', endpoint, '', '/health')
+        return dict(response.json())
+
     async def dump(self, endpoint: str, token: str) -> dict[str, Any]:
         response = await self._request('GET', endpoint, token, '/dump')
         return dict(response.json())

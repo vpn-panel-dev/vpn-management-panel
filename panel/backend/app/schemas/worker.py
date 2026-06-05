@@ -55,6 +55,11 @@ class ProvisionResult(BaseModel):
     interface: InterfaceResult | None = None
 
 
+class HeartbeatResult(BaseModel):
+    ok: bool = True
+    error: str | None = None
+
+
 class RemnawaveReconcileCompleteIn(BaseModel):
     seen_uuids: list[str] = Field(default_factory=list)
 

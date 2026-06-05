@@ -9,8 +9,8 @@
           <div class="mobile-card-sub">{{ node.url }}</div>
         </div>
         <Tag
-          :severity="node.online ? 'success' : 'danger'"
-          :value="node.online ? $t('status.online') : $t('status.offline')"
+          :severity="node.reachable ? 'success' : 'danger'"
+          :value="node.reachable ? $t('nodeTable.reachable') : $t('nodeTable.unreachable')"
           class="status-tag"
         />
       </div>
@@ -34,6 +34,14 @@
         <div v-if="node.last_error">
           <span>{{ $t('nodeMobile.error') }}</span>
           <b class="error-text">{{ node.last_error }}</b>
+        </div>
+        <div>
+          <span>{{ $t('nodeTable.sync') }}</span>
+          <b>{{ node.sync_status }}</b>
+        </div>
+        <div>
+          <span>{{ $t('nodeTable.provision') }}</span>
+          <b>{{ node.provision_status }}</b>
         </div>
       </div>
 

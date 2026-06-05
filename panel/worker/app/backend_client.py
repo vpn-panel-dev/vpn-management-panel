@@ -90,6 +90,19 @@ class BackendClient:
             )
             response.raise_for_status()
 
+    async def report_heartbeat_result(self, node_id: str, result: dict[str, Any]) -> None:
+        async with self._client() as client:
+            response = await client.post(
+                f'/internal/worker/nodes/{node_id}/heartbeat-result',
+                json=result,
+            )
+            response.raise_for_status()
+
+    async def timeout_operation(self, operation_id: str) -> None:
+        async with self._client() as client:
+            response = await client.post(f'/internal/worker/operations/{operation_id}/timeout')
+            response.raise_for_status()
+
     async def fetch_stale_operations(
         self,
         status: str = 'queued',

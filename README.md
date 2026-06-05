@@ -289,11 +289,11 @@ Amnezia can sync users from [Remnawave](https://remnawave.com) via API polling o
 
 ## Operational semantics
 
-- Node `online`/`offline` status currently reflects the last successful or failed sync/provision result handled by the backend. It is not an independent heartbeat and does not prove that the node is reachable right now.
-- The worker automatically republishes stale `queued` operations. Operations already marked `running` are not recovered automatically today; inspect and resolve them manually until a running-operation timeout policy is implemented.
+- Node `online`/`offline` status reflects the latest worker heartbeat to the node-agent `/health` endpoint. Sync/provision results are tracked separately as last sync and provision status.
+- The worker automatically republishes stale `queued` operations and marks stale `running` operations as `failed_by_timeout` after `RUNNING_TIMEOUT_SEC` so operators can resolve them from the admin operations list.
 - Worker jobs are split by execution semantics. Node-mutating commands (`sync_all`, `sync_node`,
-  `provision_node`) share one sequential RabbitMQ queue with one active consumer; cleanup and
-  Remnawave commands use parallel queues controlled by `WORKER_CONCURRENCY`.
+  `provision_node`) share one sequential RabbitMQ queue with one active consumer. Heartbeat,
+  cleanup, and Remnawave commands use parallel queues controlled by `WORKER_CONCURRENCY`.
 - Rolling upgrade order for the queue split: update `panel-worker` first so it drains both legacy
   `amnezia.sync`/`amnezia.provision` queues and new operation queues, then update `panel` so new
   jobs are published directly to operation queues. Keep legacy queues until they are empty.

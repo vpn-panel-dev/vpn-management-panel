@@ -104,6 +104,31 @@ async def test_add_node_creates_peers_for_existing_users(client: AsyncClient, au
     assert peers_resp.json()[0]['endpoint'] is None
 
 
+async def test_create_pending_peers_is_idempotent(client: AsyncClient, auth_headers, db):
+    headers = auth_headers
+    await client.post('/api/users', json={'name': 'alice'}, headers=headers)
+    node_resp = await client.post(
+        '/api/nodes',
+        json={'name': 'node-idem', 'url': 'http://agent-idem:8000', 'token': 'tok'},
+        headers=headers,
+    )
+    node = await db.get(Node, node_resp.json()['id'])
+    user = (await db.execute(select(User).where(User.name == 'alice'))).scalar_one()
+
+    from app.services.users import create_pending_peers_for_node, create_pending_peers_for_user
+
+    await create_pending_peers_for_node(db, node)
+    await create_pending_peers_for_user(db, user)
+    await db.commit()
+
+    peers = (
+        (await db.execute(select(Peer).where(Peer.node_id == node.id, Peer.user_id == user.id)))
+        .scalars()
+        .all()
+    )
+    assert len(peers) == 1
+
+
 async def test_list_nodes_after_create(client: AsyncClient, auth_headers):
     headers = auth_headers
     # Create a node in this same test (DB is reset between tests)
@@ -122,6 +147,26 @@ async def test_list_nodes_after_create(client: AsyncClient, auth_headers):
         assert node['online_threshold_seconds'] == 180
     # Should have our just-created node
     assert any(n['name'] == 'n-list' for n in data)
+
+
+async def test_list_nodes_online_uses_heartbeat_reachability(client: AsyncClient, auth_headers, db):
+    node = Node(
+        id='reachable-node',
+        name='reachable-node',
+        url='http://agent:8000',
+        token='tok',  # noqa: S106
+        health_status='offline',
+        reachability_status='reachable',
+    )
+    db.add(node)
+    await db.commit()
+
+    resp = await client.get('/api/nodes', headers=auth_headers)
+
+    assert resp.status_code == HTTPStatus.OK
+    listed = next(item for item in resp.json() if item['id'] == 'reachable-node')
+    assert listed['online'] is True
+    assert listed['reachable'] is True
 
 
 async def test_update_node(client: AsyncClient, auth_headers):

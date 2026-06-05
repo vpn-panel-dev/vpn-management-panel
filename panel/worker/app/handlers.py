@@ -38,6 +38,8 @@ class CommandHandler:
             'sync_all': self._handle_sync_all,
             'sync_node': self._sync_node,
             'provision_node': self._provision_node,
+            'health_check_all': self._handle_health_check_all,
+            'health_check_node': self._health_check_node,
             'cleanup_raw_traffic_samples': self._cleanup_raw_traffic_samples,
             'remnawave_full_reconcile': self._handle_remnawave_full_reconcile,
             'remnawave_sync_user': self._remnawave_sync_user,
@@ -91,6 +93,19 @@ class CommandHandler:
     async def _cleanup_raw_traffic_samples(self, command: WorkerCommand) -> dict[str, Any]:
         _ = command
         return await self._backend.cleanup_raw_traffic_samples()
+
+    async def _handle_health_check_all(self, command: WorkerCommand) -> dict[str, Any]:
+        _ = command
+        snapshots = await self._backend.fetch_sync_snapshot()
+        results = []
+        for snapshot in snapshots:
+            results.append(await self._heartbeat_snapshot(snapshot))
+        reachable = sum(1 for result in results if result.get('ok'))
+        return {
+            'nodes': len(results),
+            'reachable': reachable,
+            'unreachable': len(results) - reachable,
+        }
 
     async def _handle_remnawave_full_reconcile(self, command: WorkerCommand) -> dict[str, Any]:
         _ = command
@@ -217,6 +232,22 @@ class CommandHandler:
         node_id = self._require_node_id(command)
         snapshot = await self._backend.fetch_node_provision_snapshot(node_id)
         return await self._with_node_lock(node_id, self._provision_snapshot, snapshot)
+
+    async def _health_check_node(self, command: WorkerCommand) -> dict[str, Any]:
+        node_id = self._require_node_id(command)
+        snapshot = await self._backend.fetch_node_sync_snapshot(node_id)
+        return await self._heartbeat_snapshot(snapshot)
+
+    async def _heartbeat_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        node_id = str(snapshot['id'])
+        endpoint = str(snapshot['url']).rstrip('/')
+        try:
+            await self._node_client.health(endpoint)
+            result = {'ok': True}
+        except Exception as exc:
+            result = {'ok': False, 'error': str(exc)}
+        await self._backend.report_heartbeat_result(node_id, result)
+        return result
 
     async def _sync_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
         node_id = str(snapshot['id'])

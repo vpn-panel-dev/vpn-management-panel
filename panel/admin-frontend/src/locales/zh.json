@@ -178,6 +178,10 @@
     "agentUrl": "代理 URL",
     "endpoint": "端点",
     "metadata": "参数",
+    "reachable": "可达",
+    "unreachable": "不可达",
+    "sync": "同步",
+    "provision": "配置下发",
     "port": "端口 {port}",
     "jc": "Jc {jc} · {jmin}–{jmax} 毫秒",
     "mtu": "MTU {mtu}",
@@ -195,6 +199,12 @@
     "metadata": "参数",
     "waitingSync": "等待同步",
     "error": "错误"
+  },
+  "operations": {
+    "kicker": "操作恢复",
+    "title": "运行中和失败的操作",
+    "refresh": "刷新",
+    "empty": "没有需要处理的运行中或失败操作。"
   },
   "nodeForm": {
     "title": "添加服务器",

@@ -1,4 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query
+from sqlalchemy import select
 
 from app.models import AsyncOperation
 from app.routers.api_parts.common import DB
@@ -37,6 +40,33 @@ async def api_get_operation(operation_id: str, db: DB):
         'updated_at': operation.updated_at,
         'finished_at': operation.finished_at,
     }
+
+
+@router.get('/operations')
+async def api_list_operations(
+    db: DB,
+    status: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+):
+    query = select(AsyncOperation).order_by(AsyncOperation.updated_at.desc()).limit(limit)
+    if status:
+        query = query.where(AsyncOperation.status == status)
+    operations = (await db.execute(query)).scalars().all()
+    return [
+        {
+            'id': operation.id,
+            'kind': operation.kind,
+            'target_type': operation.target_type,
+            'target_id': operation.target_id,
+            'status': operation.status,
+            'error': operation.error,
+            'attempts': operation.attempts,
+            'created_at': operation.created_at,
+            'updated_at': operation.updated_at,
+            'finished_at': operation.finished_at,
+        }
+        for operation in operations
+    ]
 
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────

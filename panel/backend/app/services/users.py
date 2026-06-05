@@ -28,13 +28,22 @@ async def list_nodes(db: AsyncSession) -> list[Node]:
 
 async def create_pending_peers_for_user(db: AsyncSession, user: User) -> set[str]:
     node_ids: set[str] = set()
-    for node in await list_nodes(db):
+    nodes = await list_nodes(db)
+    existing_node_ids = set(
+        (await db.execute(select(Peer.node_id).where(Peer.user_id == user.id))).scalars().all()
+    )
+    for node in nodes:
+        if node.id in existing_node_ids:
+            continue
         db.add(Peer(node_id=node.id, user_id=user.id, status='pending', psk_key=generate_psk()))
         node_ids.add(node.id)
     return node_ids
 
 
 async def create_pending_peers_for_node(db: AsyncSession, node: Node) -> set[str]:
+    existing_user_ids = set(
+        (await db.execute(select(Peer.user_id).where(Peer.node_id == node.id))).scalars().all()
+    )
     users = (
         (
             await db.execute(
@@ -46,6 +55,8 @@ async def create_pending_peers_for_node(db: AsyncSession, node: Node) -> set[str
     )
     user_ids: set[str] = set()
     for user in users:
+        if user.id in existing_user_ids:
+            continue
         db.add(Peer(node_id=node.id, user_id=user.id, status='pending', psk_key=generate_psk()))
         user_ids.add(user.id)
     return user_ids

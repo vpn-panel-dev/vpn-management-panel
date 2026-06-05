@@ -64,3 +64,23 @@ async def test_cleanup_raw_traffic_samples_calls_internal_endpoint() -> None:
     assert result == {'status': 'ok', 'retention_days': 90, 'deleted': 1, 'disabled': False}
     assert requests[0].method == 'POST'
     assert requests[0].url.path == '/internal/worker/traffic/cleanup-raw-samples'
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_and_timeout_internal_endpoints() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={'status': 'ok'})
+
+    client = TransportBackendClient(httpx.MockTransport(handler))
+
+    await client.report_heartbeat_result('node-1', {'ok': True})
+    await client.timeout_operation('operation-1')
+
+    assert requests[0].method == 'POST'
+    assert requests[0].url.path == '/internal/worker/nodes/node-1/heartbeat-result'
+    assert json.loads(requests[0].content) == {'ok': True}
+    assert requests[1].method == 'POST'
+    assert requests[1].url.path == '/internal/worker/operations/operation-1/timeout'

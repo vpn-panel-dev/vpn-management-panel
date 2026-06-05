@@ -24,6 +24,7 @@ NODE_OPERATIONS_QUEUE = 'amnezia.node_operations'
 SYNC_ALL_QUEUE = NODE_OPERATIONS_QUEUE
 SYNC_NODE_QUEUE = NODE_OPERATIONS_QUEUE
 PROVISION_NODE_QUEUE = NODE_OPERATIONS_QUEUE
+NODE_HEARTBEAT_QUEUE = 'amnezia.node_heartbeat'
 CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE = 'amnezia.cleanup_raw_traffic_samples'
 REMNAWAVE_FULL_RECONCILE_QUEUE = 'amnezia.remnawave_full_reconcile'
 REMNAWAVE_SYNC_USER_QUEUE = 'amnezia.remnawave_sync_user'
@@ -53,6 +54,8 @@ COMMAND_QUEUES = (
     CommandQueue('sync_all', SYNC_ALL_QUEUE, sequential=True),
     CommandQueue('sync_node', SYNC_NODE_QUEUE, sequential=True),
     CommandQueue('provision_node', PROVISION_NODE_QUEUE, sequential=True),
+    CommandQueue('health_check_all', NODE_HEARTBEAT_QUEUE),
+    CommandQueue('health_check_node', NODE_HEARTBEAT_QUEUE),
     CommandQueue('cleanup_raw_traffic_samples', CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE),
     CommandQueue('remnawave_full_reconcile', REMNAWAVE_FULL_RECONCILE_QUEUE),
     CommandQueue('remnawave_sync_user', REMNAWAVE_SYNC_USER_QUEUE),

@@ -84,6 +84,60 @@ async def test_operation_lifecycle_and_stale_filter(client: AsyncClient, db, wor
     assert saved.finished_at is not None
 
 
+async def test_running_operation_can_timeout(client: AsyncClient, db, worker_headers):
+    operation = AsyncOperation(
+        id='operation-running',
+        kind='sync_node',
+        target_type='node',
+        target_id='node-1',
+        status='running',
+        idempotency_key='running-key',
+    )
+    db.add(operation)
+    await db.commit()
+
+    resp = await client.post(
+        '/internal/worker/operations/operation-running/timeout',
+        headers=worker_headers,
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() == {'status': 'failed_by_timeout'}
+    saved = await db.get(AsyncOperation, 'operation-running')
+    await db.refresh(saved)
+    assert saved.status == 'failed_by_timeout'
+    assert saved.finished_at is not None
+
+
+async def test_heartbeat_result_updates_reachability_only(
+    client: AsyncClient, db, worker_headers, seeded_node
+):
+    seeded_node.sync_status = 'succeeded'
+    seeded_node.provision_status = 'succeeded'
+    await db.commit()
+
+    ok_resp = await client.post(
+        f'/internal/worker/nodes/{seeded_node.id}/heartbeat-result',
+        json={'ok': True},
+        headers=worker_headers,
+    )
+    fail_resp = await client.post(
+        f'/internal/worker/nodes/{seeded_node.id}/heartbeat-result',
+        json={'ok': False, 'error': 'connection refused'},
+        headers=worker_headers,
+    )
+
+    assert ok_resp.status_code == HTTPStatus.OK
+    assert ok_resp.json() == {'status': 'reachable'}
+    assert fail_resp.status_code == HTTPStatus.OK
+    assert fail_resp.json() == {'status': 'unreachable'}
+    await db.refresh(seeded_node)
+    assert seeded_node.reachability_status == 'unreachable'
+    assert seeded_node.last_heartbeat_error == 'connection refused'
+    assert seeded_node.sync_status == 'succeeded'
+    assert seeded_node.provision_status == 'succeeded'
+
+
 async def test_snapshots_include_worker_fields(
     client: AsyncClient, worker_headers, seeded_worker_state
 ):
@@ -149,7 +203,9 @@ async def test_node_results_update_only_allowed_state(
     await db.refresh(saved_node)
     assert saved_node.server_public_key == 'new-public'
     assert saved_node.listen_port == 51821
-    assert saved_node.health_status == 'online'
+    assert saved_node.health_status == 'unknown'
+    assert saved_node.sync_status == 'succeeded'
+    assert saved_node.last_synced_at is not None
 
     provision_ok = await client.post(
         f'/internal/worker/nodes/{node.id}/provision-result',
@@ -162,7 +218,7 @@ async def test_node_results_update_only_allowed_state(
 
     saved_node = await db.get(Node, node.id)
     await db.refresh(saved_node)
-    assert saved_node.health_status == 'online'
+    assert saved_node.health_status == 'unknown'
     assert saved_node.provision_status == 'succeeded'
 
     provision = await client.post(
@@ -194,7 +250,7 @@ async def test_node_results_update_only_allowed_state(
     assert samples == []
 
 
-async def test_node_results_set_health_status_on_failure(
+async def test_node_results_set_sync_and_provision_status_on_failure(
     client: AsyncClient, db, worker_headers, seeded_worker_state
 ):
     node, _, _ = seeded_worker_state
@@ -207,7 +263,9 @@ async def test_node_results_set_health_status_on_failure(
 
     saved_node = await db.get(Node, node.id)
     await db.refresh(saved_node)
-    assert saved_node.health_status == 'offline'
+    assert saved_node.health_status == 'unknown'
+    assert saved_node.sync_status == 'failed'
+    assert saved_node.sync_error == 'sync failed'
 
     saved_node.health_status = 'online'
     await db.commit()
@@ -225,7 +283,8 @@ async def test_node_results_set_health_status_on_failure(
 
     saved_node = await db.get(Node, node.id)
     await db.refresh(saved_node)
-    assert saved_node.health_status == 'offline'
+    assert saved_node.health_status == 'online'
+    assert saved_node.provision_status == 'failed'
     assert saved_node.last_error == 'provision failed'
 
 

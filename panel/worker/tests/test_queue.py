@@ -8,6 +8,7 @@ from app.queue import (
     CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE,
     LEGACY_PROVISION_QUEUE,
     LEGACY_SYNC_QUEUE,
+    NODE_HEARTBEAT_QUEUE,
     PROVISION_NODE_QUEUE,
     QUEUE_SPECS,
     REMNAWAVE_FULL_RECONCILE_QUEUE,
@@ -76,6 +77,7 @@ def test_worker_routing_key_uses_per_operation_queue() -> None:
     assert queue._routing_key(_command('sync_node')) == SYNC_NODE_QUEUE
     assert queue._routing_key(_command('sync_all')) == SYNC_NODE_QUEUE
     assert queue._routing_key(_command('provision_node')) == PROVISION_NODE_QUEUE
+    assert queue._routing_key(_command('health_check_all')) == NODE_HEARTBEAT_QUEUE
     assert queue._routing_key(_command('cleanup_raw_traffic_samples')) == (
         CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE
     )
@@ -119,6 +121,7 @@ def test_worker_consumer_splits_sequential_and_parallel_queues() -> None:
         LEGACY_PROVISION_QUEUE,
     ]
     assert [item.name for item in parallel] == [
+        NODE_HEARTBEAT_QUEUE,
         CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE,
         REMNAWAVE_FULL_RECONCILE_QUEUE,
         'amnezia.remnawave_sync_user',

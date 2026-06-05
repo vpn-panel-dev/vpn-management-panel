@@ -24,8 +24,10 @@ class Settings:
     worker_token: str
     sync_interval_sec: float = 30.0
     worker_concurrency: int = 4
+    heartbeat_interval_sec: float = 30.0
     recovery_interval_sec: float = 30.0
     stale_after_sec: int = 30
+    running_timeout_sec: int = 300
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -35,8 +37,10 @@ class Settings:
             worker_token=_required_env('WORKER_TOKEN'),
             sync_interval_sec=float(os.getenv('SYNC_INTERVAL_SEC', '30')),
             worker_concurrency=int(os.getenv('WORKER_CONCURRENCY', '4')),
+            heartbeat_interval_sec=float(os.getenv('NODE_HEARTBEAT_INTERVAL_SEC', '30')),
             recovery_interval_sec=float(os.getenv('RECOVERY_INTERVAL_SEC', '30')),
             stale_after_sec=int(os.getenv('STALE_AFTER_SEC', '30')),
+            running_timeout_sec=int(os.getenv('RUNNING_TIMEOUT_SEC', '300')),
         )
 
 
@@ -58,6 +62,7 @@ async def run(settings: Settings) -> None:
     async with asyncio.TaskGroup() as task_group:
         task_group.create_task(queue.consume(handle_queue_command, settings.worker_concurrency))
         task_group.create_task(schedule_sync_all(queue, settings.sync_interval_sec))
+        task_group.create_task(schedule_health_check_all(queue, settings.heartbeat_interval_sec))
         task_group.create_task(
             schedule_cleanup_raw_traffic_samples(queue, settings.sync_interval_sec)
         )
@@ -75,6 +80,12 @@ async def schedule_cleanup_raw_traffic_samples(queue: RabbitQueue, interval_sec:
     while True:
         await asyncio.sleep(interval_sec)
         await queue.publish_command(_new_command('cleanup_raw_traffic_samples', 'traffic', None))
+
+
+async def schedule_health_check_all(queue: RabbitQueue, interval_sec: float) -> None:
+    while True:
+        await asyncio.sleep(interval_sec)
+        await queue.publish_command(_new_command('health_check_all', 'all', None))
 
 
 async def schedule_remnawave_reconcile(
@@ -108,6 +119,12 @@ async def recover_stale_operations(
         )
         for operation in operations:
             await queue.publish_command(command_from_operation(operation))
+        running_operations = await backend.fetch_stale_operations(
+            status='running',
+            older_than_seconds=settings.running_timeout_sec,
+        )
+        for operation in running_operations:
+            await backend.timeout_operation(operation['id'])
 
 
 def _new_command(command: CommandName, target_type: str, target_id: str | None) -> WorkerCommand:

@@ -7,8 +7,16 @@ export interface Node {
   server_public_key: string | null
   listen_port: number | null
   online: boolean
+  reachable: boolean
   online_peers_count: number
   online_threshold_seconds: number
+  reachability_status: string
+  last_heartbeat_at: string | null
+  last_heartbeat_error: string | null
+  sync_status: string
+  sync_error: string | null
+  last_synced_at: string | null
+  provision_status: string
   last_error: string | null
   jc: number
   jmin: number
@@ -27,6 +35,19 @@ export interface Node {
   i4: string | null
   i5: string | null
   mtu: string | null
+}
+
+export interface AsyncOperation {
+  id: string
+  kind: string
+  target_type: string | null
+  target_id: string | null
+  status: string
+  error: string | null
+  attempts: number
+  created_at: string
+  updated_at: string
+  finished_at: string | null
 }
 
 export interface Peer {

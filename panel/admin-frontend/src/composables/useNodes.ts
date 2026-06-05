@@ -137,6 +137,7 @@ export function useNodes() {
         nodes.value.push({
           ...node,
           online: false,
+          reachable: false,
           online_peers_count: 0,
           online_threshold_seconds: 180,
         })

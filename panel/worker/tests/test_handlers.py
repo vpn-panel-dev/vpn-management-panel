@@ -100,6 +100,9 @@ class FakeBackend:
     async def report_provision_result(self, node_id: str, result: dict[str, Any]) -> None:
         self.calls.append(('provision_result', node_id, result))
 
+    async def report_heartbeat_result(self, node_id: str, result: dict[str, Any]) -> None:
+        self.calls.append(('heartbeat_result', node_id, result))
+
     async def cleanup_raw_traffic_samples(self) -> dict[str, Any]:
         self.calls.append(('cleanup_raw_traffic_samples', None))
         return {'status': 'ok', 'retention_days': 90, 'deleted': 2, 'disabled': False}
@@ -158,6 +161,10 @@ class FakeNode:
                 }
             ],
         }
+
+    async def health(self, endpoint: str) -> dict[str, Any]:
+        self.calls.append(('health', endpoint))
+        return {'status': 'ok'}
 
     async def _enter_node_call(self) -> None:
         self.active += 1
@@ -246,6 +253,19 @@ async def test_cleanup_raw_traffic_samples_calls_backend_cleanup() -> None:
         'op-cleanup_raw_traffic_samples',
         {'status': 'ok', 'retention_days': 90, 'deleted': 2, 'disabled': False},
     )
+
+
+async def test_health_check_all_reports_reachability() -> None:
+    backend = FakeBackend()
+    node = FakeNode()
+    handler = CommandHandler(backend, node)
+
+    result = await handler.handle(command('health_check_all', None))
+
+    assert result.ok is True
+    assert result.result == {'nodes': 1, 'reachable': 1, 'unreachable': 0}
+    assert ('health', 'http://agent.test') in node.calls
+    assert ('heartbeat_result', 'node-1', {'ok': True}) in backend.calls
 
 
 async def test_sync_all_uses_per_node_lock() -> None:

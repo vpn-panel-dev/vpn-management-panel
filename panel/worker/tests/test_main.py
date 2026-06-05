@@ -6,7 +6,15 @@ from typing import Any
 import pytest
 
 from app.commands import WorkerCommand
-from app.main import Settings, run, schedule_cleanup_raw_traffic_samples
+from app.main import (
+    Settings,
+    recover_stale_operations,
+    run,
+    schedule_cleanup_raw_traffic_samples,
+    schedule_health_check_all,
+)
+
+HEARTBEAT_INTERVAL_SEC = 5
 
 
 class FakeQueue:
@@ -35,6 +43,63 @@ async def test_cleanup_scheduler_enqueues_raw_traffic_cleanup() -> None:
     assert queue.commands[0].command == 'cleanup_raw_traffic_samples'
     assert queue.commands[0].target_type == 'traffic'
     assert queue.commands[0].target_id is None
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_scheduler_enqueues_health_check() -> None:
+    queue = FakeQueue()
+
+    task = asyncio.create_task(schedule_health_check_all(queue, interval_sec=0))
+    await queue.wait_for_commands(1)
+    task.cancel()
+
+    assert queue.commands[0].command == 'health_check_all'
+    assert queue.commands[0].target_type == 'all'
+    assert queue.commands[0].target_id is None
+
+
+@pytest.mark.asyncio
+async def test_recovery_republishes_queued_and_times_out_running() -> None:
+    class FakeBackend:
+        def __init__(self) -> None:
+            self.fetches: list[tuple[str, int]] = []
+            self.timed_out: list[str] = []
+
+        async def fetch_stale_operations(self, status: str, older_than_seconds: int):
+            self.fetches.append((status, older_than_seconds))
+            if status == 'queued':
+                return [
+                    {
+                        'id': 'queued-op',
+                        'kind': 'sync_all',
+                        'target_type': 'all',
+                        'target_id': None,
+                        'updated_at': '2026-06-05T00:00:00+00:00',
+                    }
+                ]
+            return [{'id': 'running-op'}]
+
+        async def timeout_operation(self, operation_id: str) -> None:
+            self.timed_out.append(operation_id)
+
+    backend = FakeBackend()
+    queue = FakeQueue()
+    settings = Settings(
+        rabbitmq_url='amqp://guest:guest@rabbitmq:5672/',
+        backend_internal_url='http://backend.test',
+        worker_token='worker-secret',  # noqa: S106
+        recovery_interval_sec=0,
+        stale_after_sec=30,
+        running_timeout_sec=300,
+    )
+
+    task = asyncio.create_task(recover_stale_operations(backend, queue, settings))
+    await queue.wait_for_commands(1)
+    task.cancel()
+
+    assert queue.commands[0].operation_id == 'queued-op'
+    assert backend.fetches == [('queued', 30), ('running', 300)]
+    assert backend.timed_out == ['running-op']
 
 
 @pytest.mark.asyncio
@@ -69,6 +134,9 @@ async def test_run_schedules_cleanup_job_in_steady_state_loop(
     async def fake_cleanup(queue: Any, interval_sec: float) -> None:
         scheduled.append(('cleanup', (queue, interval_sec)))
 
+    async def fake_heartbeat(queue: Any, interval_sec: float) -> None:
+        scheduled.append(('heartbeat', (queue, interval_sec)))
+
     async def fake_reconcile(backend: Any, queue: Any) -> None:
         scheduled.append(('reconcile', (backend, queue)))
 
@@ -80,6 +148,7 @@ async def test_run_schedules_cleanup_job_in_steady_state_loop(
     monkeypatch.setattr('app.main.CommandHandler', FakeCommandHandler)
     monkeypatch.setattr('app.main.RabbitQueue', FakeQueue)
     monkeypatch.setattr('app.main.schedule_sync_all', fake_sync_all)
+    monkeypatch.setattr('app.main.schedule_health_check_all', fake_heartbeat)
     monkeypatch.setattr('app.main.schedule_cleanup_raw_traffic_samples', fake_cleanup)
     monkeypatch.setattr('app.main.schedule_remnawave_reconcile', fake_reconcile)
     monkeypatch.setattr('app.main.recover_stale_operations', fake_recover)
@@ -91,9 +160,13 @@ async def test_run_schedules_cleanup_job_in_steady_state_loop(
             worker_token='worker-secret',  # noqa: S106
             sync_interval_sec=1,
             worker_concurrency=4,
+            heartbeat_interval_sec=HEARTBEAT_INTERVAL_SEC,
             recovery_interval_sec=2,
             stale_after_sec=3,
         )
     )
 
     assert any(call[0] == 'cleanup' and call[1][1] == 1 for call in scheduled)
+    assert any(
+        call[0] == 'heartbeat' and call[1][1] == HEARTBEAT_INTERVAL_SEC for call in scheduled
+    )

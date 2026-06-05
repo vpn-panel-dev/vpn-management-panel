@@ -29,7 +29,8 @@ async def api_list_nodes(db: DB):
     return [
         NodeWithStatus(
             **NodeSchema.model_validate(node).model_dump(),
-            online=node.health_status in {'healthy', 'online'},
+            online=node.reachability_status == 'reachable',
+            reachable=node.reachability_status == 'reachable',
             online_peers_count=sum(
                 1 for peer in node.peers if is_peer_online(peer, threshold_seconds)
             ),
@@ -73,6 +74,7 @@ async def api_provision_node(node_id: str, db: DB):
     if not node.private_key:
         node.private_key, node.server_public_key = generate_keypair()
     node.provision_status = 'pending'
+    node.last_error = None
     await db.commit()
     await db.refresh(node)
     operation = new_operation('provision_node', 'node', node.id)

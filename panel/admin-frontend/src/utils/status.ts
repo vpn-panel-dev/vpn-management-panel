@@ -13,6 +13,15 @@ export function peerSeverity(status: string): string {
   return 'secondary'
 }
 
+export function operationSeverity(status: string): string {
+  if (status === 'running' || status === 'queued' || status === 'pending') return 'warn'
+  if (status === 'failed' || status === 'failed_by_timeout' || status === 'enqueue_failed') {
+    return 'danger'
+  }
+  if (status === 'succeeded') return 'success'
+  return 'secondary'
+}
+
 /**
  * Map a Remnawave user status to a PrimeVue Tag severity.
  *

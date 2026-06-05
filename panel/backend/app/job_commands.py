@@ -40,6 +40,14 @@ def provision_node(node_id: str, **overrides: Any) -> dict[str, Any]:
     return _payload('provision_node', target_type='node', target_id=node_id, **overrides)
 
 
+def health_check_all(**overrides: Any) -> dict[str, Any]:
+    return _payload('health_check_all', target_type='all', target_id=None, **overrides)
+
+
+def health_check_node(node_id: str, **overrides: Any) -> dict[str, Any]:
+    return _payload('health_check_node', target_type='node', target_id=node_id, **overrides)
+
+
 async def enqueue_sync_all(*, url: str | None = None, **overrides: Any) -> dict[str, Any]:
     payload = sync_all(**overrides)
     await publish_command(payload, routing_key_for_command('sync_all'), url=url)
@@ -65,6 +73,23 @@ async def enqueue_provision_node(
 ) -> dict[str, Any]:
     payload = provision_node(node_id, **overrides)
     await publish_command(payload, routing_key_for_command('provision_node'), url=url)
+    return payload
+
+
+async def enqueue_health_check_all(*, url: str | None = None, **overrides: Any) -> dict[str, Any]:
+    payload = health_check_all(**overrides)
+    await publish_command(payload, routing_key_for_command('health_check_all'), url=url)
+    return payload
+
+
+async def enqueue_health_check_node(
+    node_id: str,
+    *,
+    url: str | None = None,
+    **overrides: Any,
+) -> dict[str, Any]:
+    payload = health_check_node(node_id, **overrides)
+    await publish_command(payload, routing_key_for_command('health_check_node'), url=url)
     return payload
 
 

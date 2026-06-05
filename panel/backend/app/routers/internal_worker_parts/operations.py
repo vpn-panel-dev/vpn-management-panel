@@ -75,6 +75,19 @@ async def fail_operation(operation_id: str, data: OperationResult, db: DB):
     return {'status': operation.status}
 
 
+@router.post('/operations/{operation_id}/timeout')
+async def timeout_operation(operation_id: str, db: DB):
+    operation = await _operation(db, operation_id)
+    _ensure_status(operation, {'running'})
+    operation.status = 'failed_by_timeout'
+    operation.error = 'Operation exceeded running timeout and needs manual action'
+    finished_at = now()
+    operation.finished_at = finished_at
+    operation.updated_at = finished_at
+    await db.commit()
+    return {'status': operation.status}
+
+
 @router.get('/operations/stale')
 async def stale_operations(
     db: DB,

@@ -29,6 +29,7 @@ Rules:
 - Dead-letter exchange: `amnezia.jobs.dlx`
 - Operation queues:
   - `amnezia.node_operations` for `sync_all`, `sync_node`, and `provision_node`
+  - `amnezia.node_heartbeat` for `health_check_all` and `health_check_node`
   - `amnezia.cleanup_raw_traffic_samples`
   - `amnezia.remnawave_full_reconcile`
   - `amnezia.remnawave_sync_user`
@@ -36,7 +37,7 @@ Rules:
 - Sequential operation queue: `amnezia.node_operations`. It is declared with RabbitMQ
   `x-single-active-consumer=true`, so only one of `sync_all`, `sync_node`, or `provision_node` can be
   delivered to active workers at a time.
-- Parallel operation queues: cleanup and Remnawave queues. They are consumed with
+- Parallel operation queues: heartbeat, cleanup, and Remnawave queues. They are consumed with
   `WORKER_CONCURRENCY`.
 - Per-operation retry queues: `<operation queue>.retry.10s`, `<operation queue>.retry.1m`,
   `<operation queue>.retry.10m`. Each retry queue dead-letters back to its own operation queue.
@@ -75,8 +76,9 @@ Missing or invalid tokens return `401`.
   - Response: `{"status":"failed"}`
 - `GET /internal/worker/operations/stale?status=queued&older_than_seconds=30`
   - Returns operations with matching `status` and `updated_at` older than the cutoff.
-  - Current worker recovery calls this endpoint only with `status=queued`, then republishes the returned jobs.
-  - `running` operations are not automatically recovered or failed today; operators must inspect and resolve them manually until a running-operation timeout policy is defined.
+- `POST /internal/worker/operations/{operation_id}/timeout`
+  - Valid transition: `running` → `failed_by_timeout`.
+  - Current worker recovery republishes stale `queued` jobs and marks stale `running` jobs as `failed_by_timeout` after `RUNNING_TIMEOUT_SEC`.
 
 Stale response shape:
 
@@ -85,10 +87,10 @@ Stale response shape:
   "operations": [
     {
       "id": "operation uuid",
-      "kind": "sync_all | sync_node | provision_node | remnawave_full_reconcile | remnawave_sync_user | remnawave_disable_user",
+      "kind": "sync_all | sync_node | provision_node | health_check_all | health_check_node | remnawave_full_reconcile | remnawave_sync_user | remnawave_disable_user",
       "target_type": "all | node | traffic | remnawave | remnawave_user | null",
       "target_id": "node id | null",
-      "status": "queued",
+      "status": "queued | running",
       "attempts": 0,
       "updated_at": "RFC3339 timestamp"
     }
@@ -182,10 +184,17 @@ Node snapshot shape:
 
   - Failure body: `{"ok":false,"error":"message"}`
   - Response: `{"status":"ok"}` or `{"status":"failed"}`
-  - On success the backend sets `node.health_status` to `online` and updates `last_seen_at` to the result handling time. This is a last-successful-sync marker, not an active heartbeat or current reachability check.
-  - On failure the backend sets `node.health_status` to `offline` and stores `last_error`.
+  - On success the backend sets `sync_status` to `succeeded` and updates `last_synced_at`.
+  - On failure the backend sets `sync_status` to `failed` and stores `sync_error` plus `last_error`.
   - Peer `endpoint` is the latest endpoint IP:port observed by the node agent from `awg show dump`; it is stored as a local inferred endpoint/session fact, not as a device or HWID identity.
   - Peer counters update local AmneziaWG accounting. If combined Remnawave imported usage plus local AmneziaWG lifetime usage reaches the imported traffic limit, this endpoint can block local peers, queue follow-up node sync for affected nodes, and enqueue `remnawave_disable_user` jobs for affected Remnawave users.
+
+- `POST /internal/worker/nodes/{node_id}/heartbeat-result`
+  - Success body: `{"ok":true}`.
+  - Failure body: `{"ok":false,"error":"message"}`.
+  - On success the backend sets node reachability to `reachable`, updates `last_heartbeat_at` and clears `last_heartbeat_error`.
+  - On failure the backend sets node reachability to `unreachable`, updates `last_heartbeat_at`, and stores `last_heartbeat_error`.
+  - Heartbeat describes node-agent HTTP reachability only. It does not change sync status, provision status, interface metadata, peers, or traffic counters.
 
 - `POST /internal/worker/nodes/{node_id}/provision-result`
   - Success body:
@@ -204,7 +213,7 @@ Node snapshot shape:
 
   - Failure body: `{"ok":false,"error":"message"}`
   - Response: `{"status":"succeeded"}` or `{"status":"failed"}`
-  - On success the backend sets `node.health_status` to `online` and updates `last_seen_at` to the result handling time. On failure it sets `node.health_status` to `offline` and stores `last_error`. These fields describe the last provision attempt result, not an independent node heartbeat.
+  - On success the backend sets `node.provision_status` to `succeeded`. On failure it sets `node.provision_status` to `failed` and stores `last_error`.
 
 ### Local traffic retention
 

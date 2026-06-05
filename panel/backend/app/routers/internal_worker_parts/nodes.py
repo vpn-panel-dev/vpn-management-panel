@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from app.models import Node
 from app.routers.internal_worker_parts.common import DB
-from app.schemas.worker import ProvisionResult, SyncResult
+from app.schemas.worker import HeartbeatResult, ProvisionResult, SyncResult
 from app.services.node_config import node_snapshot
 from app.services.node_sync import apply_interface_result, apply_peer_result, load_node_with_peers
 from app.services.remnawave_sync import (
@@ -43,13 +43,16 @@ async def node_provision_snapshot(node_id: str, db: DB):
 async def node_sync_result(node_id: str, data: SyncResult, db: DB):
     node, peers = await load_node_with_peers(db, node_id)
     if not data.ok:
-        node.last_error = data.error or 'Worker sync failed'
-        node.health_status = 'offline'
+        node.sync_status = 'failed'
+        node.sync_error = data.error or 'Worker sync failed'
+        node.last_error = node.sync_error
         await db.commit()
         return {'status': 'failed'}
+    synced_at = utc_now()
+    node.sync_status = 'succeeded'
+    node.sync_error = None
     node.last_error = None
-    node.health_status = 'online'
-    node.last_seen_at = utc_now()
+    node.last_synced_at = synced_at
     if data.interface:
         apply_interface_result(node, data.interface)
     peers_by_public_key = {peer.user.public_key: peer for peer in peers if peer.user.public_key}
@@ -85,13 +88,25 @@ async def node_provision_result(node_id: str, data: ProvisionResult, db: DB):
     if data.ok:
         node.provision_status = 'succeeded'
         node.last_error = None
-        node.health_status = 'online'
-        node.last_seen_at = utc_now()
         if data.interface:
             apply_interface_result(node, data.interface)
     else:
         node.provision_status = 'failed'
         node.last_error = data.error or 'Worker provision failed'
-        node.health_status = 'offline'
     await db.commit()
     return {'status': node.provision_status}
+
+
+@router.post('/nodes/{node_id}/heartbeat-result')
+async def node_heartbeat_result(node_id: str, data: HeartbeatResult, db: DB):
+    node = await db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail='Node not found')
+    observed_at = utc_now()
+    node.last_heartbeat_at = observed_at
+    node.last_seen_at = observed_at if data.ok else node.last_seen_at
+    node.reachability_status = 'reachable' if data.ok else 'unreachable'
+    node.health_status = 'online' if data.ok else 'offline'
+    node.last_heartbeat_error = None if data.ok else data.error or 'Worker heartbeat failed'
+    await db.commit()
+    return {'status': node.reachability_status}

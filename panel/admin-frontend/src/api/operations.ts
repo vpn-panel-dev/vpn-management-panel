@@ -1,5 +1,6 @@
 import { req, reqBlob } from './client'
 import type {
+  AsyncOperation,
   LocalAmneziawgNodeUsageTotals,
   LocalAmneziawgUsageDailyTotals,
   LocalAmneziawgUsageNodeDailyTotals,
@@ -10,6 +11,11 @@ import type {
 
 export const operationsApi = {
   sync: () => req<null>('POST', '/sync'),
+  getOperations: (status?: string, limit = 50) => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (status) params.set('status', status)
+    return req<AsyncOperation[]>('GET', `/operations?${params.toString()}`)
+  },
   getUserTraffic: (uid: string, days = 30) =>
     req<TrafficPoint[]>('GET', `/users/${uid}/traffic?days=${days}`),
   getUserLocalTraffic: (uid: string) =>

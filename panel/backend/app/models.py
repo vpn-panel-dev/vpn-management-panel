@@ -42,6 +42,14 @@ class Node(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     health_status: Mapped[str] = mapped_column(String, default='unknown', nullable=False)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reachability_status: Mapped[str] = mapped_column(String, default='unknown', nullable=False)
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_heartbeat_error: Mapped[str | None] = mapped_column(String, nullable=True)
+    sync_status: Mapped[str] = mapped_column(String, default='pending', nullable=False)
+    sync_error: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     provision_status: Mapped[str] = mapped_column(String, default='pending', nullable=False)
 
     # Set by panel on provisioning
@@ -124,6 +132,8 @@ class Peer(Base):
     endpoint_sessions: Mapped[list[PeerEndpointSession]] = relationship(
         'PeerEndpointSession', back_populates='peer', cascade='all, delete-orphan'
     )
+
+    __table_args__ = (UniqueConstraint('node_id', 'user_id', name='uq_peers_node_user'),)
 
 
 class PeerTrafficSample(Base):
@@ -443,6 +453,12 @@ class NodeSchema(NodeIn):
     created_at: datetime
     health_status: str = 'unknown'
     last_seen_at: datetime | None = None
+    reachability_status: str = 'unknown'
+    last_heartbeat_at: datetime | None = None
+    last_heartbeat_error: str | None = None
+    sync_status: str = 'pending'
+    sync_error: str | None = None
+    last_synced_at: datetime | None = None
     provision_status: str = 'pending'
     server_public_key: str | None = None
     listen_port: int | None = None
@@ -494,6 +510,7 @@ class NodeUpdate(BaseModel):
 
 class NodeWithStatus(NodeSchema):
     online: bool
+    reachable: bool
     online_peers_count: int = 0
     online_threshold_seconds: int = 180
 

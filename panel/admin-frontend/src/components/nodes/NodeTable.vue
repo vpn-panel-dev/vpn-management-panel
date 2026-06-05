@@ -22,8 +22,8 @@
         <div class="node-name-cell">
           <span class="node-name">{{ data.name }}</span>
           <Tag
-            :severity="data.online ? 'success' : 'danger'"
-            :value="data.online ? $t('status.online') : $t('status.offline')"
+            :severity="data.reachable ? 'success' : 'danger'"
+            :value="data.reachable ? $t('nodeTable.reachable') : $t('nodeTable.unreachable')"
             class="status-tag"
           />
           <i
@@ -62,6 +62,16 @@
           <span v-if="data.i1" class="meta-chip muted-chip">I✓</span>
         </div>
         <Tag v-else severity="warn" :value="$t('nodeTable.waitingSync')" class="status-tag" />
+        <div class="node-status-stack">
+          <Tag
+            :severity="operationSeverity(data.sync_status)"
+            :value="`${$t('nodeTable.sync')}: ${data.sync_status}`"
+          />
+          <Tag
+            :severity="operationSeverity(data.provision_status)"
+            :value="`${$t('nodeTable.provision')}: ${data.provision_status}`"
+          />
+        </div>
       </template>
     </Column>
 
@@ -129,7 +139,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import NodeActions from './NodeActions.vue'
-import { peerSeverity } from '../../utils/status'
+import { operationSeverity, peerSeverity } from '../../utils/status'
 import type { Node, NodePeer } from '../../api'
 
 const expandedRows = defineModel<Record<string, boolean>>('expandedRows', { required: true })
@@ -170,6 +180,13 @@ defineEmits<{
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+}
+
+.node-status-stack {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
 }
 
 .node-expansion {

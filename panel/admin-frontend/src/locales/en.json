@@ -178,6 +178,10 @@
     "agentUrl": "Agent URL",
     "endpoint": "Endpoint",
     "metadata": "Parameters",
+    "reachable": "Reachable",
+    "unreachable": "Unreachable",
+    "sync": "Sync",
+    "provision": "Provision",
     "port": "port {port}",
     "jc": "Jc {jc} · {jmin}–{jmax} ms",
     "mtu": "MTU {mtu}",
@@ -195,6 +199,12 @@
     "metadata": "Parameters",
     "waitingSync": "Waiting for sync",
     "error": "Error"
+  },
+  "operations": {
+    "kicker": "Operation recovery",
+    "title": "Running and failed operations",
+    "refresh": "Refresh",
+    "empty": "No running or failed operations need attention."
   },
   "nodeForm": {
     "title": "Add server",

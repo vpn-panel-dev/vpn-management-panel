@@ -9,6 +9,8 @@ CommandName = Literal[
     'sync_all',
     'sync_node',
     'provision_node',
+    'health_check_all',
+    'health_check_node',
     'cleanup_raw_traffic_samples',
     'remnawave_full_reconcile',
     'remnawave_sync_user',
