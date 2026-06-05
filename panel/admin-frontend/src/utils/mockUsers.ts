@@ -118,11 +118,17 @@ function makeMockUser(index: number, scenario: UserScenario): User {
 
   return {
     id: `mock-user-${String(n).padStart(3, '0')}`,
+    public_token: `mock-token-${String(n).padStart(3, '0')}`,
     name: `${remnawave ? 'rw' : 'local'}-user-${String(n).padStart(3, '0')}${longName}`,
     created_at: new Date(now - n * 24 * 60 * 60 * 1000).toISOString(),
     public_key: `mock-public-key-${n}`,
     vpn_ip: `10.66.${Math.floor(n / 250)}.${(n % 240) + 10}`,
     is_blocked: blocked || expired,
+    lifecycle_status: blocked ? 'blocked' : expired ? 'expired' : 'active',
+    expire_at: remnawave ? null : expired ? new Date(now - 24 * 60 * 60 * 1000).toISOString() : expireAt,
+    traffic_limit_bytes: remnawave ? 0 : 50 * 1024 * 1024 * 1024,
+    traffic_reset_policy: 'manual',
+    traffic_reset_at: null,
     online: index % 4 === 0,
     peers: [
       {
@@ -150,6 +156,17 @@ function makeMockUser(index: number, scenario: UserScenario): User {
       total_bytes: n * 1024 * 1024 * 20,
       updated_at: new Date(now - index * 60_000).toISOString(),
     },
+    lifecycle: remnawave
+      ? null
+      : {
+          source: 'local',
+          status: blocked ? 'blocked' : expired ? 'expired' : 'active',
+          expire_at: expired ? new Date(now - 24 * 60 * 60 * 1000).toISOString() : expireAt,
+          traffic_limit_bytes: 50 * 1024 * 1024 * 1024,
+          traffic_reset_policy: 'manual',
+          traffic_reset_at: null,
+          blocked_reason: expired ? 'expired' : blocked ? 'blocked' : null,
+        },
     remnawave: remnawave
       ? {
           uuid: `11111111-2222-4${String(index).padStart(3, '0').slice(-3)}-8${String(index).padStart(3, '0').slice(-3)}-aaaaaaaa${String(n).padStart(4, '0')}`,

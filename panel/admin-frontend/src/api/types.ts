@@ -87,10 +87,38 @@ export interface User {
   public_key?: string | null
   vpn_ip: string | null
   is_blocked: boolean
+  lifecycle_status: string
+  expire_at: string | null
+  traffic_limit_bytes: number
+  traffic_reset_policy: 'manual' | 'no_reset'
+  traffic_reset_at: string | null
+  public_token: string
   online: boolean
   peers: Peer[]
   remnawave: RemnawaveUserBrief | null
+  lifecycle?: LocalUserLifecycle | null
   local_traffic?: LocalAmneziawgUsageTotals | null
+}
+
+export interface LocalUserLifecycle {
+  source: 'local'
+  status: string
+  expire_at: string | null
+  traffic_limit_bytes: number
+  traffic_reset_policy: 'manual' | 'no_reset'
+  traffic_reset_at: string | null
+  blocked_reason: string | null
+}
+
+export interface LocalUserLifecycleUpdate {
+  expire_at: string | null
+  traffic_limit_bytes: number
+  traffic_reset_policy: 'manual' | 'no_reset'
+}
+
+export interface RegeneratedPublicLink {
+  public_token: string
+  public_url: string
 }
 
 export type UserSourceFilter = 'all' | 'local' | 'remnawave'

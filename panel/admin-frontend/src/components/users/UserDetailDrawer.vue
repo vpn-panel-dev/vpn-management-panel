@@ -56,6 +56,14 @@
           @click="$emit('showTraffic', user)"
         />
         <Button
+          v-if="!user.remnawave"
+          :label="$t('userDetail.rotateLink')"
+          icon="pi pi-refresh"
+          severity="secondary"
+          outlined
+          @click="$emit('regenerateLink', user)"
+        />
+        <Button
           v-if="user.remnawave"
           :label="$t('userDetail.resyncUser')"
           icon="pi pi-refresh"
@@ -82,6 +90,55 @@
             @click="$emit('block', user)"
           />
         </template>
+      </div>
+    </section>
+
+    <section v-if="!user.remnawave" class="detail-section detail-section--accent">
+      <div class="section-header compact-section-header">
+        <h4>{{ $t('userDetail.lifecycle') }}</h4>
+        <p>{{ $t('userDetail.lifecycleHint') }}</p>
+      </div>
+      <div class="lifecycle-form-grid">
+        <label>
+          <span>{{ $t('userDetail.labelExpires') }}</span>
+          <input
+            :value="dateInput(user)"
+            type="datetime-local"
+            @change="onExpireChange(user, $event)"
+          />
+        </label>
+        <label>
+          <span>{{ $t('userDetail.labelTrafficLimit') }}</span>
+          <input
+            :value="limitGb(user)"
+            type="number"
+            min="0"
+            step="1"
+            @change="onLimitChange(user, $event)"
+          />
+        </label>
+        <label>
+          <span>{{ $t('userDetail.labelResetPolicy') }}</span>
+          <select
+            :value="user.lifecycle?.traffic_reset_policy ?? user.traffic_reset_policy"
+            @change="onPolicyChange(user, $event)"
+          >
+            <option value="manual">{{ $t('userDetail.resetManual') }}</option>
+            <option value="no_reset">{{ $t('userDetail.resetDisabled') }}</option>
+          </select>
+        </label>
+      </div>
+      <div class="drawer-action-grid">
+        <Button
+          :label="$t('userDetail.resetTraffic')"
+          icon="pi pi-history"
+          severity="secondary"
+          outlined
+          :disabled="
+            (user.lifecycle?.traffic_reset_policy ?? user.traffic_reset_policy) !== 'manual'
+          "
+          @click="$emit('resetTraffic', user)"
+        />
       </div>
     </section>
 
@@ -281,13 +338,23 @@ defineProps<{
   syncingUser: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
   block: [user: User]
   unblock: [user: User]
   confirmDelete: [event: Event, user: User]
   showTraffic: [user: User]
   copyUserLink: [user: User]
+  regenerateLink: [user: User]
+  updateLifecycle: [
+    user: User,
+    payload: {
+      expire_at: string | null
+      traffic_limit_bytes: number
+      traffic_reset_policy: 'manual' | 'no_reset'
+    },
+  ]
+  resetTraffic: [user: User]
   downloadConfig: [user: User, node: Node]
   downloadConfigZip: [user: User]
   showQr: [user: User, node: Node]
@@ -305,6 +372,57 @@ function trafficValue(user: User): string {
 
 function trafficLimit(value: number): string {
   return value > 0 ? fmtBytes(value) : t('userDetail.noLimit')
+}
+
+function dateInput(user: User): string {
+  const value = user.lifecycle?.expire_at ?? user.expire_at
+  return value ? value.slice(0, 16) : ''
+}
+
+function limitGb(user: User): number {
+  const value = user.lifecycle?.traffic_limit_bytes ?? user.traffic_limit_bytes
+  return Math.round(value / 1024 ** 3)
+}
+
+function onExpireChange(user: User, event: Event) {
+  const target = event.target as { value?: unknown } | null
+  if (!target || target.value === undefined) return
+  emitLifecycle(user, {
+    expire_at: String(target.value || '') || null,
+    traffic_limit_bytes: user.lifecycle?.traffic_limit_bytes ?? user.traffic_limit_bytes,
+    traffic_reset_policy: user.lifecycle?.traffic_reset_policy ?? user.traffic_reset_policy,
+  })
+}
+
+function onLimitChange(user: User, event: Event) {
+  const target = event.target as { value?: unknown } | null
+  if (!target || target.value === undefined) return
+  emitLifecycle(user, {
+    expire_at: user.lifecycle?.expire_at ?? user.expire_at,
+    traffic_limit_bytes: Number(target.value || 0) * 1024 ** 3,
+    traffic_reset_policy: user.lifecycle?.traffic_reset_policy ?? user.traffic_reset_policy,
+  })
+}
+
+function onPolicyChange(user: User, event: Event) {
+  const target = event.target as { value?: unknown } | null
+  if (!target || target.value === undefined) return
+  emitLifecycle(user, {
+    expire_at: user.lifecycle?.expire_at ?? user.expire_at,
+    traffic_limit_bytes: user.lifecycle?.traffic_limit_bytes ?? user.traffic_limit_bytes,
+    traffic_reset_policy: String(target.value) === 'no_reset' ? 'no_reset' : 'manual',
+  })
+}
+
+function emitLifecycle(
+  user: User,
+  payload: {
+    expire_at: string | null
+    traffic_limit_bytes: number
+    traffic_reset_policy: 'manual' | 'no_reset'
+  },
+) {
+  emit('updateLifecycle', user, payload)
 }
 
 function syncSeverity(status: string, error: string | null): string {
@@ -394,6 +512,27 @@ function syncSeverity(status: string, error: string | null): string {
 
 .detail-section--danger {
   border-color: color-mix(in srgb, var(--app-red) 36%, var(--app-border));
+}
+
+.lifecycle-form-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.lifecycle-form-grid label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.lifecycle-form-grid input,
+.lifecycle-form-grid select {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 0.8rem;
+  background: var(--app-shell-solid);
+  color: var(--app-text);
 }
 
 .compact-section-header {

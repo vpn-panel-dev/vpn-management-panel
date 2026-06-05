@@ -158,6 +158,9 @@
         @confirm-delete="confirmDelete"
         @show-traffic="showTraffic"
         @copy-user-link="copyUserLink"
+        @regenerate-link="regenerateLink"
+        @update-lifecycle="updateLifecycle"
+        @reset-traffic="resetTraffic"
         @download-config="downloadConfig"
         @download-config-zip="downloadConfigZip"
         @show-qr="showQr"
@@ -323,6 +326,80 @@ async function syncRemnawaveUser(user: User) {
     })
   } finally {
     syncingUser.value = false
+  }
+}
+
+async function updateLifecycle(
+  user: User,
+  payload: {
+    expire_at: string | null
+    traffic_limit_bytes: number
+    traffic_reset_policy: 'manual' | 'no_reset'
+  },
+) {
+  try {
+    const updated = await usersApi.updateLifecycle(user.id, payload)
+    if (updated) Object.assign(user, updated)
+    toast.add({
+      severity: 'success',
+      summary: t('toasts.saved'),
+      detail: user.name,
+      life: 3000,
+    })
+  } catch (e: unknown) {
+    toast.add({
+      severity: 'error',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('toasts.error'),
+      life: 4000,
+    })
+  }
+}
+
+async function resetTraffic(user: User) {
+  try {
+    const updated = await usersApi.resetTraffic(user.id)
+    if (updated) {
+      Object.assign(user, updated)
+      user.local_traffic = {
+        source: 'local_amneziawg',
+        user_id: user.id,
+        rx_bytes: 0,
+        tx_bytes: 0,
+        total_bytes: 0,
+        updated_at: updated.traffic_reset_at,
+      }
+    }
+    toast.add({
+      severity: 'success',
+      summary: t('toasts.saved'),
+      detail: user.name,
+      life: 3000,
+    })
+  } catch (e: unknown) {
+    toast.add({
+      severity: 'error',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('toasts.error'),
+      life: 4000,
+    })
+  }
+}
+
+async function regenerateLink(user: User) {
+  try {
+    const result = await usersApi.regeneratePublicLink(user.id)
+    if (result) {
+      user.public_token = result.public_token
+      copyUserLink(user)
+    }
+  } catch (e: unknown) {
+    toast.add({
+      severity: 'error',
+      summary: t('toasts.error'),
+      detail: e instanceof Error ? e.message : t('toasts.error'),
+      life: 4000,
+    })
   }
 }
 </script>

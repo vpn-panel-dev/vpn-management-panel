@@ -1,20 +1,31 @@
 import { req } from './client'
-import type { User, UserListFacets, UserListQuery, UserListResponse } from './types'
+import type {
+  LocalUserLifecycleUpdate,
+  RegeneratedPublicLink,
+  User,
+  UserListFacets,
+  UserListQuery,
+  UserListResponse,
+} from './types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
 function isExpiring(user: User): boolean {
-  if (!user.remnawave?.expire_at) return false
-  const expiresAt = new Date(user.remnawave.expire_at).getTime()
+  const expireAt = user.remnawave?.expire_at ?? user.lifecycle?.expire_at ?? user.expire_at
+  if (!expireAt) return false
+  const expiresAt = new Date(expireAt).getTime()
   return (
     Number.isFinite(expiresAt) && expiresAt > Date.now() && expiresAt - Date.now() <= 14 * DAY_MS
   )
 }
 
 function isExpired(user: User): boolean {
-  if (user.is_blocked && user.remnawave?.blocked_reason === 'expired') return true
-  if (!user.remnawave?.expire_at) return false
-  const expiresAt = new Date(user.remnawave.expire_at).getTime()
+  if (user.is_blocked && (user.remnawave?.blocked_reason === 'expired' || user.lifecycle?.blocked_reason === 'expired')) {
+    return true
+  }
+  const expireAt = user.remnawave?.expire_at ?? user.lifecycle?.expire_at ?? user.expire_at
+  if (!expireAt) return false
+  const expiresAt = new Date(expireAt).getTime()
   return Number.isFinite(expiresAt) && expiresAt <= Date.now()
 }
 
@@ -78,8 +89,8 @@ function applyUserQuery(users: User[], query: UserListQuery): UserListResponse {
     if (query.sort === 'traffic') return trafficValue(b) - trafficValue(a)
     if (query.sort === 'expiration') {
       return (
-        (Date.parse(a.remnawave?.expire_at ?? '') || Infinity) -
-        (Date.parse(b.remnawave?.expire_at ?? '') || Infinity)
+        (Date.parse(a.remnawave?.expire_at ?? a.lifecycle?.expire_at ?? a.expire_at ?? '') || Infinity) -
+        (Date.parse(b.remnawave?.expire_at ?? b.lifecycle?.expire_at ?? b.expire_at ?? '') || Infinity)
       )
     }
     if (query.sort === 'sync') return Number(hasSyncIssue(b)) - Number(hasSyncIssue(a))
@@ -109,5 +120,10 @@ export const usersApi = {
   addUser: (name: string) => req<User>('POST', '/users', { name }),
   blockUser: (id: string) => req<User>('PUT', `/users/${id}/block`),
   unblockUser: (id: string) => req<User>('PUT', `/users/${id}/unblock`),
+  updateLifecycle: (id: string, data: LocalUserLifecycleUpdate) =>
+    req<User>('PUT', `/users/${id}/lifecycle`, data),
+  resetTraffic: (id: string) => req<User>('POST', `/users/${id}/lifecycle/reset-traffic`),
+  regeneratePublicLink: (id: string) =>
+    req<RegeneratedPublicLink>('POST', `/users/${id}/public-link/regenerate`),
   deleteUser: (id: string) => req<null>('DELETE', `/users/${id}`),
 }

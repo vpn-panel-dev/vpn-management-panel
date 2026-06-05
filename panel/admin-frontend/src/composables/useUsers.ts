@@ -59,12 +59,27 @@ export function useUsers() {
       if (scenario) {
         const user: User = {
           id: `mock-local-${Date.now()}`,
+          public_token: `mock-local-token-${Date.now()}`,
           name,
           vpn_ip: null,
           is_blocked: false,
+          lifecycle_status: 'active',
+          expire_at: null,
+          traffic_limit_bytes: 0,
+          traffic_reset_policy: 'manual',
+          traffic_reset_at: null,
           online: false,
           peers: [],
           remnawave: null,
+          lifecycle: {
+            source: 'local',
+            status: 'active',
+            expire_at: null,
+            traffic_limit_bytes: 0,
+            traffic_reset_policy: 'manual',
+            traffic_reset_at: null,
+            blocked_reason: null,
+          },
           local_traffic: null,
         }
         users.value = [user, ...users.value]

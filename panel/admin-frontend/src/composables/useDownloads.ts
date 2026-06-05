@@ -129,7 +129,7 @@ export function useDownloads() {
   }
 
   function copyUserLink(user: User) {
-    const url = `${window.location.origin}/u/${user.id}`
+    const url = `${window.location.origin}/u/${user.public_token}`
     navigator.clipboard.writeText(url).then(() => {
       toast.add({ severity: 'success', summary: t('toasts.linkCopied'), detail: url, life: 3000 })
     })
