@@ -4,6 +4,7 @@ from sqlalchemy import select
 from app.models import Node
 from app.routers.internal_worker_parts.common import DB
 from app.schemas.worker import HeartbeatResult, ProvisionResult, SyncResult
+from app.services.local_lifecycle import enforce_local_lifecycle_for_user
 from app.services.node_config import node_snapshot
 from app.services.node_sync import apply_interface_result, apply_peer_result, load_node_with_peers
 from app.services.remnawave_sync import (
@@ -59,6 +60,7 @@ async def node_sync_result(node_id: str, data: SyncResult, db: DB):
     sampled_at = utc_now()
     seen_public_keys: set[str] = set()
     limited_node_ids: set[str] = set()
+    local_lifecycle_node_ids: set[str] = set()
     remote_disable_uuids: set[str] = set()
     for peer_result in data.peers:
         seen_public_keys.add(peer_result.public_key)
@@ -67,6 +69,9 @@ async def node_sync_result(node_id: str, data: SyncResult, db: DB):
             continue
         sample = await apply_peer_result(db, peer, peer_result, sampled_at)
         if sample is not None:
+            local_lifecycle_node_ids.update(
+                await enforce_local_lifecycle_for_user(db, peer.user_id)
+            )
             node_ids, user_uuids = await enforce_remnawave_combined_limit_for_user(db, peer.user_id)
             limited_node_ids.update(node_ids)
             remote_disable_uuids.update(user_uuids)
@@ -75,6 +80,7 @@ async def node_sync_result(node_id: str, data: SyncResult, db: DB):
             peer.status = 'deleted'
     await purge_confirmed_remnawave_deletes(db)
     await db.commit()
+    await enqueue_sync_nodes(db, local_lifecycle_node_ids)
     await enqueue_sync_nodes(db, limited_node_ids)
     await enqueue_remnawave_disable_users(db, remote_disable_uuids)
     return {'status': 'ok'}

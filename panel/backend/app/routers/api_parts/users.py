@@ -13,10 +13,13 @@ from app.models import (
     LocalAmneziawgUserLifetimeTraffic,
     LocalAmneziawgUserNodeDailyTraffic,
     LocalAmneziawgUserNodeLifetimeTraffic,
+    LocalUserLifecycle,
+    LocalUserLifecycleUpdate,
     Node,
     Peer,
     PeerBrief,
     PeerTrafficSample,
+    RegeneratedPublicLink,
     RemnawaveUserBrief,
     User,
     UserIn,
@@ -24,6 +27,13 @@ from app.models import (
     UserWithPeers,
 )
 from app.routers.api_parts.common import DB, guard_not_remnawave_managed
+from app.services.local_lifecycle import (
+    apply_local_lifecycle_state,
+    load_local_total_bytes,
+    local_user_blocked_reason,
+    now,
+    reset_local_traffic_usage,
+)
 from app.services.online import is_peer_online, online_threshold_seconds
 from app.services.operations import enqueue_operation, new_operation
 from app.services.users import create_local_user
@@ -59,6 +69,26 @@ async def get_user_or_404(user_id: str, db: DB) -> User:
     if not user:
         raise HTTPException(status_code=404, detail='User not found')
     return user
+
+
+def _local_lifecycle_brief(user: User, local_total: int) -> LocalUserLifecycle:
+    return LocalUserLifecycle(
+        status=user.lifecycle_status,
+        expire_at=user.expire_at,
+        traffic_limit_bytes=user.traffic_limit_bytes,
+        traffic_reset_policy=user.traffic_reset_policy,
+        traffic_reset_at=user.traffic_reset_at,
+        blocked_reason=local_user_blocked_reason(user, local_total),
+    )
+
+
+async def _enqueue_sync_nodes_for_user(db: DB, user: User) -> None:
+    node_ids = sorted({peer.node_id for peer in user.peers})
+    for node_id in node_ids:
+        operation = new_operation('sync_node', 'node', node_id)
+        from app.routers import api as api_router
+
+        await enqueue_operation(db, operation, api_router.enqueue_sync_node, node_id)
 
 
 @router.get('/users', response_model=list[UserWithPeers])
@@ -131,6 +161,9 @@ async def api_list_users(db: DB):
                 peers=peer_briefs,
                 online=any(peer.online for peer in peer_briefs),
                 remnawave=rw_brief,
+                lifecycle=_local_lifecycle_brief(
+                    u, local_traffic.total_bytes if local_traffic else 0
+                ),
                 local_traffic=local_traffic,
             )
         )
@@ -156,16 +189,10 @@ async def api_block_user(user_id: str, db: DB):
         raise HTTPException(status_code=404, detail='User not found')
     await guard_not_remnawave_managed(user)
 
-    user.is_blocked = True
-    node_ids = [peer.node_id for peer in user.peers]
-    for peer in user.peers:
-        peer.status = 'pending_delete'
+    user.lifecycle_status = 'blocked'
+    await apply_local_lifecycle_state(db, user)
     await db.commit()
-    for node_id in node_ids:
-        operation = new_operation('sync_node', 'node', node_id)
-        from app.routers import api as api_router
-
-        await enqueue_operation(db, operation, api_router.enqueue_sync_node, node_id)
+    await _enqueue_sync_nodes_for_user(db, user)
     return user
 
 
@@ -180,18 +207,71 @@ async def api_unblock_user(user_id: str, db: DB):
         raise HTTPException(status_code=404, detail='User not found')
     await guard_not_remnawave_managed(user)
 
-    user.is_blocked = False
-    node_ids = [peer.node_id for peer in user.peers]
-    for peer in user.peers:
-        if peer.status == 'pending_delete':
-            peer.status = 'pending'
-    await db.commit()
-    for node_id in node_ids:
-        operation = new_operation('sync_node', 'node', node_id)
-        from app.routers import api as api_router
+    local_total = await load_local_total_bytes(db, user.id)
+    if local_user_blocked_reason(user, local_total) in {'expired', 'limited'}:
+        raise HTTPException(status_code=409, detail='User is blocked by lifecycle constraints')
 
-        await enqueue_operation(db, operation, api_router.enqueue_sync_node, node_id)
+    user.lifecycle_status = 'active'
+    await apply_local_lifecycle_state(db, user, local_total_bytes=local_total)
+    await db.commit()
+    await _enqueue_sync_nodes_for_user(db, user)
     return user
+
+
+@router.put('/users/{user_id}/lifecycle', response_model=UserSchema)
+async def api_update_local_lifecycle(user_id: str, data: LocalUserLifecycleUpdate, db: DB):
+    user = await db.get(
+        User,
+        user_id,
+        options=[selectinload(User.peers), selectinload(User.remnawave_user)],
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    await guard_not_remnawave_managed(user)
+
+    user.expire_at = data.expire_at
+    user.traffic_limit_bytes = data.traffic_limit_bytes
+    user.traffic_reset_policy = data.traffic_reset_policy
+    await apply_local_lifecycle_state(db, user)
+    await db.commit()
+    await _enqueue_sync_nodes_for_user(db, user)
+    return user
+
+
+@router.post('/users/{user_id}/lifecycle/reset-traffic', response_model=UserSchema)
+async def api_reset_local_traffic(user_id: str, db: DB):
+    user = await db.get(
+        User,
+        user_id,
+        options=[selectinload(User.peers), selectinload(User.remnawave_user)],
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    await guard_not_remnawave_managed(user)
+    if user.traffic_reset_policy != 'manual':
+        raise HTTPException(status_code=409, detail='Traffic reset is disabled for this user')
+
+    await reset_local_traffic_usage(db, user, now())
+    await apply_local_lifecycle_state(db, user, local_total_bytes=0)
+    await db.commit()
+    await _enqueue_sync_nodes_for_user(db, user)
+    return user
+
+
+@router.post('/users/{user_id}/public-link/regenerate', response_model=RegeneratedPublicLink)
+async def api_regenerate_public_link(user_id: str, db: DB):
+    user = await db.get(User, user_id, options=[selectinload(User.remnawave_user)])
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    await guard_not_remnawave_managed(user)
+
+    from app.models import _public_token
+
+    user.public_token = _public_token()
+    await db.commit()
+    return RegeneratedPublicLink(
+        public_token=user.public_token, public_url=f'/u/{user.public_token}'
+    )
 
 
 @router.delete('/users/{user_id}', status_code=204)
@@ -270,8 +350,10 @@ async def api_user_local_traffic_lifetime(user_id: str, db: DB):
     response_model=list[LocalAmneziawgUsageDailyTotals],
 )
 async def api_user_local_traffic_daily(user_id: str, db: DB, days: int = 30):
-    await get_user_or_404(user_id, db)
+    user = await get_user_or_404(user_id, db)
     since = (datetime.now(UTC) - timedelta(days=days)).date()
+    if user.traffic_reset_at is not None:
+        since = max(since, user.traffic_reset_at.date())
     rows = (
         (
             await db.execute(
@@ -332,8 +414,10 @@ async def api_user_local_traffic_nodes(user_id: str, db: DB):
     response_model=list[LocalAmneziawgUsageNodeDailyTotals],
 )
 async def api_user_local_traffic_nodes_daily(user_id: str, db: DB, days: int = 30):
-    await get_user_or_404(user_id, db)
+    user = await get_user_or_404(user_id, db)
     since = (datetime.now(UTC) - timedelta(days=days)).date()
+    if user.traffic_reset_at is not None:
+        since = max(since, user.traffic_reset_at.date())
     rows = (
         await db.execute(
             select(LocalAmneziawgUserNodeDailyTraffic, Node)

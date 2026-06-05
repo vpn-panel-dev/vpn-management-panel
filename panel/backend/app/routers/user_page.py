@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import LocalAmneziawgUserLifetimeTraffic, Node, Peer, User
+from app.services.local_lifecycle import local_user_blocked_reason
 from app.services.node_config import (
     QRStyle,
     build_awg_client_config,
@@ -39,10 +40,7 @@ def _public_status(user: User, local_total: int) -> dict:
     rw = user.remnawave_user
     code = 'active'
     reason = None
-    if user.is_blocked:
-        code = 'blocked'
-        reason = 'blocked'
-    elif rw is not None:
+    if rw is not None:
         status_map = {
             'DISABLED': ('blocked', 'disabled'),
             'LIMITED': ('limited', 'limited'),
@@ -67,6 +65,15 @@ def _public_status(user: User, local_total: int) -> dict:
                 if expire_at <= datetime.now(UTC):
                     code = 'expired'
                     reason = 'expired'
+    else:
+        reason = local_user_blocked_reason(user, local_total)
+        status_map = {
+            'blocked': 'blocked',
+            'limited': 'limited',
+            'expired': 'expired',
+        }
+        if reason is not None:
+            code = status_map.get(reason, 'blocked')
     return {'code': code, 'reason': reason}
 
 
@@ -83,6 +90,8 @@ async def _public_dashboard_summary(user: User, db: AsyncSession) -> dict:
     remote_used = rw.traffic_used_bytes if rw else 0
     total_used = remote_used + local_total
     traffic_limit = rw.traffic_limit_bytes if rw and rw.traffic_limit_bytes > 0 else None
+    if rw is None and user.traffic_limit_bytes > 0:
+        traffic_limit = user.traffic_limit_bytes
     updated_at = None
     if rw and rw.last_synced_at:
         updated_at = rw.last_synced_at
@@ -92,7 +101,7 @@ async def _public_dashboard_summary(user: User, db: AsyncSession) -> dict:
         'status': _public_status(user, local_total),
         'subscription': {
             'managed': rw is not None,
-            'expire_at': rw.expire_at if rw else None,
+            'expire_at': rw.expire_at if rw else user.expire_at,
             'last_synced_at': rw.last_synced_at if rw else None,
         },
         'traffic': {
@@ -104,6 +113,15 @@ async def _public_dashboard_summary(user: User, db: AsyncSession) -> dict:
         },
         'updated_at': updated_at,
     }
+
+
+async def _get_public_user(db: AsyncSession, token_or_id: str) -> User | None:
+    result = await db.execute(
+        select(User)
+        .where((User.public_token == token_or_id) | (User.id == token_or_id))
+        .options(selectinload(User.remnawave_user))
+    )
+    return result.scalar_one_or_none()
 
 
 def _make_vpn_qr_svg(user: User, node: Node, description: str, psk_key: str = '') -> bytes | None:
@@ -119,12 +137,9 @@ def _make_vpn_qr_svg(user: User, node: Node, description: str, psk_key: str = ''
         return None
 
 
-# ── Public endpoints (no auth — user_id UUID is the access credential) ─────────
-
-
 @router.get('/pub/u/{user_id}/info')
 async def pub_user_info(user_id: str, db: DB):
-    user = await db.get(User, user_id, options=[selectinload(User.remnawave_user)])
+    user = await _get_public_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404)
     summary = await _public_dashboard_summary(user, db)
@@ -143,7 +158,7 @@ async def pub_user_info(user_id: str, db: DB):
         vpn_uri = None
         if server_public_key and server_endpoint and private_key and vpn_ip:
             try:
-                psk_key = await _get_psk(db, user_id, node.id)
+                psk_key = await _get_psk(db, user.id, node.id)
                 vpn_uri = build_user_amnezia_vpn_uri(user, node, desc, psk_key)
             except Exception:
                 log.warning(
@@ -166,11 +181,11 @@ async def pub_user_info(user_id: str, db: DB):
 
 @router.get('/pub/u/{user_id}/qr/awg/{node_id}')
 async def pub_awg_qr(user_id: str, node_id: str, db: DB):
-    user = await db.get(User, user_id)
+    user = await _get_public_user(db, user_id)
     node = await db.get(Node, node_id)
     if not user or not node:
         raise HTTPException(status_code=404)
-    psk_key = await _get_psk(db, user_id, node_id)
+    psk_key = await _get_psk(db, user.id, node_id)
     svg = make_awg_qr_svg(
         user,
         node,
@@ -184,12 +199,12 @@ async def pub_awg_qr(user_id: str, node_id: str, db: DB):
 
 @router.get('/pub/u/{user_id}/qr/vpn/{node_id}')
 async def pub_vpn_qr(user_id: str, node_id: str, db: DB):
-    user = await db.get(User, user_id)
+    user = await _get_public_user(db, user_id)
     node = await db.get(Node, node_id)
     if not user or not node:
         raise HTTPException(status_code=404)
     desc = f'{user.name} / {node.name}'
-    psk_key = await _get_psk(db, user_id, node_id)
+    psk_key = await _get_psk(db, user.id, node_id)
     svg = _make_vpn_qr_svg(user, node, desc, psk_key)
     if not svg:
         raise HTTPException(
@@ -201,7 +216,7 @@ async def pub_vpn_qr(user_id: str, node_id: str, db: DB):
 @router.get('/pub/u/{user_id}/qr-chunks/vpn/{node_id}')
 async def pub_vpn_qr_chunks(user_id: str, node_id: str, db: DB):
     """Returns all QR chunk SVGs for multi-part AmneziaVPN configs."""
-    user = await db.get(User, user_id)
+    user = await _get_public_user(db, user_id)
     node = await db.get(Node, node_id)
     if not user or not node:
         raise HTTPException(status_code=404)
@@ -211,7 +226,7 @@ async def pub_vpn_qr_chunks(user_id: str, node_id: str, db: DB):
     vpn_ip = user.vpn_ip
     if not server_public_key or not server_endpoint or not private_key or not vpn_ip:
         raise HTTPException(status_code=503, detail='Configuration not yet available')
-    psk_key = await _get_psk(db, user_id, node_id)
+    psk_key = await _get_psk(db, user.id, node_id)
     desc = f'{user.name} / {node.name}'
     chunks = build_user_amnezia_qr_chunks(user, node, desc, psk_key)
     if chunks is None:
@@ -229,7 +244,7 @@ async def pub_vpn_qr_chunks(user_id: str, node_id: str, db: DB):
 
 @router.get('/pub/u/{user_id}/config/awg/{node_id}')
 async def pub_awg_config(user_id: str, node_id: str, db: DB):
-    user = await db.get(User, user_id)
+    user = await _get_public_user(db, user_id)
     node = await db.get(Node, node_id)
     if not user or not node:
         raise HTTPException(status_code=404)
@@ -239,7 +254,7 @@ async def pub_awg_config(user_id: str, node_id: str, db: DB):
     vpn_ip = user.vpn_ip
     if not private_key or not server_public_key or not server_endpoint or not vpn_ip:
         raise HTTPException(status_code=503, detail='Configuration not yet available')
-    psk_key = await _get_psk(db, user_id, node_id)
+    psk_key = await _get_psk(db, user.id, node_id)
     cfg = build_awg_client_config(user, node, psk_key)
     if cfg is None:
         raise HTTPException(status_code=503, detail='Configuration not yet available')
@@ -253,7 +268,7 @@ async def pub_awg_config(user_id: str, node_id: str, db: DB):
 
 @router.get('/pub/u/{user_id}/config/vpn/{node_id}')
 async def pub_vpn_config(user_id: str, node_id: str, db: DB):
-    user = await db.get(User, user_id)
+    user = await _get_public_user(db, user_id)
     node = await db.get(Node, node_id)
     if not user or not node:
         raise HTTPException(status_code=404)
@@ -263,7 +278,7 @@ async def pub_vpn_config(user_id: str, node_id: str, db: DB):
     vpn_ip = user.vpn_ip
     if not private_key or not server_public_key or not server_endpoint or not vpn_ip:
         raise HTTPException(status_code=503, detail='Configuration not yet available')
-    psk_key = await _get_psk(db, user_id, node_id)
+    psk_key = await _get_psk(db, user.id, node_id)
     json_bytes = build_user_amnezia_config_json(user, node, f'{user.name} / {node.name}', psk_key)
     if json_bytes is None:
         raise HTTPException(status_code=503, detail='Configuration not yet available')

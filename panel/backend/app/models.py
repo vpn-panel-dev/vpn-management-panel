@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import UTC, date, datetime
 
@@ -27,6 +28,10 @@ def _uuid() -> str:
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _public_token() -> str:
+    return secrets.token_urlsafe(24)
 
 
 # ── ORM Models ────────────────────────────────────────────────────────────────
@@ -90,6 +95,16 @@ class User(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    lifecycle_status: Mapped[str] = mapped_column(String, default='active', nullable=False)
+    expire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    traffic_limit_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    traffic_reset_policy: Mapped[str] = mapped_column(String, default='manual', nullable=False)
+    traffic_reset_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    public_token: Mapped[str] = mapped_column(
+        String, nullable=False, unique=True, index=True, default=_public_token
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     # Keypair shared across all nodes
@@ -522,11 +537,27 @@ class UserIn(BaseModel):
 class UserSchema(UserIn):
     id: str
     is_blocked: bool
+    lifecycle_status: str = 'active'
+    expire_at: datetime | None = None
+    traffic_limit_bytes: int = 0
+    traffic_reset_policy: str = 'manual'
+    traffic_reset_at: datetime | None = None
+    public_token: str = ''
     created_at: datetime
     public_key: str | None = None
     vpn_ip: str | None = None
 
     model_config = {'from_attributes': True}
+
+
+class LocalUserLifecycle(BaseModel):
+    source: str = 'local'
+    status: str = 'active'
+    expire_at: datetime | None = None
+    traffic_limit_bytes: int = 0
+    traffic_reset_policy: str = 'manual'
+    traffic_reset_at: datetime | None = None
+    blocked_reason: str | None = None
 
 
 class PeerSchema(BaseModel):
@@ -577,6 +608,7 @@ class UserWithPeers(UserSchema):
     peers: list[PeerBrief] = []
     online: bool = False
     remnawave: RemnawaveUserBrief | None = None
+    lifecycle: LocalUserLifecycle | None = None
     local_traffic: LocalAmneziawgUsageTotals | None = None
 
 
@@ -671,6 +703,17 @@ class LocalAmneziawgTrafficSettingsSchema(BaseModel):
 class LocalAmneziawgTrafficSettingsIn(BaseModel):
     raw_sample_retention_days: int = Field(default=90, ge=0)
     peer_online_threshold_seconds: int = Field(default=180, ge=1)
+
+
+class LocalUserLifecycleUpdate(BaseModel):
+    expire_at: datetime | None = None
+    traffic_limit_bytes: int = Field(default=0, ge=0)
+    traffic_reset_policy: str = Field(default='manual', pattern='^(manual|no_reset)$')
+
+
+class RegeneratedPublicLink(BaseModel):
+    public_token: str
+    public_url: str
 
 
 class RemnawaveSettingsIn(BaseModel):
