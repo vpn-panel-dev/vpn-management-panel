@@ -1,12 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
+
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 
-from app.models import Node
+from app.models import AsyncOperation, Node
 from app.routers.internal_worker_parts.common import DB
 from app.schemas.worker import HeartbeatResult, ProvisionResult, SyncResult
 from app.services.local_lifecycle import enforce_local_lifecycle_for_user
 from app.services.node_config import node_snapshot
 from app.services.node_sync import apply_interface_result, apply_peer_result, load_node_with_peers
+from app.services.operations import new_operation
 from app.services.remnawave_sync import (
     enforce_remnawave_combined_limit_for_user,
     enqueue_remnawave_disable_users,
@@ -16,6 +20,58 @@ from app.services.remnawave_sync import (
 )
 
 router = APIRouter()
+
+ACTIVE_OPERATION_STATUSES = {'queued', 'pending', 'running'}
+
+
+def _aware(value: datetime) -> datetime:
+    if value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=UTC)
+
+
+def _operation_payload(operation: AsyncOperation) -> dict[str, Any]:
+    return {
+        'id': operation.id,
+        'kind': operation.kind,
+        'target_type': operation.target_type,
+        'target_id': operation.target_id,
+        'status': operation.status,
+        'attempts': operation.attempts,
+        'updated_at': operation.updated_at.isoformat(),
+    }
+
+
+async def _latest_provision_operation(db: DB, node_id: str) -> AsyncOperation | None:
+    return await db.scalar(
+        select(AsyncOperation)
+        .where(
+            AsyncOperation.kind == 'provision_node',
+            AsyncOperation.target_type == 'node',
+            AsyncOperation.target_id == node_id,
+        )
+        .order_by(AsyncOperation.updated_at.desc())
+        .limit(1)
+    )
+
+
+def _provision_retry_due(
+    node: Node,
+    latest_operation: AsyncOperation | None,
+    *,
+    pending_cutoff: datetime,
+    failed_cutoff: datetime,
+) -> bool:
+    if latest_operation and latest_operation.status in ACTIVE_OPERATION_STATUSES:
+        return False
+    if latest_operation is None:
+        return True
+    updated_at = _aware(latest_operation.updated_at)
+    if node.provision_status == 'pending':
+        return updated_at <= pending_cutoff
+    if node.provision_status == 'failed':
+        return updated_at <= failed_cutoff
+    return False
 
 
 @router.get('/sync/snapshot')
@@ -38,6 +94,45 @@ async def node_sync_snapshot(node_id: str, db: DB):
 async def node_provision_snapshot(node_id: str, db: DB):
     node, peers = await load_node_with_peers(db, node_id)
     return node_snapshot(node, peers)
+
+
+@router.post('/nodes/provision-recovery')
+async def node_provision_recovery(
+    db: DB,
+    pending_after_seconds: Annotated[int, Query(ge=0)] = 60,
+    failed_after_seconds: Annotated[int, Query(ge=0)] = 300,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+):
+    observed_at = utc_now()
+    pending_cutoff = observed_at - timedelta(seconds=pending_after_seconds)
+    failed_cutoff = observed_at - timedelta(seconds=failed_after_seconds)
+    nodes = (
+        (
+            await db.execute(
+                select(Node)
+                .where(Node.provision_status.in_({'pending', 'failed'}))
+                .order_by(Node.created_at)
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    operations = []
+    for node in nodes:
+        latest_operation = await _latest_provision_operation(db, node.id)
+        if not _provision_retry_due(
+            node,
+            latest_operation,
+            pending_cutoff=pending_cutoff,
+            failed_cutoff=failed_cutoff,
+        ):
+            continue
+        operation = new_operation('provision_node', 'node', node.id)
+        db.add(operation)
+        operations.append(operation)
+    await db.commit()
+    return {'operations': [_operation_payload(operation) for operation in operations]}
 
 
 @router.post('/nodes/{node_id}/sync-result')

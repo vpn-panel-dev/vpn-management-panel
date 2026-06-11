@@ -173,6 +173,97 @@ async def test_snapshots_include_worker_fields(
     assert all_nodes.json()['nodes'][0]['id'] == node.id
 
 
+async def test_provision_recovery_creates_operation_for_pending_node(
+    client: AsyncClient,
+    db,
+    worker_headers,
+    seeded_node,
+):
+    response = await client.post(
+        '/internal/worker/nodes/provision-recovery',
+        headers=worker_headers,
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    operations = response.json()['operations']
+    assert len(operations) == 1
+    assert operations[0]['kind'] == 'provision_node'
+    assert operations[0]['target_id'] == seeded_node.id
+    assert operations[0]['status'] == 'queued'
+
+    operation = await db.get(AsyncOperation, operations[0]['id'])
+    assert operation is not None
+    assert operation.kind == 'provision_node'
+    assert operation.target_id == seeded_node.id
+
+
+async def test_provision_recovery_skips_active_operation(
+    client: AsyncClient,
+    db,
+    worker_headers,
+    seeded_node,
+):
+    db.add(
+        AsyncOperation(
+            id='active-provision',
+            kind='provision_node',
+            target_type='node',
+            target_id=seeded_node.id,
+            status='queued',
+            idempotency_key='active-provision',
+        )
+    )
+    await db.commit()
+
+    response = await client.post(
+        '/internal/worker/nodes/provision-recovery',
+        headers=worker_headers,
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {'operations': []}
+
+
+async def test_provision_recovery_retries_failed_after_backoff(
+    client: AsyncClient,
+    db,
+    worker_headers,
+    seeded_node,
+):
+    seeded_node.provision_status = 'failed'
+    recent = datetime.now(UTC) - timedelta(seconds=30)
+    db.add(
+        AsyncOperation(
+            id='failed-provision',
+            kind='provision_node',
+            target_type='node',
+            target_id=seeded_node.id,
+            status='failed',
+            idempotency_key='failed-provision',
+            updated_at=recent,
+            finished_at=recent,
+        )
+    )
+    await db.commit()
+
+    skipped = await client.post(
+        '/internal/worker/nodes/provision-recovery?failed_after_seconds=300',
+        headers=worker_headers,
+    )
+    retried = await client.post(
+        '/internal/worker/nodes/provision-recovery?failed_after_seconds=10',
+        headers=worker_headers,
+    )
+
+    assert skipped.status_code == HTTPStatus.OK
+    assert skipped.json() == {'operations': []}
+    assert retried.status_code == HTTPStatus.OK
+    operations = retried.json()['operations']
+    assert len(operations) == 1
+    assert operations[0]['kind'] == 'provision_node'
+    assert operations[0]['target_id'] == seeded_node.id
+
+
 async def test_node_results_update_only_allowed_state(
     client: AsyncClient, db, worker_headers, seeded_worker_state
 ):
