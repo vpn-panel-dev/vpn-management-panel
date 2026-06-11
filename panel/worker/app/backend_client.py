@@ -9,6 +9,34 @@ import httpx
 from app.commands import WorkerCommand
 
 
+def _response_error_detail(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return response.text.strip()
+
+    if isinstance(payload, dict):
+        detail = payload.get('detail') or payload.get('error') or payload.get('message')
+        if detail is not None:
+            return str(detail)
+    return response.text.strip()
+
+
+def _raise_for_status(response: httpx.Response) -> None:
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        detail = _response_error_detail(response)
+        if not detail:
+            raise
+        request = response.request
+        message = (
+            f'{request.method} {request.url} failed with '
+            f'{response.status_code} {response.reason_phrase}: {detail}'
+        )
+        raise httpx.HTTPStatusError(message, request=request, response=response) from exc
+
+
 class BackendClient:
     def __init__(self, base_url: str, token: str, timeout: float = 10.0) -> None:
         self._base_url = base_url.rstrip('/')
@@ -28,7 +56,7 @@ class BackendClient:
     async def start_operation(self, operation_id: str) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.post(f'/internal/worker/operations/{operation_id}/start')
-            response.raise_for_status()
+            _raise_for_status(response)
             return response.json()
 
     async def succeed_operation(
@@ -41,7 +69,7 @@ class BackendClient:
                 f'/internal/worker/operations/{operation_id}/succeed',
                 json={'result': result},
             )
-            response.raise_for_status()
+            _raise_for_status(response)
 
     async def fail_operation(
         self,
@@ -54,24 +82,24 @@ class BackendClient:
                 f'/internal/worker/operations/{operation_id}/fail',
                 json={'error': error, 'result': result},
             )
-            response.raise_for_status()
+            _raise_for_status(response)
 
     async def fetch_sync_snapshot(self) -> list[dict[str, Any]]:
         async with self._client() as client:
             response = await client.get('/internal/worker/sync/snapshot')
-            response.raise_for_status()
+            _raise_for_status(response)
             return list(response.json().get('nodes', []))
 
     async def fetch_node_sync_snapshot(self, node_id: str) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.get(f'/internal/worker/nodes/{node_id}/sync-snapshot')
-            response.raise_for_status()
+            _raise_for_status(response)
             return dict(response.json())
 
     async def fetch_node_provision_snapshot(self, node_id: str) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.get(f'/internal/worker/nodes/{node_id}/provision-snapshot')
-            response.raise_for_status()
+            _raise_for_status(response)
             return dict(response.json())
 
     async def report_sync_result(self, node_id: str, result: dict[str, Any]) -> None:
@@ -80,7 +108,7 @@ class BackendClient:
                 f'/internal/worker/nodes/{node_id}/sync-result',
                 json=result,
             )
-            response.raise_for_status()
+            _raise_for_status(response)
 
     async def report_provision_result(self, node_id: str, result: dict[str, Any]) -> None:
         async with self._client() as client:
@@ -88,7 +116,7 @@ class BackendClient:
                 f'/internal/worker/nodes/{node_id}/provision-result',
                 json=result,
             )
-            response.raise_for_status()
+            _raise_for_status(response)
 
     async def report_heartbeat_result(self, node_id: str, result: dict[str, Any]) -> None:
         async with self._client() as client:
@@ -96,12 +124,12 @@ class BackendClient:
                 f'/internal/worker/nodes/{node_id}/heartbeat-result',
                 json=result,
             )
-            response.raise_for_status()
+            _raise_for_status(response)
 
     async def timeout_operation(self, operation_id: str) -> None:
         async with self._client() as client:
             response = await client.post(f'/internal/worker/operations/{operation_id}/timeout')
-            response.raise_for_status()
+            _raise_for_status(response)
 
     async def fetch_stale_operations(
         self,
@@ -113,25 +141,25 @@ class BackendClient:
                 '/internal/worker/operations/stale',
                 params={'status': status, 'older_than_seconds': older_than_seconds},
             )
-            response.raise_for_status()
+            _raise_for_status(response)
             return list(response.json().get('operations', []))
 
     async def fetch_remnawave_config(self) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.get('/internal/worker/remnawave/config')
-            response.raise_for_status()
+            _raise_for_status(response)
             return dict(response.json())
 
     async def cleanup_raw_traffic_samples(self) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.post('/internal/worker/traffic/cleanup-raw-samples')
-            response.raise_for_status()
+            _raise_for_status(response)
             return dict(response.json())
 
     async def fetch_remnawave_polling_state(self) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.get('/internal/worker/remnawave/polling-state')
-            response.raise_for_status()
+            _raise_for_status(response)
             return dict(response.json())
 
     async def upsert_remnawave_users(self, users: list[dict[str, Any]]) -> dict[str, Any]:
@@ -140,13 +168,13 @@ class BackendClient:
                 '/internal/worker/remnawave/users/upsert',
                 json=users,
             )
-            response.raise_for_status()
+            _raise_for_status(response)
             return dict(response.json())
 
     async def mark_remnawave_user_deleted(self, uuid: str) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.post(f'/internal/worker/remnawave/users/{uuid}/deleted')
-            response.raise_for_status()
+            _raise_for_status(response)
             return dict(response.json())
 
     async def complete_remnawave_reconcile(self, result: dict[str, Any]) -> dict[str, Any]:
@@ -155,7 +183,7 @@ class BackendClient:
                 '/internal/worker/remnawave/reconcile-complete',
                 json=result,
             )
-            response.raise_for_status()
+            _raise_for_status(response)
             return dict(response.json())
 
 

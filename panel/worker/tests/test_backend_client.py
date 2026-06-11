@@ -47,6 +47,29 @@ async def test_upsert_remnawave_users_sends_raw_list_body() -> None:
 
 
 @pytest.mark.asyncio
+async def test_backend_error_includes_response_detail() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        _ = request
+        return httpx.Response(
+            500,
+            json={'detail': 'Remnawave users upsert failed: integer out of range'},
+        )
+
+    client = TransportBackendClient(httpx.MockTransport(handler))
+
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        await client.upsert_remnawave_users(
+            [{'remnawave_uuid': 'uuid-1', 'username': 'alice', 'status': 'ACTIVE'}]
+        )
+
+    error = str(exc_info.value)
+    assert (
+        'POST https://backend.test/internal/worker/remnawave/users/upsert failed with 500' in error
+    )
+    assert 'Remnawave users upsert failed: integer out of range' in error
+
+
+@pytest.mark.asyncio
 async def test_cleanup_raw_traffic_samples_calls_internal_endpoint() -> None:
     requests: list[httpx.Request] = []
 
