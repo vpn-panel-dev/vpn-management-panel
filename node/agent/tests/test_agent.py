@@ -175,6 +175,34 @@ def test_status_awg_error(client: TestClient, auth_headers: dict):
         assert 'device not found' in resp.json()['detail']
 
 
+def test_validation_error_is_human_readable(client: TestClient, auth_headers: dict):
+    resp = client.put('/interface', json={}, headers=auth_headers)
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert resp.json() == {'detail': 'Invalid request: private_key: Field required'}
+    assert 'mozilla.org' not in resp.text
+
+
+def test_unhandled_error_is_human_readable(auth_headers: dict):
+    client = TestClient(agent.app, raise_server_exceptions=False)
+    with (
+        patch.object(agent, 'parse_awg_show', side_effect=RuntimeError('cannot parse awg output')),
+        patch.object(subprocess, 'run') as mock_run,
+    ):
+        mock_run.return_value.stdout = 'unexpected output'
+        mock_run.return_value.stderr = ''
+        mock_run.return_value.returncode = 0
+
+        resp = client.get('/status', headers=auth_headers)
+
+    assert resp.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert resp.json() == {
+        'detail': 'Internal server error. Details were written to the server log.'
+    }
+    assert 'cannot parse awg output' not in resp.text
+    assert 'mozilla.org' not in resp.text
+
+
 # ── Dump (with mocked awg) ─────────────────────────────────────────────────────
 
 
