@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import BigInteger, select
 
 from app.models import LocalAmneziawgUserLifetimeTraffic, Peer, RemnawaveUser, User
 from app.routers.api_parts.common import REMNAWAVE_MANAGED_USER_CONFLICT_DETAIL
@@ -164,6 +164,51 @@ async def test_upsert_blocks_when_combined_usage_reaches_remnawave_limit(
     assert updated_user.is_blocked is True
     assert peer.status == 'pending_delete'
     enqueue.assert_awaited_once()
+
+
+async def test_upsert_accepts_remnawave_traffic_values_above_postgres_integer_limit(
+    client: AsyncClient, db, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+    profile = _profile(
+        traffic_limit_bytes=50 * 1024**3,
+        traffic_used_bytes=25 * 1024**3,
+        lifetime_used_traffic_bytes=25 * 1024**3,
+    )
+
+    resp = await client.post(
+        '/internal/worker/remnawave/users/upsert', json=[profile], headers=worker_headers
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    assert rw_user.traffic_limit_bytes == 50 * 1024**3
+    assert rw_user.traffic_used_bytes == 25 * 1024**3
+    assert rw_user.lifetime_used_traffic_bytes == 25 * 1024**3
+    assert isinstance(RemnawaveUser.traffic_limit_bytes.type, BigInteger)
+    assert isinstance(RemnawaveUser.traffic_used_bytes.type, BigInteger)
+    assert isinstance(RemnawaveUser.lifetime_used_traffic_bytes.type, BigInteger)
+
+
+async def test_upsert_failure_returns_readable_worker_detail(
+    client: AsyncClient, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+
+    with patch(
+        'app.routers.internal_worker_parts.remnawave.create_remnawave_local_user',
+        new=AsyncMock(side_effect=RuntimeError('integer out of range')),
+    ):
+        resp = await client.post(
+            '/internal/worker/remnawave/users/upsert',
+            json=[_profile()],
+            headers=worker_headers,
+        )
+
+    assert resp.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert resp.json() == {
+        'detail': 'Remnawave users upsert failed: integer out of range',
+    }
 
 
 async def test_upsert_never_auto_links_by_username_and_suffixes_conflict(

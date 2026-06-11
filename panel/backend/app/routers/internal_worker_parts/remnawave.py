@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+import logging
+
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -21,6 +23,12 @@ from app.services.remnawave_sync import (
 from app.services.users import create_remnawave_local_user
 
 router = APIRouter()
+log = logging.getLogger(__name__)
+
+
+def _worker_error_detail(context: str, exc: Exception) -> str:
+    message = str(exc).strip() or exc.__class__.__name__
+    return f'{context}: {message}'
 
 
 @router.get('/remnawave/config')
@@ -48,6 +56,18 @@ async def get_remnawave_polling_state(db: DB):
 
 @router.post('/remnawave/users/upsert')
 async def upsert_remnawave_users(data: list[RemnawaveUserIn], db: DB):
+    try:
+        return await _upsert_remnawave_users(data, db)
+    except Exception as exc:
+        await db.rollback()
+        log.exception('Remnawave users upsert failed')
+        raise HTTPException(
+            status_code=500,
+            detail=_worker_error_detail('Remnawave users upsert failed', exc),
+        ) from exc
+
+
+async def _upsert_remnawave_users(data: list[RemnawaveUserIn], db: DB):
     affected_node_ids: set[str] = set()
     remote_disable_uuids: set[str] = set()
     upserted: list[str] = []

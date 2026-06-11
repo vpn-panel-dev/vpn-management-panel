@@ -390,10 +390,10 @@ class RemnawaveUser(Base):
     tag: Mapped[str | None] = mapped_column(String, nullable=True)
     telegram_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
-    traffic_limit_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    traffic_limit_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     traffic_limit_strategy: Mapped[str] = mapped_column(String, default='NO_RESET', nullable=False)
-    traffic_used_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    lifetime_used_traffic_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    traffic_used_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    lifetime_used_traffic_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     last_traffic_reset_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
