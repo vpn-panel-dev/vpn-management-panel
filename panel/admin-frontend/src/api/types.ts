@@ -199,6 +199,7 @@ export interface LocalAmneziawgUsageNodeDailyTotals extends LocalAmneziawgUsageD
 
 export interface NodePeer {
   endpoint: string | null
+  is_blocked: boolean
   last_handshake: string | null
   online: boolean
   user_name: string

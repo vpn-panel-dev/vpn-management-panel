@@ -1,5 +1,5 @@
 import type { Node, RemnawaveUserBrief } from '../api/types'
-import { i18n } from '../i18n'
+import { i18n } from '../i18n/index.ts'
 import { fmtBytes, fmtDate } from './format'
 
 const pendingOperationStatuses = new Set(['running', 'queued', 'pending'])
@@ -10,10 +10,23 @@ const failedOperationStatuses = new Set(['failed', 'failed_by_timeout', 'enqueue
  *
  * @example peerSeverity('active') → 'success'
  */
-export function peerSeverity(status: string): string {
+export function peerSeverity(status: string, isBlocked = false): string {
+  if (isBlocked) return 'danger'
   if (status === 'active') return 'success'
   if (status === 'pending_delete') return 'danger'
   return 'secondary'
+}
+
+export function peerLabel(status: string, isBlocked = false): string {
+  if (isBlocked) return i18n.global.t('status.blocked')
+  if (status === 'active') return i18n.global.t('status.active')
+  if (status === 'pending') return i18n.global.t('status.pending')
+  if (status === 'queued') return i18n.global.t('status.queued')
+  if (status === 'pending_delete') return i18n.global.t('status.pendingDelete')
+  if (status === 'deleted') return i18n.global.t('status.deleted')
+  if (status === 'failed') return i18n.global.t('status.failed')
+  if (status === 'error') return i18n.global.t('status.error')
+  return status
 }
 
 export function operationSeverity(status: string): string {
