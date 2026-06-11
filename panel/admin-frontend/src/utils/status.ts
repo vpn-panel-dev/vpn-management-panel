@@ -1,6 +1,9 @@
-import type { RemnawaveUserBrief } from '../api/types'
+import type { Node, RemnawaveUserBrief } from '../api/types'
 import { i18n } from '../i18n'
 import { fmtBytes, fmtDate } from './format'
+
+const pendingOperationStatuses = new Set(['running', 'queued', 'pending'])
+const failedOperationStatuses = new Set(['failed', 'failed_by_timeout', 'enqueue_failed'])
 
 /**
  * Map a peer status string to a PrimeVue Tag severity.
@@ -14,12 +17,45 @@ export function peerSeverity(status: string): string {
 }
 
 export function operationSeverity(status: string): string {
-  if (status === 'running' || status === 'queued' || status === 'pending') return 'warn'
-  if (status === 'failed' || status === 'failed_by_timeout' || status === 'enqueue_failed') {
-    return 'danger'
-  }
+  if (pendingOperationStatuses.has(status)) return 'warn'
+  if (failedOperationStatuses.has(status)) return 'danger'
   if (status === 'succeeded') return 'success'
   return 'secondary'
+}
+
+export type NodeStage = 'ready' | 'offline' | 'applying_config' | 'syncing' | 'error'
+
+export function getNodeStage(node: Node): NodeStage {
+  if (failedOperationStatuses.has(node.provision_status) || node.last_error) {
+    return 'error'
+  }
+
+  if (pendingOperationStatuses.has(node.provision_status) || node.provision_status !== 'succeeded') {
+    return 'applying_config'
+  }
+
+  if (!node.reachable) return 'offline'
+
+  if (failedOperationStatuses.has(node.sync_status) || node.sync_error) {
+    return 'error'
+  }
+
+  if (pendingOperationStatuses.has(node.sync_status) || !node.last_synced_at) {
+    return 'syncing'
+  }
+
+  return 'ready'
+}
+
+export function nodeStageSeverity(stage: NodeStage): string {
+  if (stage === 'ready') return 'success'
+  if (stage === 'error') return 'danger'
+  if (stage === 'offline') return 'secondary'
+  return 'warn'
+}
+
+export function nodeStageLabel(stage: NodeStage): string {
+  return i18n.global.t(`nodeStage.${stage}`)
 }
 
 export function operationResolutionSeverity(state: string | null): string {
