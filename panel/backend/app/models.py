@@ -565,6 +565,7 @@ class PeerSchema(BaseModel):
     node_id: str
     user_id: str
     status: str
+    is_blocked: bool = False
     created_at: datetime
     user_name: str | None = None
     node_name: str | None = None

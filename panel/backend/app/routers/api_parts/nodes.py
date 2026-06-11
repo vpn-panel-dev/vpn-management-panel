@@ -135,6 +135,7 @@ async def api_node_peers(node_id: str, db: DB):
     result = []
     for p in rows:
         s = PeerSchema.model_validate(p)
+        s.is_blocked = p.user.is_blocked
         s.user_name = p.user.name
         s.node_name = p.node.name
         s.vpn_ip = p.user.vpn_ip

@@ -1,7 +1,7 @@
 import asyncio
 from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -517,6 +517,40 @@ async def test_online_fields_are_derived_from_peer_handshake(client: AsyncClient
     assert listed_node['online_threshold_seconds'] == 600
     assert peers_resp.json()[0]['online'] is True
     assert peers_resp.json()[0]['endpoint'] == '203.0.113.10:54321'
+    assert peers_resp.json()[0]['is_blocked'] is False
+
+
+async def test_node_peers_expose_blocked_flag(client: AsyncClient, auth_headers, db):
+    node = Node(id='blocked-node', name='blocked-node', url='http://agent:8000', token='tok')  # noqa: S106
+    user = User(id='blocked-user', name='blocked-user', is_blocked=True)
+    peer = Peer(
+        id='blocked-peer',
+        node_id=node.id,
+        user_id=user.id,
+        status='pending',
+    )
+    db.add_all([node, user, peer])
+    await db.commit()
+
+    resp = await client.get(f'/api/nodes/{node.id}/peers', headers=auth_headers)
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() == [
+        {
+            'id': peer.id,
+            'node_id': node.id,
+            'user_id': user.id,
+            'status': 'pending',
+            'is_blocked': True,
+            'created_at': ANY,
+            'user_name': user.name,
+            'node_name': node.name,
+            'vpn_ip': None,
+            'endpoint': None,
+            'last_handshake': None,
+            'online': False,
+        }
+    ]
 
 
 async def test_online_fields_tolerate_duplicate_settings_rows(
