@@ -114,8 +114,8 @@
                   }"
                 />
                 <Tag
-                  :severity="peerSeverity(p.status)"
-                  :value="p.status"
+                  :severity="peerSeverity(p.status, p.is_blocked)"
+                  :value="peerLabel(p.status, p.is_blocked)"
                   style="font-size: 0.75rem"
                 />
               </div>
@@ -138,7 +138,13 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import NodeActions from './NodeActions.vue'
-import { getNodeStage, nodeStageLabel, nodeStageSeverity, peerSeverity } from '../../utils/status'
+import {
+  getNodeStage,
+  nodeStageLabel,
+  nodeStageSeverity,
+  peerLabel,
+  peerSeverity,
+} from '../../utils/status'
 import type { Node, NodePeer } from '../../api'
 
 const expandedRows = defineModel<Record<string, boolean>>('expandedRows', { required: true })

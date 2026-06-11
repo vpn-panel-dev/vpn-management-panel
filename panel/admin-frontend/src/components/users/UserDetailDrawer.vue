@@ -220,7 +220,10 @@
         <article v-for="peer in user.peers" :key="peer.node_id" class="peer-detail-card">
           <div class="peer-head">
             <strong>{{ peer.node_name }}</strong>
-            <Tag :severity="peerSeverity(peer.status)" :value="peer.status" />
+            <Tag
+              :severity="peerSeverity(peer.status, user.is_blocked)"
+              :value="peerLabel(peer.status, user.is_blocked)"
+            />
           </div>
           <div class="detail-grid detail-grid--single">
             <div>
@@ -327,7 +330,7 @@ import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import { fmtBytes, fmtDate, fmtHandshake, formatDateTime } from '../../utils/format'
-import { peerSeverity } from '../../utils/status'
+import { peerLabel, peerSeverity } from '../../utils/status'
 import type { Node, User } from '../../api'
 
 const { t } = useI18n()
