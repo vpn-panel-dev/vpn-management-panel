@@ -190,6 +190,22 @@ async def test_upsert_accepts_remnawave_traffic_values_above_postgres_integer_li
     assert isinstance(RemnawaveUser.lifetime_used_traffic_bytes.type, BigInteger)
 
 
+async def test_upsert_accepts_telegram_id_above_postgres_integer_limit(
+    client: AsyncClient, db, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+    profile = _profile(telegram_id=5_149_087_582)
+
+    resp = await client.post(
+        '/internal/worker/remnawave/users/upsert', json=[profile], headers=worker_headers
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    rw_user = (await db.execute(select(RemnawaveUser))).scalar_one()
+    assert rw_user.telegram_id == 5_149_087_582
+    assert isinstance(RemnawaveUser.telegram_id.type, BigInteger)
+
+
 async def test_upsert_failure_returns_readable_worker_detail(
     client: AsyncClient, worker_headers, seeded_node
 ):
