@@ -22,8 +22,8 @@
         <div class="node-name-cell">
           <span class="node-name">{{ data.name }}</span>
           <Tag
-            :severity="data.reachable ? 'success' : 'danger'"
-            :value="data.reachable ? $t('nodeTable.reachable') : $t('nodeTable.unreachable')"
+            :severity="nodeStageSeverity(getNodeStage(data))"
+            :value="nodeStageLabel(getNodeStage(data))"
             class="status-tag"
           />
           <i
@@ -61,17 +61,7 @@
           }}</span>
           <span v-if="data.i1" class="meta-chip muted-chip">I✓</span>
         </div>
-        <Tag v-else severity="warn" :value="$t('nodeTable.waitingSync')" class="status-tag" />
-        <div class="node-status-stack">
-          <Tag
-            :severity="operationSeverity(data.sync_status)"
-            :value="`${$t('nodeTable.sync')}: ${data.sync_status}`"
-          />
-          <Tag
-            :severity="operationSeverity(data.provision_status)"
-            :value="`${$t('nodeTable.provision')}: ${data.provision_status}`"
-          />
-        </div>
+        <span v-else class="dim">{{ $t('common.notSet') }}</span>
         <div v-if="data.last_heartbeat_error" class="node-error-line">
           {{ $t('nodeTable.heartbeatError') }}: {{ data.last_heartbeat_error }}
         </div>
@@ -88,7 +78,7 @@
       <template #body="{ data }">
         <NodeActions
           :node-id="data.id"
-          :provisioning="!!provisioning[data.id]"
+          :provisioning="provisioning[data.id] ?? false"
           @provision="$emit('provision', data)"
           @confirm-delete="$emit('confirmDelete', $event, data)"
         />
@@ -148,7 +138,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import NodeActions from './NodeActions.vue'
-import { operationSeverity, peerSeverity } from '../../utils/status'
+import { getNodeStage, nodeStageLabel, nodeStageSeverity, peerSeverity } from '../../utils/status'
 import type { Node, NodePeer } from '../../api'
 
 const expandedRows = defineModel<Record<string, boolean>>('expandedRows', { required: true })
@@ -189,13 +179,6 @@ defineEmits<{
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-}
-
-.node-status-stack {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  margin-top: 0.35rem;
 }
 
 .node-expansion {

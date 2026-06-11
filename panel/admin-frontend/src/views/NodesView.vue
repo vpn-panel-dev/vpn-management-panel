@@ -11,8 +11,8 @@
             ><strong>{{ nodes.length }}</strong></span
           >
           <span class="stat-pill"
-            ><span>{{ $t('nodes.online') }}</span
-            ><strong>{{ onlineCount }}</strong></span
+            ><span>{{ $t('nodes.ready') }}</span
+            ><strong>{{ readyCount }}</strong></span
           >
           <span class="stat-pill"
             ><span>{{ $t('nodes.errors') }}</span
@@ -131,7 +131,7 @@ import { useNodes } from '../composables/useNodes'
 import { operationsApi } from '../api/operations'
 import type { AsyncOperation } from '../api/types'
 import { formatDateTime } from '../utils/format'
-import { operationResolutionSeverity, operationSeverity } from '../utils/status'
+import { getNodeStage, operationResolutionSeverity, operationSeverity } from '../utils/status'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -151,7 +151,9 @@ const {
 } = useNodes()
 
 const operations = ref<AsyncOperation[]>([])
-const onlineCount = computed(() => nodes.value.filter((node) => node.reachable).length)
+const readyCount = computed(
+  () => nodes.value.filter((node) => getNodeStage(node) === 'ready').length,
+)
 const errorCount = computed(
   () => nodes.value.filter((node) => node.last_error || node.last_heartbeat_error).length,
 )

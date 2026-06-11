@@ -19,8 +19,8 @@
       </div>
       <Tag
         v-if="node"
-        :severity="node.online ? 'success' : 'danger'"
-        :value="node.online ? $t('status.online') : $t('status.offline')"
+        :severity="nodeStageSeverity(getNodeStage(node))"
+        :value="nodeStageLabel(getNodeStage(node))"
       />
     </div>
 
@@ -145,6 +145,7 @@ import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import { nodesApi } from '../api/nodes'
 import type { Node, NodeUpdate } from '../api/types'
+import { getNodeStage, nodeStageLabel, nodeStageSeverity } from '../utils/status'
 
 interface SettingsForm {
   name: string

@@ -9,8 +9,8 @@
           <div class="mobile-card-sub">{{ node.url }}</div>
         </div>
         <Tag
-          :severity="node.reachable ? 'success' : 'danger'"
-          :value="node.reachable ? $t('nodeTable.reachable') : $t('nodeTable.unreachable')"
+          :severity="nodeStageSeverity(getNodeStage(node))"
+          :value="nodeStageLabel(getNodeStage(node))"
           class="status-tag"
         />
       </div>
@@ -29,7 +29,7 @@
             <span class="meta-chip">Jc {{ node.jc }}</span>
             <span v-if="node.mtu" class="meta-chip">MTU {{ node.mtu }}</span>
           </div>
-          <Tag v-else severity="warn" :value="$t('nodeMobile.waitingSync')" class="status-tag" />
+          <b v-else>{{ $t('common.notSet') }}</b>
         </div>
         <div v-if="node.last_error">
           <span>{{ $t('nodeMobile.error') }}</span>
@@ -43,20 +43,12 @@
           <span>{{ $t('nodeMobile.syncError') }}</span>
           <b class="error-text">{{ node.sync_error }}</b>
         </div>
-        <div>
-          <span>{{ $t('nodeTable.sync') }}</span>
-          <b>{{ node.sync_status }}</b>
-        </div>
-        <div>
-          <span>{{ $t('nodeTable.provision') }}</span>
-          <b>{{ node.provision_status }}</b>
-        </div>
       </div>
 
       <div class="mobile-card-actions">
         <NodeActions
           :node-id="node.id"
-          :provisioning="!!provisioning[node.id]"
+          :provisioning="provisioning[node.id] ?? false"
           :mobile="true"
           @provision="$emit('provision', node)"
           @confirm-delete="$emit('confirmDelete', $event, node)"
@@ -70,6 +62,7 @@
 import Tag from 'primevue/tag'
 import NodeActions from './NodeActions.vue'
 import type { Node } from '../../api'
+import { getNodeStage, nodeStageLabel, nodeStageSeverity } from '../../utils/status'
 
 defineProps<{
   nodes: Node[]
