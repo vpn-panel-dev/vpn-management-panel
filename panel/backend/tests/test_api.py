@@ -403,6 +403,32 @@ async def test_provision_node(client: AsyncClient, auth_headers):
     assert data['status_url'] == f'/api/operations/{data["operation_id"]}'
 
 
+async def test_add_node_marks_provision_failed_when_enqueue_fails(
+    client: AsyncClient,
+    auth_headers,
+    db,
+):
+    headers = auth_headers
+    with patch(
+        'app.routers.api.enqueue_provision_node',
+        new=AsyncMock(side_effect=RuntimeError('rabbitmq unavailable')),
+    ):
+        resp = await client.post(
+            '/api/nodes',
+            json={'name': 'node-enqueue-fail', 'url': 'http://agent:8000', 'token': 'tok'},
+            headers=headers,
+        )
+
+    assert resp.status_code == HTTPStatus.CREATED
+    data = resp.json()
+    assert data['provision_status'] == 'failed'
+
+    node = await db.get(Node, data['id'])
+    assert node is not None
+    assert node.provision_status == 'failed'
+    assert node.last_error == 'rabbitmq unavailable'
+
+
 # ── Users ──────────────────────────────────────────────────────────────────────
 
 

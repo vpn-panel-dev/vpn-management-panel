@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 
 from app.crypto import generate_keypair
 from app.models import (
+    AsyncOperation,
     LocalAmneziawgNodeUsageTotals,
     LocalAmneziawgUserNodeLifetimeTraffic,
     Node,
@@ -20,6 +21,18 @@ from app.services.operations import enqueue_operation, new_operation, operation_
 from app.services.users import create_pending_peers_for_node
 
 router = APIRouter()
+
+
+async def _enqueue_provision_operation(db: DB, node: Node) -> AsyncOperation:
+    operation = new_operation('provision_node', 'node', node.id)
+    from app.routers import api as api_router
+
+    await enqueue_operation(db, operation, api_router.enqueue_provision_node, node.id)
+    if operation.status == 'enqueue_failed':
+        node.provision_status = 'failed'
+        node.last_error = operation.error or 'Failed to enqueue provision job'
+        await db.commit()
+    return operation
 
 
 @router.get('/nodes', response_model=list[NodeWithStatus])
@@ -56,10 +69,7 @@ async def api_add_node(data: NodeIn, db: DB):
     await db.commit()
     await db.refresh(node)
 
-    operation = new_operation('provision_node', 'node', node.id)
-    from app.routers import api as api_router
-
-    await enqueue_operation(db, operation, api_router.enqueue_provision_node, node.id)
+    await _enqueue_provision_operation(db, node)
     await db.refresh(node)
 
     return node
@@ -77,10 +87,7 @@ async def api_provision_node(node_id: str, db: DB):
     node.last_error = None
     await db.commit()
     await db.refresh(node)
-    operation = new_operation('provision_node', 'node', node.id)
-    from app.routers import api as api_router
-
-    await enqueue_operation(db, operation, api_router.enqueue_provision_node, node.id)
+    operation = await _enqueue_provision_operation(db, node)
     return operation_response(operation)
 
 
@@ -94,10 +101,7 @@ async def api_update_node(node_id: str, data: NodeUpdate, db: DB):
     node.provision_status = 'pending'
     await db.commit()
     await db.refresh(node)
-    operation = new_operation('provision_node', 'node', node.id)
-    from app.routers import api as api_router
-
-    await enqueue_operation(db, operation, api_router.enqueue_provision_node, node.id)
+    await _enqueue_provision_operation(db, node)
     await db.refresh(node)
     return node
 
