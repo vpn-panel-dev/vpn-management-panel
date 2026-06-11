@@ -174,6 +174,8 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql+asyncpg://amnezia:${DB_PASSWORD}@db:5432/amnezia
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - WORKER_TOKEN=${WORKER_TOKEN}
       - SYNC_INTERVAL_SEC=300
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
@@ -189,9 +191,12 @@ services:
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - BACKEND_INTERNAL_URL=http://panel:8080
-      - WORKER_TOKEN=changeme
+      - WORKER_TOKEN=${WORKER_TOKEN}
       - SYNC_INTERVAL_SEC=300
       - WORKER_CONCURRENCY=4
+      - PROVISION_RECOVERY_INTERVAL_SEC=60
+      - PROVISION_PENDING_RETRY_SEC=60
+      - PROVISION_FAILED_RETRY_SEC=300
     depends_on:
       panel:
         condition: service_healthy
@@ -225,6 +230,7 @@ cat > .env << EOF
 DB_PASSWORD=$(openssl rand -hex 32)
 ADMIN_PASSWORD=$(openssl rand -hex 16)
 SECRET_KEY=$(openssl rand -hex 32)
+WORKER_TOKEN=$(openssl rand -hex 32)
 REMNAWAVE_SECRET_KEY=$(openssl rand -hex 32)
 EOF
 ```
@@ -291,6 +297,10 @@ Amnezia can sync users from [Remnawave](https://remnawave.com) via API polling o
 
 - Node `online`/`offline` status reflects the latest worker heartbeat to the node-agent `/health` endpoint. Sync/provision results are tracked separately as last sync and provision status.
 - The worker automatically republishes stale `queued` operations and marks stale `running` operations as `failed_by_timeout` after `RUNNING_TIMEOUT_SEC` so operators can resolve them from the admin operations list.
+- The worker automatically creates and publishes provisioning retries for nodes stuck in
+  `provision_status=pending` or `provision_status=failed`. By default pending nodes are retried after
+  60 seconds, failed nodes after 300 seconds, and the recovery scan runs every 60 seconds. The admin
+  Provision button is a force/retry action, not a required manual deployment step.
 - The admin operations panel is a current-state recovery view, not a historical log: it shows only the
   latest actionable operation per operation kind and target. Older failures disappear after a newer retry
   or successful run supersedes them.

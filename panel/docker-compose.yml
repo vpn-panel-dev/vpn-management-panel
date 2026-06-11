@@ -57,6 +57,9 @@ services:
       - WORKER_TOKEN=changeme
       - SYNC_INTERVAL_SEC=300
       - WORKER_CONCURRENCY=4
+      - PROVISION_RECOVERY_INTERVAL_SEC=60
+      - PROVISION_PENDING_RETRY_SEC=60
+      - PROVISION_FAILED_RETRY_SEC=300
     depends_on:
       panel:
         condition: service_healthy

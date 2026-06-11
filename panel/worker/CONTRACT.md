@@ -83,6 +83,15 @@ Missing or invalid tokens return `401`.
 - `POST /internal/worker/operations/{operation_id}/timeout`
   - Valid transition: `running` → `failed_by_timeout`.
   - Current worker recovery republishes stale `queued` jobs and marks stale `running` jobs as `failed_by_timeout` after `RUNNING_TIMEOUT_SEC`.
+- `POST /internal/worker/nodes/provision-recovery?pending_after_seconds=60&failed_after_seconds=300`
+  - Creates new `queued` `provision_node` operations for nodes whose `provision_status` is
+    `pending` or `failed` and that do not already have an active `queued`/`running` provision
+    operation.
+  - `pending` nodes are retried after `pending_after_seconds`; `failed` nodes are retried after
+    `failed_after_seconds`.
+  - The worker calls this endpoint on `PROVISION_RECOVERY_INTERVAL_SEC` and publishes returned
+    operations, so nodes that need provisioning are recovered automatically without an operator
+    pressing the Provision button.
 
 Stale response shape:
 
