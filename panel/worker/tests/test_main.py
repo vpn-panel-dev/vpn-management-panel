@@ -8,6 +8,7 @@ import pytest
 from app.commands import WorkerCommand
 from app.main import (
     Settings,
+    recover_pending_provisions,
     recover_stale_operations,
     run,
     schedule_cleanup_raw_traffic_samples,
@@ -103,6 +104,50 @@ async def test_recovery_republishes_queued_and_times_out_running() -> None:
 
 
 @pytest.mark.asyncio
+async def test_provision_recovery_creates_and_publishes_retry_operations() -> None:
+    class FakeBackend:
+        def __init__(self) -> None:
+            self.calls: list[tuple[int, int]] = []
+
+        async def create_provision_recovery_operations(
+            self,
+            *,
+            pending_after_seconds: int,
+            failed_after_seconds: int,
+        ):
+            self.calls.append((pending_after_seconds, failed_after_seconds))
+            return [
+                {
+                    'id': 'provision-op',
+                    'kind': 'provision_node',
+                    'target_type': 'node',
+                    'target_id': 'node-1',
+                    'updated_at': '2026-06-05T00:00:00+00:00',
+                }
+            ]
+
+    backend = FakeBackend()
+    queue = FakeQueue()
+    settings = Settings(
+        rabbitmq_url='amqp://guest:guest@rabbitmq:5672/',
+        backend_internal_url='http://backend.test',
+        worker_token='worker-secret',  # noqa: S106
+        provision_recovery_interval_sec=0,
+        provision_pending_retry_sec=60,
+        provision_failed_retry_sec=300,
+    )
+
+    task = asyncio.create_task(recover_pending_provisions(backend, queue, settings))
+    await queue.wait_for_commands(1)
+    task.cancel()
+
+    assert backend.calls == [(60, 300)]
+    assert queue.commands[0].command == 'provision_node'
+    assert queue.commands[0].operation_id == 'provision-op'
+    assert queue.commands[0].target_id == 'node-1'
+
+
+@pytest.mark.asyncio
 async def test_run_schedules_cleanup_job_in_steady_state_loop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -146,6 +191,9 @@ async def test_run_schedules_cleanup_job_in_steady_state_loop(
     async def fake_recover(backend: Any, queue: Any, settings: Settings) -> None:
         scheduled.append(('recover', (backend, queue, settings)))
 
+    async def fake_recover_provisions(backend: Any, queue: Any, settings: Settings) -> None:
+        scheduled.append(('recover_provisions', (backend, queue, settings)))
+
     monkeypatch.setattr('app.main.BackendClient', FakeBackendClient)
     monkeypatch.setattr('app.main.NodeClient', FakeNodeClient)
     monkeypatch.setattr('app.main.CommandHandler', FakeCommandHandler)
@@ -155,6 +203,7 @@ async def test_run_schedules_cleanup_job_in_steady_state_loop(
     monkeypatch.setattr('app.main.schedule_cleanup_raw_traffic_samples', fake_cleanup)
     monkeypatch.setattr('app.main.schedule_remnawave_reconcile', fake_reconcile)
     monkeypatch.setattr('app.main.recover_stale_operations', fake_recover)
+    monkeypatch.setattr('app.main.recover_pending_provisions', fake_recover_provisions)
 
     await run(
         Settings(
@@ -173,3 +222,4 @@ async def test_run_schedules_cleanup_job_in_steady_state_loop(
     assert any(
         call[0] == 'heartbeat' and call[1][1] == HEARTBEAT_INTERVAL_SEC for call in scheduled
     )
+    assert any(call[0] == 'recover_provisions' for call in scheduled)

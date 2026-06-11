@@ -144,6 +144,23 @@ class BackendClient:
             _raise_for_status(response)
             return list(response.json().get('operations', []))
 
+    async def create_provision_recovery_operations(
+        self,
+        *,
+        pending_after_seconds: int,
+        failed_after_seconds: int,
+    ) -> list[dict[str, Any]]:
+        async with self._client() as client:
+            response = await client.post(
+                '/internal/worker/nodes/provision-recovery',
+                params={
+                    'pending_after_seconds': pending_after_seconds,
+                    'failed_after_seconds': failed_after_seconds,
+                },
+            )
+            _raise_for_status(response)
+            return list(response.json().get('operations', []))
+
     async def fetch_remnawave_config(self) -> dict[str, Any]:
         async with self._client() as client:
             response = await client.get('/internal/worker/remnawave/config')

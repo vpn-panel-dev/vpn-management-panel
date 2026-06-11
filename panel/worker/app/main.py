@@ -28,6 +28,9 @@ class Settings:
     recovery_interval_sec: float = 30.0
     stale_after_sec: int = 30
     running_timeout_sec: int = 300
+    provision_recovery_interval_sec: float = 60.0
+    provision_pending_retry_sec: int = 60
+    provision_failed_retry_sec: int = 300
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -41,6 +44,11 @@ class Settings:
             recovery_interval_sec=float(os.getenv('RECOVERY_INTERVAL_SEC', '30')),
             stale_after_sec=int(os.getenv('STALE_AFTER_SEC', '30')),
             running_timeout_sec=int(os.getenv('RUNNING_TIMEOUT_SEC', '300')),
+            provision_recovery_interval_sec=float(
+                os.getenv('PROVISION_RECOVERY_INTERVAL_SEC', '60')
+            ),
+            provision_pending_retry_sec=int(os.getenv('PROVISION_PENDING_RETRY_SEC', '60')),
+            provision_failed_retry_sec=int(os.getenv('PROVISION_FAILED_RETRY_SEC', '300')),
         )
 
 
@@ -71,6 +79,7 @@ async def run(settings: Settings) -> None:
             )
             task_group.create_task(schedule_remnawave_reconcile(backend, queue))
             task_group.create_task(recover_stale_operations(backend, queue, settings))
+            task_group.create_task(recover_pending_provisions(backend, queue, settings))
     finally:
         close = getattr(queue, 'close', None)
         if close is not None:
@@ -132,6 +141,25 @@ async def recover_stale_operations(
         )
         for operation in running_operations:
             await backend.timeout_operation(operation['id'])
+
+
+async def recover_pending_provisions(
+    backend: BackendClient,
+    queue: RabbitQueue,
+    settings: Settings,
+) -> None:
+    while True:
+        await asyncio.sleep(settings.provision_recovery_interval_sec)
+        try:
+            operations = await backend.create_provision_recovery_operations(
+                pending_after_seconds=settings.provision_pending_retry_sec,
+                failed_after_seconds=settings.provision_failed_retry_sec,
+            )
+            for operation in operations:
+                await queue.publish_command(command_from_operation(operation))
+        except Exception:
+            log.exception('Failed to recover pending provisions')
+            continue
 
 
 def _new_command(command: CommandName, target_type: str, target_id: str | None) -> WorkerCommand:
