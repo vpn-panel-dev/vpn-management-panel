@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from .error_handlers import register_error_handlers
 from .routers import api, auth, internal_worker, remnawave, user_page
 
 logging.basicConfig(level=logging.INFO)
@@ -14,6 +15,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title='AmneziaWG Panel', lifespan=lifespan)
+register_error_handlers(app)
 app.include_router(auth.router)
 app.include_router(api.webhook_router)
 app.include_router(api.router)
