@@ -174,7 +174,7 @@
     "title": "Серверы",
     "description": "Управление VPN-узлами, проверка готовности ключей и состояние подключений.",
     "total": "Всего",
-    "online": "Онлайн",
+    "ready": "Готово",
     "errors": "Ошибки",
     "addNode": "Добавить сервер"
   },
@@ -185,14 +185,9 @@
     "agentUrl": "URL агента",
     "endpoint": "Эндпоинт",
     "metadata": "Параметры",
-    "reachable": "Доступен",
-    "unreachable": "Недоступен",
-    "sync": "Синхронизация",
-    "provision": "Provision",
     "port": "порт {port}",
     "jc": "Jc {jc} · {jmin}–{jmax} мс",
     "mtu": "MTU {mtu}",
-    "waitingSync": "Ожидание синхронизации",
     "actions": "Действия",
     "noPeers": "Подключения ещё не назначены.",
     "user": "Пользователь",
@@ -435,6 +430,13 @@
     "limited": "Превышен лимит",
     "expired": "Истёк срок",
     "deleted": "Удалён"
+  },
+  "nodeStage": {
+    "ready": "Готово",
+    "offline": "Офлайн",
+    "applying_config": "Применение конфигурации",
+    "syncing": "Синхронизация",
+    "error": "Ошибка"
   },
   "time": {
     "never": "Никогда",

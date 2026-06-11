@@ -174,7 +174,7 @@
     "title": "Servers",
     "description": "Manage VPN nodes, check key readiness, and monitor peer state.",
     "total": "Total",
-    "online": "Online",
+    "ready": "Ready",
     "errors": "Errors",
     "addNode": "Add server"
   },
@@ -185,14 +185,9 @@
     "agentUrl": "Agent URL",
     "endpoint": "Endpoint",
     "metadata": "Parameters",
-    "reachable": "Reachable",
-    "unreachable": "Unreachable",
-    "sync": "Sync",
-    "provision": "Provision",
     "port": "port {port}",
     "jc": "Jc {jc} · {jmin}–{jmax} ms",
     "mtu": "MTU {mtu}",
-    "waitingSync": "Waiting for sync",
     "actions": "Actions",
     "noPeers": "No peers assigned yet.",
     "user": "User",
@@ -435,6 +430,13 @@
     "limited": "Limited",
     "expired": "Expired",
     "deleted": "Deleted"
+  },
+  "nodeStage": {
+    "ready": "Ready",
+    "offline": "Offline",
+    "applying_config": "Applying config",
+    "syncing": "Syncing",
+    "error": "Error"
   },
   "time": {
     "never": "Never",

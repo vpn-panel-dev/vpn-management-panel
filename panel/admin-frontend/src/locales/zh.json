@@ -174,7 +174,7 @@
     "title": "服务器",
     "description": "管理 VPN 节点，检查密钥就绪状态，监控对等连接状态。",
     "total": "总计",
-    "online": "在线",
+    "ready": "就绪",
     "errors": "错误",
     "addNode": "添加服务器"
   },
@@ -185,14 +185,9 @@
     "agentUrl": "代理 URL",
     "endpoint": "端点",
     "metadata": "参数",
-    "reachable": "可达",
-    "unreachable": "不可达",
-    "sync": "同步",
-    "provision": "配置下发",
     "port": "端口 {port}",
     "jc": "Jc {jc} · {jmin}–{jmax} 毫秒",
     "mtu": "MTU {mtu}",
-    "waitingSync": "等待同步",
     "actions": "操作",
     "noPeers": "尚未分配对等连接。",
     "user": "用户",
@@ -435,6 +430,13 @@
     "limited": "已超限",
     "expired": "已过期",
     "deleted": "已删除"
+  },
+  "nodeStage": {
+    "ready": "就绪",
+    "offline": "离线",
+    "applying_config": "正在应用配置",
+    "syncing": "同步中",
+    "error": "错误"
   },
   "time": {
     "never": "从未",
