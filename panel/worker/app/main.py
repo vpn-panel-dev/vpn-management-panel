@@ -24,7 +24,7 @@ class Settings:
     worker_token: str
     sync_interval_sec: float = 30.0
     worker_concurrency: int = 4
-    heartbeat_interval_sec: float = 30.0
+    heartbeat_interval_sec: float = 5.0
     recovery_interval_sec: float = 30.0
     stale_after_sec: int = 30
     running_timeout_sec: int = 300
@@ -40,7 +40,7 @@ class Settings:
             worker_token=_required_env('WORKER_TOKEN'),
             sync_interval_sec=float(os.getenv('SYNC_INTERVAL_SEC', '30')),
             worker_concurrency=int(os.getenv('WORKER_CONCURRENCY', '4')),
-            heartbeat_interval_sec=float(os.getenv('NODE_HEARTBEAT_INTERVAL_SEC', '30')),
+            heartbeat_interval_sec=float(os.getenv('NODE_HEARTBEAT_INTERVAL_SEC', '5')),
             recovery_interval_sec=float(os.getenv('RECOVERY_INTERVAL_SEC', '30')),
             stale_after_sec=int(os.getenv('STALE_AFTER_SEC', '30')),
             running_timeout_sec=int(os.getenv('RUNNING_TIMEOUT_SEC', '300')),

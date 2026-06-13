@@ -18,6 +18,17 @@ from app.main import (
 HEARTBEAT_INTERVAL_SEC = 5
 
 
+def test_settings_from_env_defaults_heartbeat_to_five_seconds(monkeypatch) -> None:
+    monkeypatch.setenv('RABBITMQ_URL', 'amqp://guest:guest@rabbitmq:5672/')
+    monkeypatch.setenv('BACKEND_INTERNAL_URL', 'http://backend.test')
+    monkeypatch.setenv('WORKER_TOKEN', 'worker-secret')
+    monkeypatch.delenv('NODE_HEARTBEAT_INTERVAL_SEC', raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.heartbeat_interval_sec == HEARTBEAT_INTERVAL_SEC
+
+
 class FakeQueue:
     def __init__(self) -> None:
         self.commands: list[WorkerCommand] = []
