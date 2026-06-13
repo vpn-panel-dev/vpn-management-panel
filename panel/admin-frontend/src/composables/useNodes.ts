@@ -4,6 +4,7 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useI18n } from 'vue-i18n'
 import { nodesApi } from '../api/nodes'
 import type { Node, NodePeer, NodeCreate } from '../api/types'
+import { getNodeStage } from '../utils/status'
 
 export type AddForm = NodeCreate
 
@@ -59,6 +60,57 @@ export const defaultForm: NodeCreate = {
   h4: '4',
 }
 
+const nodeStageOrder: Record<ReturnType<typeof getNodeStage>, number> = {
+  ready: 0,
+  syncing: 1,
+  applying_config: 2,
+  offline: 3,
+  error: 4,
+}
+
+function compareText(left: string | null | undefined, right: string | null | undefined): number {
+  return (left ?? '').localeCompare(right ?? '', 'ru', { sensitivity: 'base' })
+}
+
+function compareNodes(left: Node, right: Node): number {
+  const stageDiff = nodeStageOrder[getNodeStage(left)] - nodeStageOrder[getNodeStage(right)]
+  if (stageDiff !== 0) return stageDiff
+
+  const nameDiff = compareText(left.name, right.name)
+  if (nameDiff !== 0) return nameDiff
+
+  return compareText(left.id, right.id)
+}
+
+function sortNodes(items: Node[]): Node[] {
+  return [...items].sort(compareNodes)
+}
+
+function peerOrder(peer: NodePeer): number {
+  if (peer.is_blocked || ['pending_delete', 'deleted', 'failed', 'error'].includes(peer.status))
+    return 2
+  if (peer.status === 'active') return 0
+  if (peer.status === 'pending' || peer.status === 'queued') return 1
+  return 2
+}
+
+function compareNodePeers(left: NodePeer, right: NodePeer): number {
+  const statusDiff = peerOrder(left) - peerOrder(right)
+  if (statusDiff !== 0) return statusDiff
+
+  const nameDiff = compareText(left.user_name, right.user_name)
+  if (nameDiff !== 0) return nameDiff
+
+  const ipDiff = compareText(left.vpn_ip, right.vpn_ip)
+  if (ipDiff !== 0) return ipDiff
+
+  return compareText(left.endpoint, right.endpoint)
+}
+
+function sortNodePeers(items: NodePeer[]): NodePeer[] {
+  return [...items].sort(compareNodePeers)
+}
+
 export function useNodes() {
   const toast = useToast()
   const confirm = useConfirm()
@@ -77,7 +129,7 @@ export function useNodes() {
     loading.value = true
     try {
       const data = await nodesApi.getNodes()
-      if (data) nodes.value = data
+      if (data) nodes.value = sortNodes(data)
     } catch (e: unknown) {
       toast.add({
         severity: 'error',
@@ -95,7 +147,8 @@ export function useNodes() {
       if (rows[nodeId] && !peersCache[nodeId]) {
         peersCache[nodeId] = null
         try {
-          peersCache[nodeId] = await nodesApi.getNodePeers(nodeId)
+          const peers = await nodesApi.getNodePeers(nodeId)
+          peersCache[nodeId] = sortNodePeers(peers ?? [])
         } catch {
           peersCache[nodeId] = []
         }
@@ -134,13 +187,16 @@ export function useNodes() {
     try {
       const node = await nodesApi.addNode(formData)
       if (node) {
-        nodes.value.push({
-          ...node,
-          online: false,
-          reachable: false,
-          online_peers_count: 0,
-          online_threshold_seconds: 180,
-        })
+        nodes.value = sortNodes([
+          ...nodes.value,
+          {
+            ...node,
+            online: false,
+            reachable: false,
+            online_peers_count: 0,
+            online_threshold_seconds: 180,
+          },
+        ])
         showAdd.value = false
         toast.add({
           severity: 'success',
@@ -196,10 +252,11 @@ export function useNodes() {
   async function silentRefresh() {
     try {
       const data = await nodesApi.getNodes()
-      if (data) nodes.value = data
+      if (data) nodes.value = sortNodes(data)
       for (const nodeId of Object.keys(expandedRows.value)) {
         if (expandedRows.value[nodeId]) {
-          peersCache[nodeId] = await nodesApi.getNodePeers(nodeId)
+          const peers = await nodesApi.getNodePeers(nodeId)
+          peersCache[nodeId] = sortNodePeers(peers ?? [])
         }
       }
     } catch {
