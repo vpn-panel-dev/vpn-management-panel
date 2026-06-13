@@ -213,7 +213,7 @@ export function useUsers() {
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   onMounted(() => {
-    pollTimer = setInterval(silentRefresh, 20_000)
+    pollTimer = setInterval(silentRefresh, 5_000)
   })
 
   onUnmounted(() => {

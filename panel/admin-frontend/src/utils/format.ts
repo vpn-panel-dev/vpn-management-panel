@@ -6,10 +6,10 @@ import { i18n } from '../i18n'
  * @example fmtBytes(1073741824) → "1.00 GB"
  */
 export function fmtBytes(b: number): string {
-  if (b >= 1073741824) return (b / 1073741824).toFixed(2) + ' GB'
-  if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB'
-  if (b >= 1024) return (b / 1024).toFixed(0) + ' KB'
-  return b + ' B'
+  if (b >= 1073741824) return `${(b / 1073741824).toFixed(2)} GB`
+  if (b >= 1048576) return `${(b / 1048576).toFixed(1)} MB`
+  if (b >= 1024) return `${(b / 1024).toFixed(0)} KB`
+  return `${b} B`
 }
 
 function resolveBrowserLocale(locale: string): string {
@@ -53,7 +53,10 @@ export function formatDateTime(iso: string): string {
  */
 export function fmtHandshake(lastHandshake: string | null): string {
   if (!lastHandshake) return i18n.global.t('time.never')
-  const sec = Math.floor((Date.now() - new Date(lastHandshake).getTime()) / 1000)
+  const timestamp = new Date(lastHandshake).getTime()
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return i18n.global.t('time.never')
+  const sec = Math.floor((Date.now() - timestamp) / 1000)
+  if (sec < 0) return i18n.global.t('time.never')
   if (sec < 60) return i18n.global.t('time.secondsAgo', { n: sec })
   if (sec < 3600) return i18n.global.t('time.minutesAgo', { n: Math.floor(sec / 60) })
   if (sec < 86400) return i18n.global.t('time.hoursAgo', { n: Math.floor(sec / 3600) })
