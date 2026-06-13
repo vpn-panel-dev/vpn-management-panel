@@ -112,7 +112,7 @@
         <div>
           <span>{{ $t('userMobile.nodes') }}</span>
           <div v-if="user.peers?.length" class="mobile-peer-list">
-            <span v-for="p in user.peers" :key="p.node_id" class="peer-chip">
+            <span v-for="p in sortedPeers(user.peers)" :key="p.node_id" class="peer-chip">
               <span
                 :title="
                   p.last_handshake
@@ -240,7 +240,7 @@ import {
   remnawaveBlockedReasonSeverity,
 } from '../../utils/status'
 import { fmtHandshake, fmtDate, fmtBytes, formatDateTime } from '../../utils/format'
-import type { User, Node } from '../../api'
+import type { Node, Peer, User } from '../../api'
 
 const { t } = useI18n()
 
@@ -274,6 +274,19 @@ function trafficLimitLabel(limitBytes: number): string {
 
 function formatDateTimeOrDash(iso: string | null): string {
   return iso ? formatDateTime(iso) : '—'
+}
+
+function compareText(left: string | null | undefined, right: string | null | undefined): number {
+  return (left ?? '').localeCompare(right ?? '', 'ru', { sensitivity: 'base' })
+}
+
+function sortedPeers(peers: Peer[]): Peer[] {
+  return [...peers].sort((left, right) => {
+    const nameDiff = compareText(left.node_name, right.node_name)
+    if (nameDiff !== 0) return nameDiff
+
+    return compareText(left.node_id, right.node_id)
+  })
 }
 </script>
 

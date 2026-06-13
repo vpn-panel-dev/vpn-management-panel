@@ -1,11 +1,12 @@
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { useI18n } from 'vue-i18n'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { nodesApi } from '../api/nodes'
 import type { Node, User } from '../api/types'
 import { usersApi } from '../api/users'
 import { makeMockNodes, makeMockUsers, scenarioFromLocation } from '../utils/mockUsers'
+import { sortNodes } from './useNodes'
 
 export function useUsers() {
   const toast = useToast()
@@ -30,14 +31,14 @@ export function useUsers() {
     try {
       if (scenario) {
         users.value = makeMockUsers(scenario)
-        allNodes.value = makeMockNodes()
+        allNodes.value = sortNodes(makeMockNodes())
         return
       }
       const [u, n] = await Promise.all([usersApi.getUsers(), nodesApi.getNodes()])
       if (u) {
         users.value = u
       }
-      if (n) allNodes.value = n
+      if (n) allNodes.value = sortNodes(n)
     } catch (e: unknown) {
       loadError.value = e instanceof Error ? e.message : t('common.error')
       toast.add({
@@ -203,7 +204,7 @@ export function useUsers() {
       if (u) {
         users.value = u
       }
-      if (n) allNodes.value = n
+      if (n) allNodes.value = sortNodes(n)
     } catch {
       /* ignore background errors */
     }

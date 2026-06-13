@@ -217,7 +217,7 @@
         <h4>{{ $t('userDetail.nodes') }}</h4>
       </div>
       <div v-if="user.peers.length" class="peer-detail-list">
-        <article v-for="peer in user.peers" :key="peer.node_id" class="peer-detail-card">
+        <article v-for="peer in sortedPeers" :key="peer.node_id" class="peer-detail-card">
           <div class="peer-head">
             <strong>{{ peer.node_name }}</strong>
             <Tag
@@ -326,6 +326,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
@@ -335,7 +336,7 @@ import type { Node, User } from '../../api'
 
 const { t } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   user: User | null
   readyNodes: Node[]
   syncingUser: boolean
@@ -433,6 +434,21 @@ function syncSeverity(status: string, error: string | null): string {
   if (status === 'synced') return 'success'
   return 'warn'
 }
+
+function compareText(left: string | null | undefined, right: string | null | undefined): number {
+  return (left ?? '').localeCompare(right ?? '', 'ru', { sensitivity: 'base' })
+}
+
+const sortedPeers = computed(() => {
+  if (!props.user) return []
+
+  return [...props.user.peers].sort((left, right) => {
+    const nameDiff = compareText(left.node_name, right.node_name)
+    if (nameDiff !== 0) return nameDiff
+
+    return compareText(left.node_id, right.node_id)
+  })
+})
 </script>
 
 <style scoped>

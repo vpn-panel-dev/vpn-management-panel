@@ -1,10 +1,9 @@
-import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
-import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
+import { useToast } from 'primevue/usetoast'
+import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { nodesApi } from '../api/nodes'
-import type { Node, NodePeer, NodeCreate } from '../api/types'
-import { getNodeStage } from '../utils/status'
+import type { Node, NodeCreate, NodePeer } from '../api/types'
 
 export type AddForm = NodeCreate
 
@@ -60,29 +59,18 @@ export const defaultForm: NodeCreate = {
   h4: '4',
 }
 
-const nodeStageOrder: Record<ReturnType<typeof getNodeStage>, number> = {
-  ready: 0,
-  syncing: 1,
-  applying_config: 2,
-  offline: 3,
-  error: 4,
-}
-
 function compareText(left: string | null | undefined, right: string | null | undefined): number {
   return (left ?? '').localeCompare(right ?? '', 'ru', { sensitivity: 'base' })
 }
 
 function compareNodes(left: Node, right: Node): number {
-  const stageDiff = nodeStageOrder[getNodeStage(left)] - nodeStageOrder[getNodeStage(right)]
-  if (stageDiff !== 0) return stageDiff
-
   const nameDiff = compareText(left.name, right.name)
   if (nameDiff !== 0) return nameDiff
 
   return compareText(left.id, right.id)
 }
 
-function sortNodes(items: Node[]): Node[] {
+export function sortNodes(items: Node[]): Node[] {
   return [...items].sort(compareNodes)
 }
 
