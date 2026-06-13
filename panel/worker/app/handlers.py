@@ -244,9 +244,11 @@ class CommandHandler:
     async def _heartbeat_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
         node_id = str(snapshot['id'])
         endpoint = str(snapshot['url']).rstrip('/')
+        token = str(snapshot.get('token') or '')
         try:
             await self._node_client.health(endpoint)
-            result = {'ok': True}
+            dump = await self._node_client.dump(endpoint, token)
+            result = {'ok': True, 'peers': self._peer_results(dump)}
         except Exception as exc:
             result = {'ok': False, 'error': str(exc)}
         await self._backend.report_heartbeat_result(node_id, result)

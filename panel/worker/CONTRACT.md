@@ -203,11 +203,12 @@ Node snapshot shape:
   - Peer counters update local AmneziaWG accounting. If combined Remnawave imported usage plus local AmneziaWG lifetime usage reaches the imported traffic limit, this endpoint can block local peers, queue follow-up node sync for affected nodes, and enqueue `remnawave_disable_user` jobs for affected Remnawave users.
 
 - `POST /internal/worker/nodes/{node_id}/heartbeat-result`
-  - Success body: `{"ok":true}`.
+  - Success body: `{"ok":true,"peers":[{"public_key":"...","endpoint":"203.0.113.10:54321 | null","rx_bytes":100,"tx_bytes":50,"last_handshake":"RFC3339 timestamp | null"}]}`.
   - Failure body: `{"ok":false,"error":"message"}`.
   - On success the backend sets node reachability to `reachable`, updates `last_heartbeat_at` and clears `last_heartbeat_error`.
+  - When `peers` is present on success, the backend also refreshes peer endpoint, handshake, and traffic counters from the lightweight node dump payload.
   - On failure the backend sets node reachability to `unreachable`, updates `last_heartbeat_at`, and stores `last_heartbeat_error`.
-  - Heartbeat describes node-agent HTTP reachability only. It does not change sync status, provision status, interface metadata, peers, or traffic counters.
+  - Heartbeat still does not change sync status, provision status, or interface metadata.
 
 - `POST /internal/worker/nodes/{node_id}/provision-result`
   - Success body:

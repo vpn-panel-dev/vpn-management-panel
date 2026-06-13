@@ -288,7 +288,24 @@ async def test_health_check_all_reports_reachability() -> None:
     assert result.ok is True
     assert result.result == {'nodes': 1, 'reachable': 1, 'unreachable': 0}
     assert ('health', 'http://agent.test') in node.calls
-    assert ('heartbeat_result', 'node-1', {'ok': True}) in backend.calls
+    assert ('dump', 'http://agent.test', 'node-token') in node.calls
+    assert (
+        'heartbeat_result',
+        'node-1',
+        {
+            'ok': True,
+            'peers': [
+                {
+                    'public_key': 'pub-1',
+                    'status': 'active',
+                    'endpoint': '203.0.113.10:54321',
+                    'rx_bytes': 10,
+                    'tx_bytes': 20,
+                    'last_handshake': None,
+                }
+            ],
+        },
+    ) in backend.calls
 
 
 async def test_untracked_command_skips_operation_lifecycle() -> None:
@@ -311,7 +328,10 @@ async def test_untracked_command_skips_operation_lifecycle() -> None:
 
     assert result.ok is True
     assert ('fetch_sync_snapshot', None) in backend.calls
-    assert ('heartbeat_result', 'node-1', {'ok': True}) in backend.calls
+    assert any(
+        call[0] == 'heartbeat_result' and call[1] == 'node-1' and call[2]['ok'] is True
+        for call in backend.calls
+    )
 
 
 async def test_sync_all_uses_per_node_lock() -> None:
