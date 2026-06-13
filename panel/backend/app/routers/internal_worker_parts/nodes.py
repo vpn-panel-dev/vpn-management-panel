@@ -24,6 +24,33 @@ router = APIRouter()
 ACTIVE_OPERATION_STATUSES = {'queued', 'pending', 'running'}
 
 
+async def _apply_peer_results(
+    db: DB,
+    peers: list[Any],
+    peer_results: list[Any],
+    sampled_at: datetime,
+) -> None:
+    peers_by_public_key = {peer.user.public_key: peer for peer in peers if peer.user.public_key}
+    limited_node_ids: set[str] = set()
+    local_lifecycle_node_ids: set[str] = set()
+    remote_disable_uuids: set[str] = set()
+    for peer_result in peer_results:
+        peer = peers_by_public_key.get(peer_result.public_key)
+        if not peer:
+            continue
+        sample = await apply_peer_result(db, peer, peer_result, sampled_at)
+        if sample is not None:
+            local_lifecycle_node_ids.update(
+                await enforce_local_lifecycle_for_user(db, peer.user_id)
+            )
+            node_ids, user_uuids = await enforce_remnawave_combined_limit_for_user(db, peer.user_id)
+            limited_node_ids.update(node_ids)
+            remote_disable_uuids.update(user_uuids)
+    await enqueue_sync_nodes(db, local_lifecycle_node_ids)
+    await enqueue_sync_nodes(db, limited_node_ids)
+    await enqueue_remnawave_disable_users(db, remote_disable_uuids)
+
+
 def _aware(value: datetime) -> datetime:
     if value.tzinfo is not None:
         return value
@@ -151,33 +178,16 @@ async def node_sync_result(node_id: str, data: SyncResult, db: DB):
     node.last_synced_at = synced_at
     if data.interface:
         apply_interface_result(node, data.interface)
-    peers_by_public_key = {peer.user.public_key: peer for peer in peers if peer.user.public_key}
     sampled_at = utc_now()
     seen_public_keys: set[str] = set()
-    limited_node_ids: set[str] = set()
-    local_lifecycle_node_ids: set[str] = set()
-    remote_disable_uuids: set[str] = set()
     for peer_result in data.peers:
         seen_public_keys.add(peer_result.public_key)
-        peer = peers_by_public_key.get(peer_result.public_key)
-        if not peer:
-            continue
-        sample = await apply_peer_result(db, peer, peer_result, sampled_at)
-        if sample is not None:
-            local_lifecycle_node_ids.update(
-                await enforce_local_lifecycle_for_user(db, peer.user_id)
-            )
-            node_ids, user_uuids = await enforce_remnawave_combined_limit_for_user(db, peer.user_id)
-            limited_node_ids.update(node_ids)
-            remote_disable_uuids.update(user_uuids)
+    await _apply_peer_results(db, peers, data.peers, sampled_at)
     for peer in peers:
         if peer.status == 'pending_delete' and peer.user.public_key not in seen_public_keys:
             peer.status = 'deleted'
     await purge_confirmed_remnawave_deletes(db)
     await db.commit()
-    await enqueue_sync_nodes(db, local_lifecycle_node_ids)
-    await enqueue_sync_nodes(db, limited_node_ids)
-    await enqueue_remnawave_disable_users(db, remote_disable_uuids)
     return {'status': 'ok'}
 
 
@@ -200,14 +210,14 @@ async def node_provision_result(node_id: str, data: ProvisionResult, db: DB):
 
 @router.post('/nodes/{node_id}/heartbeat-result')
 async def node_heartbeat_result(node_id: str, data: HeartbeatResult, db: DB):
-    node = await db.get(Node, node_id)
-    if not node:
-        raise HTTPException(status_code=404, detail='Node not found')
+    node, peers = await load_node_with_peers(db, node_id)
     observed_at = utc_now()
     node.last_heartbeat_at = observed_at
     node.last_seen_at = observed_at if data.ok else node.last_seen_at
     node.reachability_status = 'reachable' if data.ok else 'unreachable'
     node.health_status = 'online' if data.ok else 'offline'
     node.last_heartbeat_error = None if data.ok else data.error or 'Worker heartbeat failed'
+    if data.ok and data.peers:
+        await _apply_peer_results(db, peers, data.peers, observed_at)
     await db.commit()
     return {'status': node.reachability_status}

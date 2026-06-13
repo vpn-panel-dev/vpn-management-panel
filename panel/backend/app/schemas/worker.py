@@ -41,6 +41,17 @@ class PeerSyncResult(BaseModel):
     tx_bytes: int | None = Field(default=None, ge=0)
     last_handshake: datetime | None = None
 
+    @field_validator('last_handshake', mode='before')
+    @classmethod
+    def _normalize_last_handshake(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)) and value <= 0:
+            return None
+        if isinstance(value, str) and value.strip() in {'0', '0.0'}:
+            return None
+        return value
+
 
 class SyncResult(BaseModel):
     ok: bool = True
@@ -58,6 +69,7 @@ class ProvisionResult(BaseModel):
 class HeartbeatResult(BaseModel):
     ok: bool = True
     error: str | None = None
+    peers: list[PeerSyncResult] = []
 
 
 class RemnawaveReconcileCompleteIn(BaseModel):

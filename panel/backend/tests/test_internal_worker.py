@@ -138,6 +138,44 @@ async def test_heartbeat_result_updates_reachability_only(
     assert seeded_node.provision_status == 'succeeded'
 
 
+async def test_heartbeat_result_updates_peer_handshake_without_touching_sync_status(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, _, peer = seeded_worker_state
+
+    resp = await client.post(
+        f'/internal/worker/nodes/{node.id}/heartbeat-result',
+        json={
+            'ok': True,
+            'peers': [
+                {
+                    'public_key': 'alice-public',
+                    'endpoint': '203.0.113.15:54321',
+                    'rx_bytes': 10,
+                    'tx_bytes': 5,
+                    'last_handshake': 0,
+                }
+            ],
+        },
+        headers=worker_headers,
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() == {'status': 'reachable'}
+
+    saved_node = await db.get(Node, node.id)
+    saved_peer = await db.get(Peer, peer.id)
+    await db.refresh(saved_node)
+    await db.refresh(saved_peer)
+    assert saved_node.reachability_status == 'reachable'
+    assert saved_node.sync_status == 'pending'
+    assert saved_node.last_synced_at is None
+    assert saved_peer.endpoint == '203.0.113.15:54321'
+    assert saved_peer.last_handshake is None
+    assert saved_peer.raw_rx == 10
+    assert saved_peer.raw_tx == 5
+
+
 async def test_snapshots_include_worker_fields(
     client: AsyncClient, worker_headers, seeded_worker_state
 ):
