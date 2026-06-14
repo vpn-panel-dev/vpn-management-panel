@@ -154,6 +154,15 @@ def test_delete_peer_unauthorized(client: TestClient):
 
 
 def test_status_authorized(client: TestClient, auth_headers: dict):
+    Path(os.environ['WG_CONFIG']).write_text(
+        '[Interface]\n'
+        'PrivateKey = SERVERKEY========================================\n'
+        '\n'
+        '[Peer]\n'
+        'PublicKey = abcdefghijklmnopqrstuvwxyz1234567890abcd=\n'
+        'PresharedKey = PSK1=============================================\n'
+        'AllowedIPs = 10.8.0.2/32\n'
+    )
     with patch.object(subprocess, 'run') as mock_run:
         mock_run.return_value.stdout = _sample_show_output()
         mock_run.return_value.stderr = ''
@@ -164,6 +173,8 @@ def test_status_authorized(client: TestClient, auth_headers: dict):
         data = resp.json()
         assert data['interface']['public_key'] == 'Y7LZT0pB0tMMR2MBYipxjtY7E3HqJg+a+LQ4GqFjWk8='
         assert len(data['peers']) == 2
+        assert data['peers'][0]['psk_key'] == 'PSK1============================================='
+        assert 'psk_key' not in data['peers'][1]
 
 
 def test_status_awg_error(client: TestClient, auth_headers: dict):
@@ -284,7 +295,6 @@ def test_configure_interface_no_existing_config(client: TestClient, auth_headers
 
 
 def test_configure_interface_preserves_peers(client: TestClient, auth_headers: dict):
-    """Reconfiguration should keep existing peer blocks."""
     cfg_path = os.environ['WG_CONFIG']
     with Path(cfg_path).open('w') as f:
         f.write(
@@ -314,9 +324,58 @@ def test_configure_interface_preserves_peers(client: TestClient, auth_headers: d
             assert 'PublicKey = PEERKEY==========================================' in content
             assert 'AllowedIPs = 10.8.0.2/32' in content
 
+        args = mock_run.call_args.args[0]
+        assert args[:3] == ['awg', 'set', 'awg0']
+        assert 'peer' not in args
+        assert 'syncconf' not in args
+        assert 'i1' not in args
+
+
+def test_configure_interface_noop_skips_write_and_live_apply(
+    client: TestClient, auth_headers: dict
+):
+    cfg_path = os.environ['WG_CONFIG']
+    existing = (
+        '[Interface]\n'
+        'PrivateKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n'
+        'Address = 10.8.0.1/24\n'
+        'ListenPort = 51820\n'
+        'Jc = 4\n'
+        'Jmin = 40\n'
+        'Jmax = 70\n'
+        'S1 = 0\n'
+        'S2 = 0\n'
+        'S3 = 0\n'
+        'S4 = 0\n'
+        'H1 = 1\n'
+        'H2 = 2\n'
+        'H3 = 3\n'
+        'H4 = 4\n'
+        '\n'
+        '[Peer]\n'
+        'PublicKey = PEERKEY==========================================\n'
+        'AllowedIPs = 10.8.0.2/32\n'
+    )
+    Path(cfg_path).write_text(existing)
+
+    with patch.object(subprocess, 'run') as mock_run:
+        resp = client.put(
+            '/interface',
+            json={
+                'private_key': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                'address': '10.8.0.1/24',
+                'listen_port': 51820,
+            },
+            headers=auth_headers,
+        )
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() == {'status': 'configured'}
+    assert Path(cfg_path).read_text() == existing
+    mock_run.assert_not_called()
+
 
 def test_configure_interface_live_awg_failure_is_ignored(client: TestClient, auth_headers: dict):
-    """Live awg setconf failure should not fail the request."""
     with patch.object(subprocess, 'run') as mock_run:
         mock_run.side_effect = subprocess.CalledProcessError(1, 'awg', stderr='no device')
 
@@ -327,6 +386,99 @@ def test_configure_interface_live_awg_failure_is_ignored(client: TestClient, aut
         )
         assert resp.status_code == HTTPStatus.OK
         assert resp.json() == {'status': 'configured'}
+
+
+def test_configure_interface_live_apply_skips_empty_i_values(
+    client: TestClient, auth_headers: dict
+):
+    with patch.object(subprocess, 'run') as mock_run:
+        mock_run.return_value.stdout = ''
+        mock_run.return_value.stderr = ''
+        mock_run.return_value.returncode = 0
+
+        resp = client.put(
+            '/interface',
+            json={'private_key': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='},
+            headers=auth_headers,
+        )
+
+    assert resp.status_code == HTTPStatus.OK
+    args = mock_run.call_args.args[0]
+    assert 'i1' not in args
+    assert 'i2' not in args
+    assert 'i3' not in args
+    assert 'i4' not in args
+    assert 'i5' not in args
+
+
+def test_configure_interface_live_apply_includes_non_empty_i_values(
+    client: TestClient, auth_headers: dict
+):
+    with patch.object(subprocess, 'run') as mock_run:
+        mock_run.return_value.stdout = ''
+        mock_run.return_value.stderr = ''
+        mock_run.return_value.returncode = 0
+
+        resp = client.put(
+            '/interface',
+            json={
+                'private_key': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                'i1': 'custom1',
+                'i2': 'custom2',
+            },
+            headers=auth_headers,
+        )
+
+    assert resp.status_code == HTTPStatus.OK
+    args = mock_run.call_args.args[0]
+    assert 'i1' in args and 'custom1' in args
+    assert 'i2' in args and 'custom2' in args
+    assert 'i3' not in args
+    assert 'i4' not in args
+    assert 'i5' not in args
+
+
+def test_configure_interface_live_apply_clears_existing_i_value(
+    client: TestClient, auth_headers: dict
+):
+    cfg_path = os.environ['WG_CONFIG']
+    Path(cfg_path).write_text(
+        '[Interface]\n'
+        'PrivateKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n'
+        'Address = 10.8.0.1/24\n'
+        'ListenPort = 51820\n'
+        'Jc = 4\n'
+        'Jmin = 40\n'
+        'Jmax = 70\n'
+        'S1 = 0\n'
+        'S2 = 0\n'
+        'S3 = 0\n'
+        'S4 = 0\n'
+        'H1 = 1\n'
+        'H2 = 2\n'
+        'H3 = 3\n'
+        'H4 = 4\n'
+        'I1 = custom1\n'
+    )
+
+    with patch.object(subprocess, 'run') as mock_run:
+        mock_run.return_value.stdout = ''
+        mock_run.return_value.stderr = ''
+        mock_run.return_value.returncode = 0
+
+        resp = client.put(
+            '/interface',
+            json={
+                'private_key': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                'i1': '',
+            },
+            headers=auth_headers,
+        )
+
+    assert resp.status_code == HTTPStatus.OK
+    args = mock_run.call_args.args[0]
+    i1_index = args.index('i1')
+    assert args[i1_index + 1] == ''
 
 
 def test_configure_interface_with_optional_params(client: TestClient, auth_headers: dict):
@@ -419,8 +571,7 @@ def test_sync_peer_with_psk(client: TestClient, auth_headers: dict):
             assert 'PresharedKey = PSKKEY============================================' in content
 
 
-def test_sync_peer_existing_skips_persist(client: TestClient, auth_headers: dict):
-    """If peer already exists on interface, skip file persistence."""
+def test_sync_peer_existing_updates_persisted_block(client: TestClient, auth_headers: dict):
     status_output = """interface: awg0
   public key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
   listening port: 51820
@@ -428,6 +579,15 @@ def test_sync_peer_existing_skips_persist(client: TestClient, auth_headers: dict
 peer: PEERKEY==========================================
   allowed ips: 10.8.0.2/32
 """
+    Path(os.environ['WG_CONFIG']).write_text(
+        '[Interface]\n'
+        'PrivateKey = SERVERKEY========================================\n'
+        '\n'
+        '[Peer]\n'
+        'PublicKey = PEERKEY==========================================\n'
+        'PresharedKey = OLDPSK=============================================\n'
+        'AllowedIPs = 10.8.0.9/32\n'
+    )
     with patch.object(subprocess, 'run') as mock_run:
         mock_run.return_value.stdout = status_output
         mock_run.return_value.stderr = ''
@@ -438,10 +598,17 @@ peer: PEERKEY==========================================
             json={
                 'public_key': 'PEERKEY==========================================',
                 'allowed_ip': '10.8.0.2',
+                'psk_key': 'NEWPSK=============================================',
             },
             headers=auth_headers,
         )
         assert resp.status_code == HTTPStatus.OK
+
+    content = Path(os.environ['WG_CONFIG']).read_text()
+    assert 'AllowedIPs = 10.8.0.2/32' in content
+    assert 'PresharedKey = NEWPSK=============================================' in content
+    assert 'AllowedIPs = 10.8.0.9/32' not in content
+    assert 'PresharedKey = OLDPSK=============================================' not in content
 
 
 def test_delete_peer(client: TestClient, auth_headers: dict):
@@ -518,6 +685,26 @@ def test_persist_peer_idempotent():
     with Path(os.environ['WG_CONFIG']).open() as f:
         content = f.read()
         assert content.count('PublicKey = DUPEPEER=========================================') == 1
+
+
+def test_persist_peer_updates_existing_block():
+    agent._persist_peer(
+        'DUPEPEER=========================================',
+        '10.8.0.3',
+        psk_key='OLDPSK=============================================',
+    )
+    agent._persist_peer(
+        'DUPEPEER=========================================',
+        '10.8.0.8',
+        psk_key='NEWPSK=============================================',
+    )
+    with Path(os.environ['WG_CONFIG']).open() as f:
+        content = f.read()
+        assert content.count('PublicKey = DUPEPEER=========================================') == 1
+        assert 'AllowedIPs = 10.8.0.8/32' in content
+        assert 'PresharedKey = NEWPSK=============================================' in content
+        assert 'AllowedIPs = 10.8.0.3/32' not in content
+        assert 'PresharedKey = OLDPSK=============================================' not in content
 
 
 def test_unpersist_peer_removes_block():

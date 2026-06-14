@@ -206,17 +206,90 @@ def parse_awg_show(output: str) -> dict:
     return result
 
 
-def _persist_peer(pubkey: str, allowed_ip: str, psk_key: str = '') -> None:
+def _configured_peers() -> dict[str, dict[str, Any]]:
+    if not Path(WG_CONFIG).exists():
+        return {}
+
     with _config_lock():
-        with Path(WG_CONFIG).open() as f:
-            if pubkey in f.read():
+        config_text = Path(WG_CONFIG).read_text()
+
+    peers: dict[str, dict[str, Any]] = {}
+    current: dict[str, Any] | None = None
+    for raw in config_text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line == '[Peer]':
+            if current and current.get('public_key'):
+                peers[str(current['public_key'])] = current
+            current = {'psk_key': '', 'allowed_ips': []}
+            continue
+        if current is None or '=' not in line:
+            continue
+        key, _, value = line.partition('=')
+        key = key.strip().lower()
+        value = value.strip()
+        if key == 'publickey':
+            current['public_key'] = value
+        elif key == 'presharedkey':
+            current['psk_key'] = value
+        elif key == 'allowedips':
+            current['allowed_ips'] = [ip.strip() for ip in value.split(',') if ip.strip()]
+    if current and current.get('public_key'):
+        peers[str(current['public_key'])] = current
+    return peers
+
+
+def _persist_peer(pubkey: str, allowed_ip: str, psk_key: str = '') -> None:
+    block = ['\n[Peer]\n', f'PublicKey = {pubkey}\n']
+    if psk_key:
+        block.append(f'PresharedKey = {psk_key}\n')
+    block.append(f'AllowedIPs = {allowed_ip}/32\n')
+
+    with _config_lock():
+        config_path = Path(WG_CONFIG)
+        if not config_path.exists():
+            with config_path.open('w') as f:
+                f.writelines(block)
+            return
+
+        lines = config_path.read_text().splitlines(keepends=True)
+        new_lines: list[str] = []
+        peer_buffer: list[str] = []
+        peer_pubkey: str | None = None
+        replaced = False
+
+        def flush_peer_buffer() -> None:
+            nonlocal replaced, peer_buffer, peer_pubkey
+            if not peer_buffer:
                 return
-        with Path(WG_CONFIG).open('a') as f:
-            block = f'\n[Peer]\nPublicKey = {pubkey}\n'
-            if psk_key:
-                block += f'PresharedKey = {psk_key}\n'
-            block += f'AllowedIPs = {allowed_ip}/32\n'
-            f.write(block)
+            if peer_pubkey == pubkey:
+                new_lines.extend(block)
+                replaced = True
+            else:
+                new_lines.extend(peer_buffer)
+            peer_buffer = []
+            peer_pubkey = None
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('[Peer]'):
+                flush_peer_buffer()
+                peer_buffer = [line]
+            elif peer_buffer:
+                peer_buffer.append(line)
+                if stripped.startswith('PublicKey = '):
+                    peer_pubkey = stripped.split('=', 1)[1].strip()
+            else:
+                new_lines.append(line)
+
+        flush_peer_buffer()
+
+        if not replaced:
+            new_lines.extend(block)
+
+        with config_path.open('w') as f:
+            f.writelines(new_lines)
 
 
 def _unpersist_peer(pubkey: str) -> None:
@@ -249,6 +322,113 @@ def _unpersist_peer(pubkey: str) -> None:
             f.writelines(new_lines)
 
 
+def _split_config_sections(config_text: str) -> tuple[str, str]:
+    interface_part, sep, peer_part = config_text.partition('[Peer]')
+    if not sep:
+        return config_text, ''
+    return interface_part, '\n' + sep + peer_part
+
+
+def _interface_has_key(interface_text: str, key: str) -> bool:
+    pattern = re.compile(rf'^{re.escape(key)}\s*=.*$', re.MULTILINE)
+    return pattern.search(interface_text) is not None
+
+
+def _build_interface_block(cfg: InterfaceConfig) -> str:
+    interface_block = (
+        '[Interface]\n'
+        f'PrivateKey = {cfg.private_key}\n'
+        f'Address = {cfg.address}\n'
+        f'ListenPort = {cfg.listen_port}\n'
+        f'Jc = {cfg.jc}\n'
+        f'Jmin = {cfg.jmin}\n'
+        f'Jmax = {cfg.jmax}\n'
+        f'S1 = {cfg.s1}\n'
+        f'S2 = {cfg.s2}\n'
+        f'S3 = {cfg.s3}\n'
+        f'S4 = {cfg.s4}\n'
+        f'H1 = {cfg.h1}\n'
+        f'H2 = {cfg.h2}\n'
+        f'H3 = {cfg.h3}\n'
+        f'H4 = {cfg.h4}\n'
+    )
+    for key, val in (
+        ('I1', cfg.i1),
+        ('I2', cfg.i2),
+        ('I3', cfg.i3),
+        ('I4', cfg.i4),
+        ('I5', cfg.i5),
+    ):
+        if val:
+            interface_block += f'{key} = {val}\n'
+    if cfg.post_up:
+        interface_block += f'PostUp = {cfg.post_up}\n'
+    if cfg.post_down:
+        interface_block += f'PostDown = {cfg.post_down}\n'
+    return interface_block
+
+
+def _live_interface_set_args(
+    cfg: InterfaceConfig, private_key_path: str, previous_interface_text: str
+) -> list[str]:
+    args = [
+        'awg',
+        'set',
+        INTERFACE,
+        'private-key',
+        private_key_path,
+        'listen-port',
+        str(cfg.listen_port),
+        'jc',
+        str(cfg.jc),
+        'jmin',
+        str(cfg.jmin),
+        'jmax',
+        str(cfg.jmax),
+        's1',
+        str(cfg.s1),
+        's2',
+        str(cfg.s2),
+        's3',
+        str(cfg.s3),
+        's4',
+        str(cfg.s4),
+        'h1',
+        cfg.h1,
+        'h2',
+        cfg.h2,
+        'h3',
+        cfg.h3,
+        'h4',
+        cfg.h4,
+    ]
+    for key, val in (
+        ('i1', cfg.i1),
+        ('i2', cfg.i2),
+        ('i3', cfg.i3),
+        ('i4', cfg.i4),
+        ('i5', cfg.i5),
+    ):
+        if val or _interface_has_key(previous_interface_text, key.upper()):
+            args.extend([key, val])
+    return args
+
+
+def _apply_live_interface(cfg: InterfaceConfig, previous_interface_text: str) -> None:
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.key', delete=False) as tf:
+        tf.write(cfg.private_key)
+        private_key_path = tf.name
+    try:
+        subprocess.run(  # noqa: S603
+            _live_interface_set_args(cfg, private_key_path, previous_interface_text),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    finally:
+        Path(private_key_path).unlink(missing_ok=True)
+
+
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 
@@ -259,7 +439,14 @@ def health():
 
 @app.get('/status')
 def status(_: Auth):
-    return parse_awg_show(run_awg('show', INTERFACE))
+    result = parse_awg_show(run_awg('show', INTERFACE))
+    configured_peers = _configured_peers()
+    for peer in result['peers']:
+        configured = configured_peers.get(str(peer.get('public_key') or ''))
+        if configured is None:
+            continue
+        peer['psk_key'] = configured.get('psk_key') or ''
+    return result
 
 
 @app.get('/dump')
@@ -311,65 +498,26 @@ class InterfaceConfig(BaseModel):
 @app.put('/interface')
 def configure_interface(cfg: InterfaceConfig, _: Auth):
     """Write interface config and apply live if interface is already up."""
-    interface_block = (
-        '[Interface]\n'
-        f'PrivateKey = {cfg.private_key}\n'
-        f'Address = {cfg.address}\n'
-        f'ListenPort = {cfg.listen_port}\n'
-        f'Jc = {cfg.jc}\n'
-        f'Jmin = {cfg.jmin}\n'
-        f'Jmax = {cfg.jmax}\n'
-        f'S1 = {cfg.s1}\n'
-        f'S2 = {cfg.s2}\n'
-        f'S3 = {cfg.s3}\n'
-        f'S4 = {cfg.s4}\n'
-        f'H1 = {cfg.h1}\n'
-        f'H2 = {cfg.h2}\n'
-        f'H3 = {cfg.h3}\n'
-        f'H4 = {cfg.h4}\n'
-    )
-    for key, val in (
-        ('I1', cfg.i1),
-        ('I2', cfg.i2),
-        ('I3', cfg.i3),
-        ('I4', cfg.i4),
-        ('I5', cfg.i5),
-    ):
-        if val:
-            interface_block += f'{key} = {val}\n'
-    if cfg.post_up:
-        interface_block += f'PostUp = {cfg.post_up}\n'
-    if cfg.post_down:
-        interface_block += f'PostDown = {cfg.post_down}\n'
+    interface_block = _build_interface_block(cfg)
+    existing = ''
+    existing_interface = ''
     peer_tail = ''
     with _config_lock():
         if Path(WG_CONFIG).exists():
             with Path(WG_CONFIG).open() as f:
                 existing = f.read()
-            _unused, sep, peer_part = existing.partition('[Peer]')
-            if sep:
-                peer_tail = '\n' + sep + peer_part
+            existing_interface, peer_tail = _split_config_sections(existing)
+
+        desired = interface_block + peer_tail
+        if existing == desired:
+            return {'status': 'configured'}
 
         with Path(WG_CONFIG).open('w') as f:
-            f.write(interface_block + peer_tail)
-
-    # awg setconf rejects wg-quick-only fields (Address, PostUp, …) — strip them.
-    # PostUp is executed by awg-quick on the node at startup, not here.
-    native_conf = ''.join(
-        line
-        for line in (interface_block + peer_tail).splitlines(keepends=True)
-        if not _WGQUICK_ONLY.match(line)
-    )
+            f.write(desired)
 
     # Apply live; silently ignore if interface is not up yet (entrypoint handles bring-up).
     with suppress(subprocess.CalledProcessError):
-        subprocess.run(  # noqa: S603
-            ['awg', 'setconf', INTERFACE, '/dev/stdin'],  # noqa: S607
-            input=native_conf,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        _apply_live_interface(cfg, existing_interface)
 
     return {'status': 'configured'}
 
@@ -383,8 +531,7 @@ class SyncPeerRequest(BaseModel):
 @app.put('/peers')
 def sync_peer(req: SyncPeerRequest, _: Auth):
     """Idempotently ensure a peer exists on the interface."""
-    state = parse_awg_show(run_awg('show', INTERFACE))
-    on_node = {p['public_key'] for p in state['peers']}
+    run_awg('show', INTERFACE)
 
     if req.psk_key:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.psk', delete=False) as tf:
@@ -406,8 +553,7 @@ def sync_peer(req: SyncPeerRequest, _: Auth):
     else:
         run_awg('set', INTERFACE, 'peer', req.public_key, 'allowed-ips', f'{req.allowed_ip}/32')
 
-    if req.public_key not in on_node:
-        _persist_peer(req.public_key, req.allowed_ip, req.psk_key or '')
+    _persist_peer(req.public_key, req.allowed_ip, req.psk_key or '')
     return {'status': 'ok'}
 
 
