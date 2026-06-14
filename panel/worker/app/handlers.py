@@ -284,8 +284,15 @@ class CommandHandler:
             token,
             dict(snapshot['interface']),
         )
+        current_status = await self._node_client.status(endpoint, token)
         active_peers, peers_to_delete = self._split_peers(snapshot.get('peers', []))
-        await self._node_client.put_peers(endpoint, token, active_peers)
+        peers_to_put, peers_to_delete = self._reconcile_peers(
+            active_peers,
+            peers_to_delete,
+            current_status,
+        )
+        if peers_to_put:
+            await self._node_client.put_peers(endpoint, token, peers_to_put)
         for public_key in peers_to_delete:
             await self._delete_peer_if_present(endpoint, token, public_key)
         status = await self._node_client.status(endpoint, token)
@@ -336,6 +343,42 @@ class CommandHandler:
                 }
             )
         return active, delete
+
+    def _reconcile_peers(
+        self,
+        active_peers: list[dict[str, Any]],
+        peers_to_delete: list[str],
+        current_status: dict[str, Any],
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        current_peers = {
+            str(peer.get('public_key') or ''): peer
+            for peer in current_status.get('peers') or []
+            if peer.get('public_key')
+        }
+        peers_to_put = [
+            peer
+            for peer in active_peers
+            if not self._peer_matches_current(peer, current_peers.get(str(peer['public_key'])))
+        ]
+        delete_now = [public_key for public_key in peers_to_delete if public_key in current_peers]
+        return peers_to_put, delete_now
+
+    def _peer_matches_current(
+        self, desired_peer: dict[str, Any], current_peer: dict[str, Any] | None
+    ) -> bool:
+        if current_peer is None:
+            return False
+        desired_allowed_ips = self._desired_allowed_ips(desired_peer)
+        current_allowed_ips = tuple(sorted(str(ip) for ip in current_peer.get('allowed_ips') or []))
+        current_psk_key = str(current_peer.get('psk_key') or '')
+        desired_psk_key = str(desired_peer.get('psk_key') or '')
+        return current_allowed_ips == desired_allowed_ips and current_psk_key == desired_psk_key
+
+    def _desired_allowed_ips(self, desired_peer: dict[str, Any]) -> tuple[str, ...]:
+        allowed_ip = str(desired_peer.get('allowed_ip') or '').strip()
+        if not allowed_ip:
+            return ()
+        return (f'{allowed_ip}/32',)
 
     def _interface_result(
         self,

@@ -114,6 +114,18 @@ class FakeNode:
         self.calls: list[tuple[Any, ...]] = []
         self.active = 0
         self.max_active = 0
+        self.status_peers = [
+            {
+                'public_key': 'pub-1',
+                'allowed_ips': ['10.8.0.9/32'],
+                'psk_key': 'stale-psk',
+            },
+            {
+                'public_key': 'pub-2',
+                'allowed_ips': ['10.8.0.3/32'],
+                'psk_key': 'psk-2',
+            },
+        ]
 
     async def put_interface(
         self,
@@ -146,7 +158,7 @@ class FakeNode:
 
     async def status(self, endpoint: str, token: str) -> dict[str, Any]:
         self.calls.append(('status', endpoint, token))
-        return {'endpoint': 'vpn.test:51820'}
+        return {'endpoint': 'vpn.test:51820', 'peers': self.status_peers}
 
     async def dump(self, endpoint: str, token: str) -> dict[str, Any]:
         self.calls.append(('dump', endpoint, token))
@@ -231,7 +243,56 @@ async def test_sync_node_applies_snapshot_and_reports_success() -> None:
     sync_reports = [call for call in backend.calls if call[0] == 'sync_result']
     assert sync_reports[0][2]['peers'][0]['endpoint'] == '203.0.113.10:54321'
     assert any(call[0] == 'put_interface' for call in node.calls)
+    assert (
+        'put_peers',
+        'http://agent.test',
+        'node-token',
+        [{'public_key': 'pub-1', 'allowed_ip': '10.8.0.2', 'psk_key': 'psk-1', 'name': 'Alice'}],
+    ) in node.calls
     assert ('delete_peer', 'http://agent.test', 'node-token', 'pub-2') in node.calls
+
+
+async def test_sync_node_skips_peer_changes_on_zero_diff() -> None:
+    backend = FakeBackend()
+    node = FakeNode()
+    node.status_peers = [
+        {
+            'public_key': 'pub-1',
+            'allowed_ips': ['10.8.0.2/32'],
+            'psk_key': 'psk-1',
+        }
+    ]
+    handler = CommandHandler(backend, node)
+
+    result = await handler.handle(command('sync_node'))
+
+    assert result.ok is True
+    assert not any(call[0] == 'put_peers' for call in node.calls)
+    assert not any(call[0] == 'delete_peer' for call in node.calls)
+
+
+async def test_sync_node_puts_only_changed_peer_and_skips_absent_delete() -> None:
+    backend = FakeBackend()
+    node = FakeNode()
+    node.status_peers = [
+        {
+            'public_key': 'pub-1',
+            'allowed_ips': ['10.8.0.9/32'],
+            'psk_key': 'psk-1',
+        }
+    ]
+    handler = CommandHandler(backend, node)
+
+    result = await handler.handle(command('sync_node'))
+
+    assert result.ok is True
+    assert (
+        'put_peers',
+        'http://agent.test',
+        'node-token',
+        [{'public_key': 'pub-1', 'allowed_ip': '10.8.0.2', 'psk_key': 'psk-1', 'name': 'Alice'}],
+    ) in node.calls
+    assert not any(call[0] == 'delete_peer' for call in node.calls)
 
 
 async def test_provision_node_reports_provision_result() -> None:
