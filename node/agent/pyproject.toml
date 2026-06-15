@@ -3,7 +3,7 @@ name = "node-agent"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi==0.136.*",
+    "fastapi==0.137.*",
     "uvicorn[standard]==0.49.*",
     "supervisor",
 ]
