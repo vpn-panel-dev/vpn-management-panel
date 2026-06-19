@@ -56,11 +56,11 @@
             </div>
             <div class="field">
               <label>S1</label>
-              <InputNumber v-model="form.s1" :min="15" :max="150" style="width: 100%" />
+              <InputNumber v-model="form.s1" :min="0" :max="150" style="width: 100%" />
             </div>
             <div class="field">
               <label>S2</label>
-              <InputNumber v-model="form.s2" :min="15" :max="150" style="width: 100%" />
+              <InputNumber v-model="form.s2" :min="0" :max="150" style="width: 100%" />
             </div>
             <div></div>
             <div class="field">
@@ -140,11 +140,11 @@ const form = reactive<NodeCreate>({ ...defaultForm })
 watch(visible, (val) => {
   if (val) {
     Object.assign(form, {
+      ...defaultForm,
       name: '',
       url: '',
       token: '',
       server_endpoint: '',
-      ...randomObfuscation(),
     })
     showAdvanced.value = false
   }

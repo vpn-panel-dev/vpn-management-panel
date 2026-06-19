@@ -11,16 +11,18 @@ function ri(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-function ru32(): number {
-  return Math.floor(Math.random() * 4294967296)
-}
-
-function randomH(): string {
-  return `${ru32()}-${ru32()}`
+function randomHeaders(): Pick<NodeCreate, 'h1' | 'h2' | 'h3' | 'h4'> {
+  const h1 = ri(5, 2147483000)
+  return {
+    h1: String(h1),
+    h2: String(h1 + 1),
+    h3: String(h1 + 2),
+    h4: String(h1 + 3),
+  }
 }
 
 export function randomObfuscation(): Partial<NodeCreate> {
-  const jmin = ri(10, 50)
+  const jmin = ri(64, 128)
   const s1 = ri(15, 150)
   let s2: number
   do {
@@ -29,15 +31,12 @@ export function randomObfuscation(): Partial<NodeCreate> {
   return {
     jc: ri(3, 5),
     jmin,
-    jmax: ri(50, 100),
+    jmax: ri(jmin + 1, 256),
     s1,
     s2,
     s3: ri(15, 150),
     s4: ri(5, 30),
-    h1: randomH(),
-    h2: randomH(),
-    h3: randomH(),
-    h4: randomH(),
+    ...randomHeaders(),
   }
 }
 
@@ -47,12 +46,12 @@ export const defaultForm: NodeCreate = {
   token: '',
   server_endpoint: '',
   jc: 4,
-  jmin: 50,
-  jmax: 1000,
-  s1: 50,
-  s2: 50,
-  s3: 50,
-  s4: 10,
+  jmin: 40,
+  jmax: 70,
+  s1: 0,
+  s2: 0,
+  s3: 0,
+  s4: 0,
   h1: '1',
   h2: '2',
   h3: '3',
