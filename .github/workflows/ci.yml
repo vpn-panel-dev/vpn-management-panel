@@ -15,7 +15,7 @@ jobs:
       run:
         working-directory: panel/backend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.2.0
@@ -60,7 +60,7 @@ jobs:
       run:
         working-directory: panel/worker
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.2.0
@@ -102,7 +102,7 @@ jobs:
       run:
         working-directory: node/agent
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.2.0
@@ -147,7 +147,7 @@ jobs:
       run:
         working-directory: panel/admin-frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -168,7 +168,7 @@ jobs:
       run:
         working-directory: panel/user-frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
