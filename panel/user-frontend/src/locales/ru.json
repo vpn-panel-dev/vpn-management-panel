@@ -45,7 +45,7 @@
     "kicker": "Telegram-прокси",
     "title": "Доступ через Telegram",
     "enabled": "Включено",
-    "subtitle": "Используйте ссылку Telegram для прокси. HTTPS-резерв остается доступным для копирования или прямого открытия.",
+    "subtitle": "Используйте ссылку Telegram для прокси на узле {node}. HTTPS-резерв остается доступным для копирования или прямого открытия.",
     "primaryNode": "Основной узел: {node}",
     "proxyStatus": "Статус: {status}",
     "openTelegram": "Открыть Telegram",
@@ -113,6 +113,9 @@
   },
   "errors": {
     "generic": "Что-то пошло не так"
+  },
+  "success": {
+    "bg": "#ecfdf5"
   },
   "statuses": {
     "active": {

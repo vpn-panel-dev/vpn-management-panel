@@ -4,17 +4,17 @@
       <div>
         <p class="card-kicker">{{ t('telegramProxy.kicker') }}</p>
         <h2>{{ t('telegramProxy.title') }}</h2>
+        <p class="proxy-text">
+          {{ t('telegramProxy.subtitle', { node: proxy.primary_node_name }) }}
+        </p>
       </div>
-      <span class="proxy-badge">{{ t('telegramProxy.enabled') }}</span>
-    </div>
 
-    <p class="proxy-text">
-      {{ t('telegramProxy.subtitle', { node: proxy.primary_node_name }) }}
-    </p>
-
-    <div class="proxy-meta">
-      <span>{{ t('telegramProxy.primaryNode', { node: proxy.primary_node_name }) }}</span>
-      <span>{{ t('telegramProxy.proxyStatus', { status: proxy.status }) }}</span>
+      <div class="proxy-state">
+        <span class="proxy-badge">{{ t('telegramProxy.enabled') }}</span>
+        <span class="proxy-status">{{
+          t('telegramProxy.proxyStatus', { status: proxy.status })
+        }}</span>
+      </div>
     </div>
 
     <div class="proxy-actions">
@@ -57,16 +57,17 @@ async function copyHttpsUrl() {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 24px;
+  padding: 20px;
+  margin-bottom: 20px;
   display: grid;
-  gap: 16px;
+  gap: 20px;
 }
 
 .proxy-head {
   display: flex;
-  align-items: start;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
 }
 
 .card-kicker {
@@ -75,8 +76,23 @@ async function copyHttpsUrl() {
 
 h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.proxy-text {
+  max-width: 48ch;
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.proxy-state {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  text-align: right;
 }
 
 .proxy-badge {
@@ -86,25 +102,17 @@ h2 {
   font-size: 12px;
   font-weight: 700;
   padding: 6px 10px;
-  white-space: nowrap;
 }
 
-.proxy-text {
-  margin: 0;
-  color: var(--muted);
-}
-
-.proxy-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+.proxy-status {
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.35;
 }
 
 .proxy-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
   gap: 10px;
 }
 
@@ -121,6 +129,7 @@ h2 {
   font: inherit;
   font-weight: 700;
   text-decoration: none;
+  min-width: 0;
 }
 
 .proxy-primary {
@@ -144,8 +153,13 @@ h2 {
     flex-direction: column;
   }
 
+  .proxy-state {
+    justify-items: start;
+    text-align: left;
+  }
+
   .proxy-actions {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .proxy-primary,

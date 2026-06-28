@@ -45,7 +45,7 @@
     "kicker": "Telegram 代理",
     "title": "通过 Telegram 访问",
     "enabled": "已启用",
-    "subtitle": "使用 Telegram 链接访问代理。HTTPS 备用链接可用于复制或直接打开。",
+    "subtitle": "使用位于 {node} 的 Telegram 链接访问代理。HTTPS 备用链接可用于复制或直接打开。",
     "primaryNode": "主节点：{node}",
     "proxyStatus": "状态：{status}",
     "openTelegram": "打开 Telegram",
@@ -113,6 +113,9 @@
   },
   "errors": {
     "generic": "出了点问题"
+  },
+  "success": {
+    "bg": "#ecfdf5"
   },
   "statuses": {
     "active": {
