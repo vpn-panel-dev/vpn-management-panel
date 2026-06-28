@@ -10,7 +10,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Final, assert_never, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.exceptions import RequestValidationError
@@ -46,7 +46,7 @@ WG_CONFIG = os.environ.get('WG_CONFIG', f'/etc/amnezia/amneziawg/{INTERFACE}.con
 MTPROXY_CONFIG_PATH = Path(os.environ.get('MTPROXY_CONFIG', str(DEFAULT_MTPROXY_CONFIG_PATH)))
 PUBKEY_LEN = 32
 AWG_DUMP_PART_COUNT = 8
-SUPERVISOR_ACTION_ARG_COUNT = 2
+SUPERVISOR_ACTIONS: Final = frozenset({'start', 'stop', 'restart', 'status'})
 
 _bearer = HTTPBearer()
 
@@ -116,13 +116,9 @@ Auth = Annotated[None, Depends(require_auth)]
 
 
 def _supervisor_action(args: list[str]) -> SupervisorAction:
-    if len(args) >= SUPERVISOR_ACTION_ARG_COUNT and args[1] in {
-        'start',
-        'stop',
-        'restart',
-        'status',
-    }:
-        return cast(SupervisorAction, args[1])
+    for arg in reversed(args):
+        if arg in SUPERVISOR_ACTIONS:
+            return cast(SupervisorAction, arg)
     raise SupervisorCommandError(action='status', returncode=1)
 
 
@@ -483,7 +479,14 @@ def health():
 def apply_mtproxy(req: MTProxyConfig, _: Auth) -> MTProxyStatus:
     try:
         apply_mtproxy_config(req, config_path=MTPROXY_CONFIG_PATH)
-        supervisor_mtproxy('restart')
+        status = _mtproxy_status()
+        match status.state:
+            case 'running':
+                supervisor_mtproxy('restart')
+            case 'disabled' | 'stopped' | 'failed':
+                supervisor_mtproxy('start')
+            case unreachable:
+                assert_never(unreachable)
         return _mtproxy_status()
     except (SupervisorCommandError, SupervisorTimeoutError) as exc:
         raise _mtproxy_http_error(exc) from exc

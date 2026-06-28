@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import agent
+import mtproxy
 from mtproxy import (
     DEFAULT_CONFIG_PATH,
     MTProxyConfig,
@@ -95,7 +96,12 @@ def test_mtproxy_apply_writes_config_restarts_and_returns_redacted_status(
         calls.append(action)
         return 'mtproxy RUNNING pid 123, uptime 0:00:01'
 
-    with patch.object(agent, 'supervisor_mtproxy', side_effect=supervisor, create=True):
+    with (
+        patch.object(agent, 'supervisor_mtproxy', side_effect=supervisor, create=True),
+        patch.object(
+            mtproxy, 'supervisor_mtproxy', side_effect=lambda action, **_: supervisor(action)
+        ),
+    ):
         resp = client.put('/mtproxy', json=_payload(), headers=AUTH_HEADERS)
 
     assert resp.status_code == HTTPStatus.OK
@@ -105,7 +111,45 @@ def test_mtproxy_apply_writes_config_restarts_and_returns_redacted_status(
         'public_host': 'proxy.example.com',
         'secret_set': True,
     }
-    assert calls == ['restart', 'status']
+    assert calls == ['status', 'restart', 'status']
+    assert json.loads(mtproxy_config_path.read_text()) == _payload()
+    assert RAW_SECRET not in resp.text
+
+
+def test_mtproxy_apply_starts_stopped_supervisor_program(
+    client: TestClient,
+    mtproxy_config_path: Path,
+) -> None:
+    calls: list[str] = []
+
+    def supervisor(action: str) -> str:
+        calls.append(action)
+        match action:
+            case 'status' if calls == ['status']:
+                return 'mtproxy STOPPED Jun 28 13:00 PM'
+            case 'status':
+                return 'mtproxy RUNNING pid 123, uptime 0:00:01'
+            case 'start':
+                return 'mtproxy: started'
+            case unexpected:
+                raise AssertionError(f'unexpected supervisor action: {unexpected}')
+
+    with (
+        patch.object(agent, 'supervisor_mtproxy', side_effect=supervisor, create=True),
+        patch.object(
+            mtproxy, 'supervisor_mtproxy', side_effect=lambda action, **_: supervisor(action)
+        ),
+    ):
+        resp = client.put('/mtproxy', json=_payload(), headers=AUTH_HEADERS)
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json() == {
+        'state': 'running',
+        'port': 443,
+        'public_host': 'proxy.example.com',
+        'secret_set': True,
+    }
+    assert calls == ['status', 'start', 'status']
     assert json.loads(mtproxy_config_path.read_text()) == _payload()
     assert RAW_SECRET not in resp.text
 
@@ -114,8 +158,14 @@ def test_mtproxy_apply_writes_config_consumable_by_runtime_wrapper(
     client: TestClient,
     mtproxy_config_path: Path,
 ) -> None:
-    with patch.object(
-        agent, 'supervisor_mtproxy', return_value='mtproxy RUNNING pid 123', create=True
+    with (
+        patch.object(
+            agent,
+            'supervisor_mtproxy',
+            return_value='mtproxy RUNNING pid 123',
+            create=True,
+        ),
+        patch.object(mtproxy, 'supervisor_mtproxy', return_value='mtproxy RUNNING pid 123'),
     ):
         resp = client.put('/mtproxy', json=_payload(), headers=AUTH_HEADERS)
 
@@ -139,14 +189,19 @@ def test_mtproxy_apply_is_idempotent(
         calls.append(action)
         return 'mtproxy RUNNING pid 123, uptime 0:00:01'
 
-    with patch.object(agent, 'supervisor_mtproxy', side_effect=supervisor, create=True):
+    with (
+        patch.object(agent, 'supervisor_mtproxy', side_effect=supervisor, create=True),
+        patch.object(
+            mtproxy, 'supervisor_mtproxy', side_effect=lambda action, **_: supervisor(action)
+        ),
+    ):
         first = client.put('/mtproxy', json=_payload(), headers=AUTH_HEADERS)
         second = client.put('/mtproxy', json=_payload(), headers=AUTH_HEADERS)
 
     assert first.status_code == HTTPStatus.OK
     assert second.status_code == HTTPStatus.OK
     assert second.json() == first.json()
-    assert calls == ['restart', 'status', 'restart', 'status']
+    assert calls == ['status', 'restart', 'status', 'status', 'restart', 'status']
     assert json.loads(mtproxy_config_path.read_text()) == _payload()
 
 
@@ -156,9 +211,7 @@ def test_mtproxy_status_returns_redacted_state(
 ) -> None:
     apply_mtproxy_config(MTProxyConfig.model_validate(_payload()), config_path=mtproxy_config_path)
 
-    with patch.object(
-        agent, 'supervisor_mtproxy', return_value='mtproxy RUNNING pid 123', create=True
-    ):
+    with patch.object(mtproxy, 'supervisor_mtproxy', return_value='mtproxy RUNNING pid 123'):
         resp = client.get('/mtproxy/status', headers=AUTH_HEADERS)
 
     assert resp.status_code == HTTPStatus.OK
@@ -178,10 +231,9 @@ def test_mtproxy_status_uses_disabled_for_stale_config_when_supervisor_missing(
     apply_mtproxy_config(MTProxyConfig.model_validate(_payload()), config_path=mtproxy_config_path)
 
     with patch.object(
-        agent,
+        mtproxy,
         'supervisor_mtproxy',
         side_effect=SupervisorCommandError('status', 3),
-        create=True,
     ):
         resp = client.get('/mtproxy/status', headers=AUTH_HEADERS)
 
@@ -278,11 +330,14 @@ def test_mtproxy_apply_timeout_error_does_not_leak_secret(
 ) -> None:
     _ = mtproxy_config_path
 
-    with patch.object(
-        agent,
-        'supervisor_mtproxy',
-        side_effect=SupervisorTimeoutError(action='restart'),
-        create=True,
+    with (
+        patch.object(mtproxy, 'supervisor_mtproxy', return_value='mtproxy RUNNING pid 123'),
+        patch.object(
+            agent,
+            'supervisor_mtproxy',
+            side_effect=SupervisorTimeoutError(action='restart'),
+            create=True,
+        ),
     ):
         resp = client.put('/mtproxy', json=_payload(), headers=AUTH_HEADERS)
 
@@ -332,7 +387,9 @@ def test_supervisor_mtproxy_uses_safe_command() -> None:
     output = supervisor_mtproxy('start', runner=runner)
 
     assert output == 'mtproxy: started'
-    assert calls == [['supervisorctl', 'start', 'mtproxy']]
+    assert calls == [
+        ['supervisorctl', '-c', '/etc/supervisor/conf.d/supervisord.conf', 'start', 'mtproxy']
+    ]
 
 
 def test_supervisor_mtproxy_rejects_failed_command_without_secret() -> None:

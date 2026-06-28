@@ -12,6 +12,7 @@ from typing import Final, Literal, assert_never
 from pydantic import BaseModel, ConfigDict, Field
 
 DEFAULT_CONFIG_PATH: Final = Path('/etc/amnezia/amneziawg/mtproxy/config.json')
+SUPERVISOR_CONFIG_PATH: Final = '/etc/supervisor/conf.d/supervisord.conf'
 SUPERVISOR_TIMEOUT_SECONDS: Final = 5.0
 REDACTED: Final = '<redacted>'
 SUPERVISOR_STATE_PARTS: Final = 2
@@ -108,7 +109,7 @@ def supervisor_mtproxy(
     timeout: float = SUPERVISOR_TIMEOUT_SECONDS,
 ) -> str:
     try:
-        result = runner(['supervisorctl', action, 'mtproxy'], timeout)
+        result = runner(['supervisorctl', '-c', SUPERVISOR_CONFIG_PATH, action, 'mtproxy'], timeout)
     except subprocess.TimeoutExpired as exc:
         raise SupervisorTimeoutError(action=action) from exc
     if result.returncode != 0:
