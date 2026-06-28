@@ -1,6 +1,7 @@
 services:
   node:
     build: .
+    platform: ${NODE_PLATFORM:-linux/amd64}
     restart: unless-stopped
     cap_add:
       - NET_ADMIN

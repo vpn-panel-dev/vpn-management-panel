@@ -76,7 +76,7 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 RUN chmod +x /usr/local/bin/tunnel.sh /usr/local/bin/mtproxy.sh
 
-VOLUME ["/etc/amnezia/amneziawg", "/etc/amnezia/mtproxy"]
+VOLUME ["/etc/amnezia/amneziawg"]
 
 EXPOSE 51820/udp 8000 443/tcp
 
