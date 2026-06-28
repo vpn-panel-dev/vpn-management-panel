@@ -44,6 +44,9 @@ class CommandHandler:
             'remnawave_full_reconcile': self._handle_remnawave_full_reconcile,
             'remnawave_sync_user': self._remnawave_sync_user,
             'remnawave_disable_user': self._remnawave_disable_user,
+            'telegram_proxy_apply_node': self._telegram_proxy_apply_node,
+            'telegram_proxy_check_node': self._telegram_proxy_check_node,
+            'telegram_proxy_disable_node': self._telegram_proxy_disable_node,
         }
 
     async def handle(self, command: WorkerCommand) -> CommandResult:
@@ -197,6 +200,125 @@ class CommandHandler:
         except httpx.HTTPStatusError as exc:
             raise RuntimeError(self._http_error_detail(exc)) from exc
         return {'uuid': user_uuid, 'disabled': True, 'remnawave': result}
+
+    async def _telegram_proxy_apply_node(self, command: WorkerCommand) -> dict[str, Any]:
+        node_id = self._require_node_id(command)
+        snapshot = await self._backend.fetch_telegram_proxy_node_snapshot(node_id)
+        return await self._with_node_lock(node_id, self._apply_telegram_proxy_snapshot, snapshot)
+
+    async def _telegram_proxy_check_node(self, command: WorkerCommand) -> dict[str, Any]:
+        node_id = self._require_node_id(command)
+        snapshot = await self._backend.fetch_telegram_proxy_node_snapshot(node_id)
+        return await self._check_telegram_proxy_snapshot(snapshot)
+
+    async def _telegram_proxy_disable_node(self, command: WorkerCommand) -> dict[str, Any]:
+        node_id = self._require_node_id(command)
+        snapshot = await self._backend.fetch_telegram_proxy_node_snapshot(node_id)
+        return await self._with_node_lock(node_id, self._disable_telegram_proxy_snapshot, snapshot)
+
+    async def _apply_telegram_proxy_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        node_id = self._telegram_proxy_node_id(snapshot)
+        try:
+            config = self._telegram_proxy_config(snapshot)
+            status = await self._node_client.put_mtproxy(
+                self._telegram_proxy_endpoint(snapshot),
+                self._telegram_proxy_token(snapshot),
+                config,
+            )
+            result = self._telegram_proxy_result(status)
+        except Exception as exc:
+            result = {'status': 'failed', 'error': self._telegram_proxy_error(snapshot, exc)}
+        await self._backend.report_telegram_proxy_node_result(node_id, result)
+        if result['status'] == 'failed':
+            raise RuntimeError(str(result['error']))
+        return result
+
+    async def _check_telegram_proxy_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        node_id = self._telegram_proxy_node_id(snapshot)
+        try:
+            status = await self._node_client.get_mtproxy_status(
+                self._telegram_proxy_endpoint(snapshot),
+                self._telegram_proxy_token(snapshot),
+            )
+            result = self._telegram_proxy_result(status)
+        except Exception as exc:
+            result = {'status': 'failed', 'error': self._telegram_proxy_error(snapshot, exc)}
+        await self._backend.report_telegram_proxy_node_result(node_id, result)
+        if result['status'] == 'failed':
+            raise RuntimeError(str(result['error']))
+        return result
+
+    async def _disable_telegram_proxy_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        node_id = self._telegram_proxy_node_id(snapshot)
+        try:
+            status = await self._node_client.delete_mtproxy(
+                self._telegram_proxy_endpoint(snapshot),
+                self._telegram_proxy_token(snapshot),
+            )
+            result = self._telegram_proxy_result(status)
+        except Exception as exc:
+            result = {'status': 'failed', 'error': self._telegram_proxy_error(snapshot, exc)}
+        await self._backend.report_telegram_proxy_node_result(node_id, result)
+        if result['status'] == 'failed':
+            raise RuntimeError(str(result['error']))
+        return result
+
+    def _telegram_proxy_config(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        desired = snapshot.get('desired')
+        if not isinstance(desired, dict):
+            raise TypeError('Telegram proxy snapshot desired config is missing')
+        if not desired.get('enabled'):
+            raise ValueError('Telegram proxy is not enabled')
+        secret = desired.get('secret')
+        public_host = desired.get('public_host')
+        port = desired.get('port')
+        if not isinstance(secret, str) or not secret:
+            raise ValueError('Telegram proxy secret is missing')
+        if not isinstance(public_host, str) or not public_host:
+            raise ValueError('Telegram proxy public_host is missing')
+        if not isinstance(port, int):
+            raise TypeError('Telegram proxy port is missing')
+        return {'secret': secret, 'port': port, 'public_host': public_host}
+
+    def _telegram_proxy_result(self, status: dict[str, Any]) -> dict[str, Any]:
+        state = str(status.get('state') or 'unknown')
+        public_host = status.get('public_host')
+        port = status.get('port')
+        match state:
+            case 'running':
+                if isinstance(public_host, str) and isinstance(port, int):
+                    result = {'status': 'ready', 'public_host': public_host, 'public_port': port}
+                else:
+                    result = {'status': 'active'}
+            case 'disabled':
+                result = {'status': 'disabled'}
+            case 'stopped':
+                result = {'status': 'failed', 'error': 'MTProxy is stopped'}
+            case 'failed':
+                result = {'status': 'failed', 'error': 'MTProxy is failed'}
+            case 'unknown':
+                result = {'status': 'unknown'}
+            case _:
+                result = {'status': 'unknown'}
+        return result
+
+    def _telegram_proxy_node_id(self, snapshot: dict[str, Any]) -> str:
+        return str(snapshot.get('node_id') or snapshot.get('id') or '')
+
+    def _telegram_proxy_endpoint(self, snapshot: dict[str, Any]) -> str:
+        return str(snapshot['url']).rstrip('/')
+
+    def _telegram_proxy_token(self, snapshot: dict[str, Any]) -> str:
+        return str(snapshot.get('token') or '')
+
+    def _telegram_proxy_error(self, snapshot: dict[str, Any], exc: Exception) -> str:
+        message = str(exc)
+        desired = snapshot.get('desired')
+        if isinstance(desired, dict):
+            secret = desired.get('secret')
+            if isinstance(secret, str) and secret:
+                return message.replace(secret, '<redacted>')
+        return message
 
     async def _remnawave_client(self) -> RemnawaveClient | Any | None:
         config = await self._backend.fetch_remnawave_config()

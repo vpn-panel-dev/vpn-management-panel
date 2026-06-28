@@ -21,6 +21,8 @@
           </div>
         </section>
 
+        <TelegramProxyCard v-if="telegramProxy" :proxy="telegramProxy" />
+
         <UserStateCard v-if="info.blocked" state="blocked" :title="stateTitle" :text="stateBody" />
         <template v-else>
           <section class="summary-grid" :aria-label="$t('dashboard.summary')">
@@ -181,9 +183,10 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { fetchUserInfo, type UserInfo, type UserNode } from './api/userPage'
+import { fetchUserInfo, type TelegramProxyInfo, type UserInfo, type UserNode } from './api/userPage'
 import ConfigCard from './components/ConfigCard.vue'
 import UserHeader from './components/UserHeader.vue'
+import TelegramProxyCard from './components/TelegramProxyCard.vue'
 import UserStateCard from './components/UserStateCard.vue'
 import { useVpnQrChunks } from './composables/useVpnQrChunks'
 import { DownloadIcon } from './icons'
@@ -258,6 +261,10 @@ const defaultQrItem = {
 }
 
 const readyNodes = computed(() => info.value?.nodes.filter((node) => node.ready).length || 0)
+const telegramProxy = computed<TelegramProxyInfo | null>(() => {
+  const proxy = info.value?.telegram_proxy
+  return proxy && proxy.enabled ? proxy : null
+})
 const trafficUsed = computed(() => fmtBytes(info.value?.traffic.used_bytes || 0))
 const trafficPercent = computed(() => {
   const traffic = info.value?.traffic

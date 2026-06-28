@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from aio_pika import DeliveryMode
 
 from app.queue import (
@@ -13,6 +14,7 @@ from app.queue import (
     PROVISION_NODE_QUEUE,
     SEQUENTIAL_QUEUE_ARGS,
     SYNC_NODE_QUEUE,
+    TELEGRAM_PROXY_OPERATIONS_QUEUE,
     declare_topology,
     publish_command,
     retry_queue_for_command,
@@ -120,14 +122,25 @@ def test_declares_per_command_queues_with_legacy_bindings():
     assert channel.queues[PROVISION_NODE_QUEUE].bindings == [
         (channel.exchange, PROVISION_NODE_QUEUE)
     ]
+    assert channel.queues[TELEGRAM_PROXY_OPERATIONS_QUEUE].bindings == [
+        (channel.exchange, TELEGRAM_PROXY_OPERATIONS_QUEUE)
+    ]
     assert channel.queue_arguments[SYNC_NODE_QUEUE] == SEQUENTIAL_QUEUE_ARGS
     assert channel.queue_arguments[PROVISION_NODE_QUEUE] == SEQUENTIAL_QUEUE_ARGS
+    assert channel.queue_arguments[TELEGRAM_PROXY_OPERATIONS_QUEUE] == SEQUENTIAL_QUEUE_ARGS
     assert channel.queue_arguments[LEGACY_SYNC_QUEUE] == {}
     sync_node_retry = retry_queue_for_command('sync_node', '10s')
     assert channel.queue_arguments[sync_node_retry] == {
         'x-message-ttl': 10_000,
         'x-dead-letter-exchange': EXCHANGE_NAME,
         'x-dead-letter-routing-key': SYNC_NODE_QUEUE,
+    }
+    telegram_proxy_retry = retry_queue_for_command('telegram_proxy_apply_node', '10s')
+    assert telegram_proxy_retry == 'amnezia.telegram_proxy_operations.retry.10s'
+    assert channel.queue_arguments[telegram_proxy_retry] == {
+        'x-message-ttl': 10_000,
+        'x-dead-letter-exchange': EXCHANGE_NAME,
+        'x-dead-letter-routing-key': TELEGRAM_PROXY_OPERATIONS_QUEUE,
     }
 
 
@@ -136,3 +149,11 @@ def test_routing_key_for_command_uses_per_operation_queue():
     assert routing_key_for_command('sync_all') == SYNC_NODE_QUEUE
     assert routing_key_for_command('provision_node') == PROVISION_NODE_QUEUE
     assert routing_key_for_command('sync_node') == routing_key_for_command('provision_node')
+    assert routing_key_for_command('telegram_proxy_apply_node') == TELEGRAM_PROXY_OPERATIONS_QUEUE
+    assert routing_key_for_command('telegram_proxy_check_node') == TELEGRAM_PROXY_OPERATIONS_QUEUE
+    assert routing_key_for_command('telegram_proxy_disable_node') == TELEGRAM_PROXY_OPERATIONS_QUEUE
+
+
+def test_routing_key_for_command_rejects_unknown_command():
+    with pytest.raises(KeyError):
+        routing_key_for_command('telegram_proxy_wrong_target')

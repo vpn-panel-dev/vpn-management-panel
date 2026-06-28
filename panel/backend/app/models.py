@@ -87,6 +87,9 @@ class Node(Base):
     peers: Mapped[list[Peer]] = relationship(
         'Peer', back_populates='node', cascade='all, delete-orphan'
     )
+    telegram_proxy_state: Mapped[TelegramProxyNodeState | None] = relationship(
+        'TelegramProxyNodeState', back_populates='node', uselist=False, cascade='all, delete-orphan'
+    )
 
 
 class User(Base):
@@ -371,6 +374,62 @@ class RemnawaveSettings(Base):
             await db.commit()
             await db.refresh(row)
         return row
+
+
+class TelegramProxySettings(Base):
+    __tablename__ = 'telegram_proxy_settings'
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    port: Mapped[int] = mapped_column(Integer, default=443, nullable=False)
+    secret_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
+    primary_node_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey('nodes.id', ondelete='SET NULL'), nullable=True
+    )
+    last_rotation_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_rotation_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_rotation_error: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    @classmethod
+    async def get_settings(cls, db):
+        result = await db.execute(select(cls).order_by(cls.created_at, cls.id))
+        row = result.scalars().first()
+        if row is None:
+            row = cls()
+            db.add(row)
+            await db.commit()
+            await db.refresh(row)
+        return row
+
+
+class TelegramProxyNodeState(Base):
+    __tablename__ = 'telegram_proxy_node_states'
+
+    node_id: Mapped[str] = mapped_column(
+        String, ForeignKey('nodes.id', ondelete='CASCADE'), primary_key=True
+    )
+    status: Mapped[str] = mapped_column(String, default='unknown', nullable=False)
+    public_host: Mapped[str | None] = mapped_column(String, nullable=True)
+    public_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    node: Mapped[Node] = relationship('Node', back_populates='telegram_proxy_state')
 
 
 class RemnawaveUser(Base):
@@ -762,6 +821,37 @@ class RemnawaveSettingsSchema(BaseModel):
             'last_test_status': obj.last_test_status,
             'last_test_error': obj.last_test_error,
             'last_synced_at': obj.last_synced_at,
+            'created_at': obj.created_at,
+            'updated_at': obj.updated_at,
+        }
+        return cls(**data)
+
+
+class TelegramProxySettingsSchema(BaseModel):
+    id: str
+    enabled: bool = False
+    port: int = 443
+    secret_set: bool = False
+    primary_node_id: str | None = None
+    last_rotation_at: datetime | None = None
+    last_rotation_reason: str | None = None
+    last_rotation_error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {'from_attributes': True}
+
+    @classmethod
+    def from_orm(cls, obj):
+        data = {
+            'id': obj.id,
+            'enabled': obj.enabled,
+            'port': obj.port,
+            'secret_set': obj.secret_encrypted is not None and len(obj.secret_encrypted) > 0,
+            'primary_node_id': obj.primary_node_id,
+            'last_rotation_at': obj.last_rotation_at,
+            'last_rotation_reason': obj.last_rotation_reason,
+            'last_rotation_error': obj.last_rotation_error,
             'created_at': obj.created_at,
             'updated_at': obj.updated_at,
         }

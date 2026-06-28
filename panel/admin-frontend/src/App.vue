@@ -42,7 +42,7 @@
             @click="logout"
           />
         </div>
-        <nav :aria-label="$t('navigation.nodes')">
+        <nav :aria-label="$t('navigation.menu')">
           <RouterLink to="/nodes"
             ><i class="pi pi-server" /> {{ $t('navigation.nodes') }}</RouterLink
           >
@@ -51,6 +51,9 @@
           >
           <RouterLink to="/integrations/remnawave"
             ><i class="pi pi-sync" /> {{ $t('navigation.remnawave') }}</RouterLink
+          >
+          <RouterLink to="/integrations/telegram-proxy"
+            ><i class="pi pi-send" /> {{ $t('navigation.telegramProxy') }}</RouterLink
           >
         </nav>
       </header>

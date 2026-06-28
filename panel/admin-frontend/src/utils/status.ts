@@ -43,7 +43,10 @@ export function getNodeStage(node: Node): NodeStage {
     return 'error'
   }
 
-  if (pendingOperationStatuses.has(node.provision_status) || node.provision_status !== 'succeeded') {
+  if (
+    pendingOperationStatuses.has(node.provision_status) ||
+    node.provision_status !== 'succeeded'
+  ) {
     return 'applying_config'
   }
 

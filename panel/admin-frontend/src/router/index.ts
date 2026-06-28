@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue'
 import NodeSettingsView from '../views/NodeSettingsView.vue'
 import NodesView from '../views/NodesView.vue'
 import RemnawaveSettingsView from '../views/RemnawaveSettingsView.vue'
+import TelegramProxySettingsView from '../views/TelegramProxySettingsView.vue'
 import UsersView from '../views/UsersView.vue'
 
 const routes: RouteRecordRaw[] = [
@@ -15,6 +16,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/integrations/remnawave',
     component: RemnawaveSettingsView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/integrations/telegram-proxy',
+    component: TelegramProxySettingsView,
     meta: { requiresAuth: true },
   },
   { path: '/login', component: LoginView },

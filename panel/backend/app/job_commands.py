@@ -121,6 +121,33 @@ def remnawave_disable_user(user_uuid: str, **overrides: Any) -> dict[str, Any]:
     )
 
 
+def telegram_proxy_apply_node(node_id: str, **overrides: Any) -> dict[str, Any]:
+    return _payload(
+        'telegram_proxy_apply_node',
+        target_type='telegram_proxy_node',
+        target_id=node_id,
+        **overrides,
+    )
+
+
+def telegram_proxy_check_node(node_id: str, **overrides: Any) -> dict[str, Any]:
+    return _payload(
+        'telegram_proxy_check_node',
+        target_type='telegram_proxy_node',
+        target_id=node_id,
+        **overrides,
+    )
+
+
+def telegram_proxy_disable_node(node_id: str, **overrides: Any) -> dict[str, Any]:
+    return _payload(
+        'telegram_proxy_disable_node',
+        target_type='telegram_proxy_node',
+        target_id=node_id,
+        **overrides,
+    )
+
+
 def cleanup_raw_traffic_samples(**overrides: Any) -> dict[str, Any]:
     return _payload(
         'cleanup_raw_traffic_samples',
@@ -169,4 +196,37 @@ async def enqueue_remnawave_disable_user(
 ) -> dict[str, Any]:
     payload = remnawave_disable_user(user_uuid, **overrides)
     await publish_command(payload, routing_key_for_command('remnawave_disable_user'), url=url)
+    return payload
+
+
+async def enqueue_telegram_proxy_apply_node(
+    node_id: str,
+    *,
+    url: str | None = None,
+    **overrides: Any,
+) -> dict[str, Any]:
+    payload = telegram_proxy_apply_node(node_id, **overrides)
+    await publish_command(payload, routing_key_for_command('telegram_proxy_apply_node'), url=url)
+    return payload
+
+
+async def enqueue_telegram_proxy_check_node(
+    node_id: str,
+    *,
+    url: str | None = None,
+    **overrides: Any,
+) -> dict[str, Any]:
+    payload = telegram_proxy_check_node(node_id, **overrides)
+    await publish_command(payload, routing_key_for_command('telegram_proxy_check_node'), url=url)
+    return payload
+
+
+async def enqueue_telegram_proxy_disable_node(
+    node_id: str,
+    *,
+    url: str | None = None,
+    **overrides: Any,
+) -> dict[str, Any]:
+    payload = telegram_proxy_disable_node(node_id, **overrides)
+    await publish_command(payload, routing_key_for_command('telegram_proxy_disable_node'), url=url)
     return payload

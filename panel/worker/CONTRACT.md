@@ -6,11 +6,11 @@ All messages are JSON objects:
 
 ```json
 {
-  "command": "sync_all | sync_node | provision_node | cleanup_raw_traffic_samples | remnawave_full_reconcile | remnawave_sync_user | remnawave_disable_user",
+  "command": "sync_all | sync_node | provision_node | cleanup_raw_traffic_samples | remnawave_full_reconcile | remnawave_sync_user | remnawave_disable_user | telegram_proxy_apply_node | telegram_proxy_check_node | telegram_proxy_disable_node",
   "idempotency_key": "uuid-v4",
   "operation_id": "uuid-v4",
   "track_operation": true,
-  "target_type": "all | node | traffic | remnawave | remnawave_user",
+  "target_type": "all | node | traffic | remnawave | remnawave_user | telegram_proxy_node",
   "target_id": "string | null",
   "created_at": "RFC3339 UTC timestamp"
 }
@@ -26,6 +26,7 @@ Rules:
 - `target_id` is `null` for `sync_all` and a node id for node-scoped commands.
 - `created_at` is UTC ISO-8601.
 - `cleanup_raw_traffic_samples` has `target_type` `traffic` and `target_id` `null`.
+- Telegram proxy commands use `target_type` `telegram_proxy_node`, `target_id` set to the node id, and are tracked operations.
 
 ## RabbitMQ topology
 
@@ -38,22 +39,20 @@ Rules:
   - `amnezia.remnawave_full_reconcile`
   - `amnezia.remnawave_sync_user`
   - `amnezia.remnawave_disable_user`
-- Sequential operation queue: `amnezia.node_operations`. It is declared with RabbitMQ
-  `x-single-active-consumer=true`, so only one of `sync_all`, `sync_node`, or `provision_node` can be
-  delivered to active workers at a time.
+- `amnezia.telegram_proxy_operations`
+- Sequential operation queues: `amnezia.node_operations` and `amnezia.telegram_proxy_operations`. Both are declared with RabbitMQ `x-single-active-consumer=true`, so only one of `sync_all`, `sync_node`, `provision_node`, `telegram_proxy_apply_node`, `telegram_proxy_check_node`, or `telegram_proxy_disable_node` can be delivered to active workers at a time.
 - Parallel operation queues: heartbeat, cleanup, and Remnawave queues. They are consumed with
   `WORKER_CONCURRENCY`.
 - Per-operation retry queues: `<operation queue>.retry.10s`, `<operation queue>.retry.1m`,
   `<operation queue>.retry.10m`. Each retry queue dead-letters back to its own operation queue.
+- Telegram proxy retry queues follow the same pattern, for example `amnezia.telegram_proxy_operations.retry.10s`, `amnezia.telegram_proxy_operations.retry.1m`, and `amnezia.telegram_proxy_operations.retry.10m`.
+- The worker retries a failing job up to 3 attempts. After that it dead-letters the message to `amnezia.poison`.
 - Legacy main queues still consumed for migration: `amnezia.sync`, `amnezia.provision`.
 - Legacy retry queues still declared for compatibility: `amnezia.retry.10s`,
   `amnezia.retry.1m`, `amnezia.retry.10m`.
 - Poison queue: `amnezia.poison`
 
-Smooth migration rule: deploy workers that consume both legacy and new operation queues before
-deploying a backend that publishes to per-operation routing keys. Existing messages already present in
-`amnezia.sync` or `amnezia.provision` continue to be consumed; new backend publishes go directly to the
-new operation queues.
+Smooth migration rule: deploy workers that consume both legacy and new operation queues, including `amnezia.telegram_proxy_operations`, before deploying a backend that publishes to per-operation routing keys. Existing messages already present in `amnezia.sync` or `amnezia.provision` continue to be consumed; new backend publishes go directly to the new operation queues.
 
 ## Internal backend API
 
@@ -64,6 +63,8 @@ Authorization: Bearer <WORKER_TOKEN>
 ```
 
 Missing or invalid tokens return `401`.
+
+Telegram proxy worker endpoints also require the worker bearer token. The node agent remains private and is only reached through these worker-only endpoints, never through public or admin APIs.
 
 ### Operation state
 
@@ -100,8 +101,8 @@ Stale response shape:
   "operations": [
     {
       "id": "operation uuid",
-      "kind": "sync_all | sync_node | provision_node | health_check_all | health_check_node | remnawave_full_reconcile | remnawave_sync_user | remnawave_disable_user",
-      "target_type": "all | node | traffic | remnawave | remnawave_user | null",
+      "kind": "sync_all | sync_node | provision_node | health_check_all | health_check_node | cleanup_raw_traffic_samples | remnawave_full_reconcile | remnawave_sync_user | remnawave_disable_user | telegram_proxy_apply_node | telegram_proxy_check_node | telegram_proxy_disable_node",
+      "target_type": "all | node | traffic | remnawave | remnawave_user | telegram_proxy_node | null",
       "target_id": "node id | null",
       "status": "queued | running",
       "attempts": 0,
@@ -228,6 +229,48 @@ Node snapshot shape:
   - Failure body: `{"ok":false,"error":"message"}`
   - Response: `{"status":"succeeded"}` or `{"status":"failed"}`
   - On success the backend sets `node.provision_status` to `succeeded`. On failure it sets `node.provision_status` to `failed` and stores `last_error`.
+
+### Telegram Proxy
+
+- `GET /internal/worker/telegram-proxy/snapshot`
+  - Response: `{"nodes":[<telegram proxy snapshot>]}`
+- `GET /internal/worker/telegram-proxy/nodes/{node_id}/snapshot`
+  - Response: `<telegram proxy snapshot>`
+- `POST /internal/worker/telegram-proxy/nodes/{node_id}/result`
+  - Request body:
+
+```json
+{
+  "status": "unknown | disabled | active | ready | failed",
+  "error": "message | null",
+  "public_host": "proxy.example.com | null",
+  "public_port": 443
+}
+```
+
+  - Response: `{"status":"unknown | disabled | active | ready | failed","ready":true | false}`
+  - `status=active` or `status=ready` requires `public_host` and `public_port`. The worker normalizes both values before saving them.
+  - `status=failed` clears the public host and port, stores `last_error`, and leaves `ready=false`.
+  - `status=disabled` or `status=unknown` clears the public host and port and stores `last_error` if one was supplied.
+  - A successful ready result updates `last_applied_at` and `last_checked_at`. Every result updates `last_checked_at`.
+
+Telegram proxy snapshot shape:
+
+```json
+{
+  "node_id": "node id",
+  "url": "http://agent:8000",
+  "token": "node agent token",
+  "desired": {
+    "enabled": true,
+    "secret": "worker-only proxy secret",
+    "port": 443,
+    "public_host": "proxy.example.com"
+  }
+}
+```
+
+Security note: `desired.secret` is worker-only and appears only in the internal worker snapshot. Public and admin views must redact it, and the node agent stays private to the management network.
 
 ### Local traffic retention
 

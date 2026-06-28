@@ -30,6 +30,7 @@ CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE = 'amnezia.cleanup_raw_traffic_samples'
 REMNAWAVE_FULL_RECONCILE_QUEUE = 'amnezia.remnawave_full_reconcile'
 REMNAWAVE_SYNC_USER_QUEUE = 'amnezia.remnawave_sync_user'
 REMNAWAVE_DISABLE_USER_QUEUE = 'amnezia.remnawave_disable_user'
+TELEGRAM_PROXY_OPERATIONS_QUEUE = 'amnezia.telegram_proxy_operations'
 RETRY_10S_QUEUE = 'amnezia.retry.10s'
 RETRY_1M_QUEUE = 'amnezia.retry.1m'
 RETRY_10M_QUEUE = 'amnezia.retry.10m'
@@ -61,6 +62,9 @@ COMMAND_QUEUES = (
     CommandQueue('remnawave_full_reconcile', REMNAWAVE_FULL_RECONCILE_QUEUE),
     CommandQueue('remnawave_sync_user', REMNAWAVE_SYNC_USER_QUEUE),
     CommandQueue('remnawave_disable_user', REMNAWAVE_DISABLE_USER_QUEUE),
+    CommandQueue('telegram_proxy_apply_node', TELEGRAM_PROXY_OPERATIONS_QUEUE, sequential=True),
+    CommandQueue('telegram_proxy_check_node', TELEGRAM_PROXY_OPERATIONS_QUEUE, sequential=True),
+    CommandQueue('telegram_proxy_disable_node', TELEGRAM_PROXY_OPERATIONS_QUEUE, sequential=True),
 )
 COMMAND_ROUTING_KEYS = {queue.command: queue.queue_name for queue in COMMAND_QUEUES}
 

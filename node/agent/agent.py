@@ -10,7 +10,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.exceptions import RequestValidationError
@@ -18,6 +18,19 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from mtproxy import (
+    DEFAULT_CONFIG_PATH as DEFAULT_MTPROXY_CONFIG_PATH,
+    MTProxyConfig,
+    MTProxyStatus,
+    SupervisorAction,
+    SupervisorCommandError,
+    SupervisorTimeoutError,
+    apply_mtproxy_config,
+    read_mtproxy_status,
+    remove_mtproxy_config,
+    supervisor_mtproxy,
+)
 
 app = FastAPI(title='AmneziaWG Node Agent')
 log = logging.getLogger(__name__)
@@ -30,8 +43,10 @@ AGENT_TOKEN = os.environ.get('AGENT_TOKEN')
 if not AGENT_TOKEN:
     raise RuntimeError('AGENT_TOKEN environment variable is required')
 WG_CONFIG = os.environ.get('WG_CONFIG', f'/etc/amnezia/amneziawg/{INTERFACE}.conf')
+MTPROXY_CONFIG_PATH = Path(os.environ.get('MTPROXY_CONFIG', str(DEFAULT_MTPROXY_CONFIG_PATH)))
 PUBKEY_LEN = 32
 AWG_DUMP_PART_COUNT = 8
+SUPERVISOR_ACTION_ARG_COUNT = 2
 
 _bearer = HTTPBearer()
 
@@ -98,6 +113,33 @@ def require_auth(creds: Annotated[HTTPAuthorizationCredentials, Security(_bearer
 
 
 Auth = Annotated[None, Depends(require_auth)]
+
+
+def _supervisor_action(args: list[str]) -> SupervisorAction:
+    if len(args) >= SUPERVISOR_ACTION_ARG_COUNT and args[1] in {
+        'start',
+        'stop',
+        'restart',
+        'status',
+    }:
+        return cast(SupervisorAction, args[1])
+    raise SupervisorCommandError(action='status', returncode=1)
+
+
+def _mtproxy_status_runner(
+    args: list[str],
+    _timeout: float,
+) -> subprocess.CompletedProcess[str]:
+    output = supervisor_mtproxy(_supervisor_action(args))
+    return subprocess.CompletedProcess(args=args, returncode=0, stdout=output, stderr='')
+
+
+def _mtproxy_status() -> MTProxyStatus:
+    return read_mtproxy_status(config_path=MTPROXY_CONFIG_PATH, runner=_mtproxy_status_runner)
+
+
+def _mtproxy_http_error(exc: SupervisorCommandError | SupervisorTimeoutError) -> HTTPException:
+    return HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(exc))
 
 
 # ── awg helpers ───────────────────────────────────────────────────────────────
@@ -435,6 +477,34 @@ def _apply_live_interface(cfg: InterfaceConfig, previous_interface_text: str) ->
 @app.get('/health')
 def health():
     return {'status': 'ok'}
+
+
+@app.put('/mtproxy')
+def apply_mtproxy(req: MTProxyConfig, _: Auth) -> MTProxyStatus:
+    try:
+        apply_mtproxy_config(req, config_path=MTPROXY_CONFIG_PATH)
+        supervisor_mtproxy('restart')
+        return _mtproxy_status()
+    except (SupervisorCommandError, SupervisorTimeoutError) as exc:
+        raise _mtproxy_http_error(exc) from exc
+
+
+@app.get('/mtproxy/status')
+def mtproxy_status(_: Auth) -> MTProxyStatus:
+    try:
+        return _mtproxy_status()
+    except SupervisorTimeoutError as exc:
+        raise _mtproxy_http_error(exc) from exc
+
+
+@app.delete('/mtproxy')
+def disable_mtproxy(_: Auth) -> MTProxyStatus:
+    try:
+        supervisor_mtproxy('stop')
+        remove_mtproxy_config(config_path=MTPROXY_CONFIG_PATH)
+    except (SupervisorCommandError, SupervisorTimeoutError) as exc:
+        raise _mtproxy_http_error(exc) from exc
+    return MTProxyStatus(state='disabled', port=None, public_host=None, secret_set=False)
 
 
 @app.get('/status')

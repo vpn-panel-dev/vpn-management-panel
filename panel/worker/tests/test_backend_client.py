@@ -107,3 +107,48 @@ async def test_heartbeat_and_timeout_internal_endpoints() -> None:
     assert json.loads(requests[0].content) == {'ok': True}
     assert requests[1].method == 'POST'
     assert requests[1].url.path == '/internal/worker/operations/operation-1/timeout'
+
+
+@pytest.mark.asyncio
+async def test_telegram_proxy_snapshot_and_result_internal_endpoints() -> None:
+    requests: list[httpx.Request] = []
+    mtproxy_test_key = 'secret-value'
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith('/snapshot'):
+            return httpx.Response(
+                200,
+                json={
+                    'node_id': 'node-1',
+                    'url': 'https://agent.test',
+                    'token': 'node-token',
+                    'desired': {
+                        'enabled': True,
+                        'secret': mtproxy_test_key,
+                        'port': 443,
+                        'public_host': 'proxy.example.com',
+                    },
+                },
+            )
+        return httpx.Response(200, json={'status': 'ready', 'ready': True})
+
+    client = TransportBackendClient(httpx.MockTransport(handler))
+
+    snapshot = await client.fetch_telegram_proxy_node_snapshot('node-1')
+    result = await client.report_telegram_proxy_node_result(
+        'node-1',
+        {'status': 'ready', 'public_host': 'proxy.example.com', 'public_port': 443},
+    )
+
+    assert snapshot['desired']['secret'] == mtproxy_test_key
+    assert result == {'status': 'ready', 'ready': True}
+    assert requests[0].method == 'GET'
+    assert requests[0].url.path == '/internal/worker/telegram-proxy/nodes/node-1/snapshot'
+    assert requests[1].method == 'POST'
+    assert requests[1].url.path == '/internal/worker/telegram-proxy/nodes/node-1/result'
+    assert json.loads(requests[1].content) == {
+        'status': 'ready',
+        'public_host': 'proxy.example.com',
+        'public_port': 443,
+    }

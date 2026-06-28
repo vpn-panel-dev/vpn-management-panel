@@ -41,6 +41,18 @@
     "readyHint": "Можно подключаться",
     "pendingHint": "Настройка еще готовится"
   },
+  "telegramProxy": {
+    "kicker": "Telegram-прокси",
+    "title": "Доступ через Telegram",
+    "enabled": "Включено",
+    "subtitle": "Используйте ссылку Telegram для прокси. HTTPS-резерв остается доступным для копирования или прямого открытия.",
+    "primaryNode": "Основной узел: {node}",
+    "proxyStatus": "Статус: {status}",
+    "openTelegram": "Открыть Telegram",
+    "openFallback": "Открыть HTTPS-резерв",
+    "copyFallback": "Скопировать HTTPS-ссылку",
+    "copied": "Скопировано"
+  },
   "platforms": {
     "title": "Как начать",
     "subtitle": "Выберите устройство и приложение. Ниже появятся ссылка, QR-код, инструкция и нужные конфиги.",

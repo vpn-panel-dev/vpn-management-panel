@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Final, Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 CommandName = Literal[
     'sync_all',
@@ -15,8 +15,19 @@ CommandName = Literal[
     'remnawave_full_reconcile',
     'remnawave_sync_user',
     'remnawave_disable_user',
+    'telegram_proxy_apply_node',
+    'telegram_proxy_check_node',
+    'telegram_proxy_disable_node',
 ]
-TargetType = Literal['all', 'node', 'traffic', 'remnawave', 'remnawave_user']
+TargetType = Literal['all', 'node', 'traffic', 'remnawave', 'remnawave_user', 'telegram_proxy_node']
+
+TELEGRAM_PROXY_COMMANDS: Final = frozenset(
+    {
+        'telegram_proxy_apply_node',
+        'telegram_proxy_check_node',
+        'telegram_proxy_disable_node',
+    }
+)
 
 
 class WorkerCommand(BaseModel):
@@ -35,6 +46,13 @@ class WorkerCommand(BaseModel):
     @property
     def node_id(self) -> str | None:
         return self.target_id
+
+    @model_validator(mode='after')
+    def validate_target_type(self) -> Self:
+        if self.command in TELEGRAM_PROXY_COMMANDS and self.target_type != 'telegram_proxy_node':
+            msg = 'Telegram proxy commands require target_type=telegram_proxy_node'
+            raise ValueError(msg)
+        return self
 
 
 class CommandResult(BaseModel):

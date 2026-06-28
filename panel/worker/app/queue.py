@@ -26,6 +26,7 @@ CLEANUP_RAW_TRAFFIC_SAMPLES_QUEUE = 'amnezia.cleanup_raw_traffic_samples'
 REMNAWAVE_FULL_RECONCILE_QUEUE = 'amnezia.remnawave_full_reconcile'
 REMNAWAVE_SYNC_USER_QUEUE = 'amnezia.remnawave_sync_user'
 REMNAWAVE_DISABLE_USER_QUEUE = 'amnezia.remnawave_disable_user'
+TELEGRAM_PROXY_OPERATIONS_QUEUE = 'amnezia.telegram_proxy_operations'
 POISON_QUEUE = 'amnezia.poison'
 RETRY_QUEUES = (
     ('amnezia.retry.10s', 10_000),
@@ -56,6 +57,9 @@ QUEUE_SPECS = (
     QueueSpec('remnawave_full_reconcile', REMNAWAVE_FULL_RECONCILE_QUEUE, False),
     QueueSpec('remnawave_sync_user', REMNAWAVE_SYNC_USER_QUEUE, False),
     QueueSpec('remnawave_disable_user', REMNAWAVE_DISABLE_USER_QUEUE, False),
+    QueueSpec('telegram_proxy_apply_node', TELEGRAM_PROXY_OPERATIONS_QUEUE, True),
+    QueueSpec('telegram_proxy_check_node', TELEGRAM_PROXY_OPERATIONS_QUEUE, True),
+    QueueSpec('telegram_proxy_disable_node', TELEGRAM_PROXY_OPERATIONS_QUEUE, True),
 )
 ROUTING_KEYS = {spec.command: spec.queue_name for spec in QUEUE_SPECS}
 LEGACY_QUEUE_NAMES = (LEGACY_SYNC_QUEUE, LEGACY_PROVISION_QUEUE)

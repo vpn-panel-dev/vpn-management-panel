@@ -25,6 +25,14 @@ export interface PublicTraffic {
   updated_at: string | null
 }
 
+export interface TelegramProxyInfo {
+  enabled: boolean
+  primary_node_name: string
+  tg_url: string
+  https_url: string
+  status: string
+}
+
 export interface UserInfo {
   user_name: string
   blocked: boolean
@@ -32,6 +40,7 @@ export interface UserInfo {
   status: PublicStatus
   subscription: PublicSubscription
   traffic: PublicTraffic
+  telegram_proxy: TelegramProxyInfo | null
   updated_at: string | null
 }
 

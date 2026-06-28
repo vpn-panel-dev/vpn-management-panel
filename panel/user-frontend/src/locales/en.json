@@ -41,6 +41,18 @@
     "readyHint": "Ready to connect",
     "pendingHint": "Setup is still being prepared"
   },
+  "telegramProxy": {
+    "kicker": "Telegram proxy",
+    "title": "Access through Telegram",
+    "enabled": "Enabled",
+    "subtitle": "Use the Telegram link for the proxy. The HTTPS fallback stays available for copy or direct open.",
+    "primaryNode": "Primary node: {node}",
+    "proxyStatus": "Status: {status}",
+    "openTelegram": "Open Telegram",
+    "openFallback": "Open HTTPS fallback",
+    "copyFallback": "Copy HTTPS link",
+    "copied": "Copied"
+  },
   "platforms": {
     "title": "How to start",
     "subtitle": "Choose your device and app. The link, QR code, manual, and matching configs will appear below.",

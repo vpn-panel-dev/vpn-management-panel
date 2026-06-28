@@ -5,12 +5,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import LocalAmneziawgUserLifetimeTraffic, Node, Peer, User
+from app.models import LocalAmneziawgUserLifetimeTraffic, Node, Peer, TelegramProxySettings, User
+from app.mtproxy_secret_crypto import decrypt
 from app.services.local_lifecycle import local_user_blocked_reason
 from app.services.node_config import (
     QRStyle,
@@ -22,11 +24,22 @@ from app.services.node_config import (
     make_awg_qr_svg,
     make_qr_svg,
 )
+from app.services.telegram_proxy import build_proxy_links, select_primary_node_state
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
 DB = Annotated[AsyncSession, Depends(get_db)]
+
+
+class PublicTelegramProxy(BaseModel):
+    enabled: bool
+    primary_node_name: str
+    tg_url: str
+    https_url: str
+    status: str
+
+    model_config = ConfigDict(frozen=True)
 
 
 async def _get_psk(db: AsyncSession, user_id: str, node_id: str) -> str:
@@ -124,6 +137,32 @@ async def _get_public_user(db: AsyncSession, token_or_id: str) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def _public_telegram_proxy(db: AsyncSession) -> PublicTelegramProxy | None:
+    settings = await TelegramProxySettings.get_settings(db)
+    payload = None
+    if settings.enabled and settings.secret_encrypted is not None:
+        try:
+            state = await select_primary_node_state(db, settings)
+        except TypeError, ValueError:
+            log.warning('Stored Telegram proxy state is not valid for public links', exc_info=True)
+            state = None
+        if state is not None and settings.primary_node_id is not None:
+            public_host = state.public_host
+            public_port = state.public_port
+            secret = decrypt(settings.secret_encrypted)
+            node = await db.get(Node, settings.primary_node_id)
+            if public_host is not None and public_port is not None and secret is not None and node:
+                links = build_proxy_links(public_host, public_port, secret)
+                payload = PublicTelegramProxy(
+                    enabled=True,
+                    primary_node_name=node.name,
+                    tg_url=links.tg_url,
+                    https_url=links.t_me_url,
+                    status=state.status,
+                )
+    return payload
+
+
 def _make_vpn_qr_svg(user: User, node: Node, description: str, psk_key: str = '') -> bytes | None:
     try:
         return make_amnezia_qr_svg(
@@ -143,8 +182,15 @@ async def pub_user_info(user_id: str, db: DB):
     if not user:
         raise HTTPException(status_code=404)
     summary = await _public_dashboard_summary(user, db)
+    telegram_proxy = await _public_telegram_proxy(db)
     if user.is_blocked:
-        return {'user_name': user.name, 'blocked': True, 'nodes': [], **summary}
+        return {
+            'user_name': user.name,
+            'blocked': True,
+            'nodes': [],
+            'telegram_proxy': telegram_proxy,
+            **summary,
+        }
 
     nodes = (await db.execute(select(Node))).scalars().all()
     nodes_data = []
@@ -176,7 +222,13 @@ async def pub_user_info(user_id: str, db: DB):
             }
         )
 
-    return {'user_name': user.name, 'blocked': False, 'nodes': nodes_data, **summary}
+    return {
+        'user_name': user.name,
+        'blocked': False,
+        'nodes': nodes_data,
+        'telegram_proxy': telegram_proxy,
+        **summary,
+    }
 
 
 @router.get('/pub/u/{user_id}/qr/awg/{node_id}')

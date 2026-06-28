@@ -14,6 +14,7 @@ from app.queue import (
     REMNAWAVE_FULL_RECONCILE_QUEUE,
     SEQUENTIAL_QUEUE_ARGS,
     SYNC_NODE_QUEUE,
+    TELEGRAM_PROXY_OPERATIONS_QUEUE,
     RabbitQueue,
 )
 
@@ -57,8 +58,24 @@ class _FakeChannel:
 
 
 def _command(command: str) -> WorkerCommand:
-    target_id = 'node-1' if command in {'sync_node', 'provision_node'} else None
-    target_type = 'node' if target_id else 'all'
+    target_id = (
+        'node-1'
+        if command
+        in {
+            'sync_node',
+            'provision_node',
+            'telegram_proxy_apply_node',
+            'telegram_proxy_check_node',
+            'telegram_proxy_disable_node',
+        }
+        else None
+    )
+    if command.startswith('telegram_proxy_'):
+        target_type = 'telegram_proxy_node'
+    elif target_id:
+        target_type = 'node'
+    else:
+        target_type = 'all'
     return WorkerCommand.model_validate(
         {
             'command': command,
@@ -85,6 +102,15 @@ def test_worker_routing_key_uses_per_operation_queue() -> None:
     assert queue._routing_key(_command('remnawave_full_reconcile')) == (
         REMNAWAVE_FULL_RECONCILE_QUEUE
     )
+    assert queue._routing_key(_command('telegram_proxy_apply_node')) == (
+        TELEGRAM_PROXY_OPERATIONS_QUEUE
+    )
+    assert queue._routing_key(_command('telegram_proxy_check_node')) == (
+        TELEGRAM_PROXY_OPERATIONS_QUEUE
+    )
+    assert queue._routing_key(_command('telegram_proxy_disable_node')) == (
+        TELEGRAM_PROXY_OPERATIONS_QUEUE
+    )
 
 
 def test_worker_declares_per_command_and_legacy_queues() -> None:
@@ -102,7 +128,16 @@ def test_worker_declares_per_command_and_legacy_queues() -> None:
     assert channel.queues[LEGACY_PROVISION_QUEUE].bindings == [(channel.exchange, 'provision')]
     assert channel.queue_arguments[SYNC_NODE_QUEUE] == SEQUENTIAL_QUEUE_ARGS
     assert channel.queue_arguments[PROVISION_NODE_QUEUE] == SEQUENTIAL_QUEUE_ARGS
+    assert channel.queue_arguments[TELEGRAM_PROXY_OPERATIONS_QUEUE] == SEQUENTIAL_QUEUE_ARGS
     assert channel.queue_arguments[LEGACY_SYNC_QUEUE] == {}
+
+    for delay_name, delay_ms in (('10s', 10_000), ('1m', 60_000), ('10m', 600_000)):
+        retry_queue = f'{TELEGRAM_PROXY_OPERATIONS_QUEUE}.retry.{delay_name}'
+        assert channel.queue_arguments[retry_queue] == {
+            'x-message-ttl': delay_ms,
+            'x-dead-letter-exchange': 'amnezia.jobs',
+            'x-dead-letter-routing-key': TELEGRAM_PROXY_OPERATIONS_QUEUE,
+        }
 
 
 def test_worker_consumer_splits_sequential_and_parallel_queues() -> None:
@@ -118,6 +153,7 @@ def test_worker_consumer_splits_sequential_and_parallel_queues() -> None:
 
     assert [item.name for item in sequential] == [
         SYNC_NODE_QUEUE,
+        TELEGRAM_PROXY_OPERATIONS_QUEUE,
         LEGACY_SYNC_QUEUE,
         LEGACY_PROVISION_QUEUE,
     ]

@@ -20,7 +20,10 @@ function isExpiring(user: User): boolean {
 }
 
 function isExpired(user: User): boolean {
-  if (user.is_blocked && (user.remnawave?.blocked_reason === 'expired' || user.lifecycle?.blocked_reason === 'expired')) {
+  if (
+    user.is_blocked &&
+    (user.remnawave?.blocked_reason === 'expired' || user.lifecycle?.blocked_reason === 'expired')
+  ) {
     return true
   }
   const expireAt = user.remnawave?.expire_at ?? user.lifecycle?.expire_at ?? user.expire_at
@@ -89,8 +92,10 @@ function applyUserQuery(users: User[], query: UserListQuery): UserListResponse {
     if (query.sort === 'traffic') return trafficValue(b) - trafficValue(a)
     if (query.sort === 'expiration') {
       return (
-        (Date.parse(a.remnawave?.expire_at ?? a.lifecycle?.expire_at ?? a.expire_at ?? '') || Infinity) -
-        (Date.parse(b.remnawave?.expire_at ?? b.lifecycle?.expire_at ?? b.expire_at ?? '') || Infinity)
+        (Date.parse(a.remnawave?.expire_at ?? a.lifecycle?.expire_at ?? a.expire_at ?? '') ||
+          Infinity) -
+        (Date.parse(b.remnawave?.expire_at ?? b.lifecycle?.expire_at ?? b.expire_at ?? '') ||
+          Infinity)
       )
     }
     if (query.sort === 'sync') return Number(hasSyncIssue(b)) - Number(hasSyncIssue(a))

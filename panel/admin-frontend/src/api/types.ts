@@ -316,3 +316,51 @@ export interface RemnawaveStatus {
   last_test_status: string | null
   last_test_error: string | null
 }
+
+export interface TelegramProxyLinks {
+  readonly tg_url: string
+  readonly t_me_url: string
+}
+
+export interface TelegramProxySettings {
+  readonly id: string
+  readonly enabled: boolean
+  readonly port: number
+  readonly secret_set: boolean
+  readonly primary_node_id: string | null
+  readonly last_rotation_at: string | null
+  readonly last_rotation_reason: string | null
+  readonly last_rotation_error: string | null
+  readonly created_at: string
+  readonly updated_at: string
+  readonly links: TelegramProxyLinks | null
+}
+
+export interface TelegramProxyNodeState {
+  readonly node_id: string
+  readonly status: string
+  readonly public_host: string | null
+  readonly public_port: number | null
+  readonly last_applied_at: string | null
+  readonly last_checked_at: string | null
+  readonly last_error: string | null
+}
+
+export interface TelegramProxyStatus {
+  readonly settings: TelegramProxySettings
+  readonly primary_node_state: TelegramProxyNodeState | null
+  readonly links: TelegramProxyLinks | null
+}
+
+export interface TelegramProxySettingsUpdate {
+  readonly enabled: boolean
+  readonly port: number
+  readonly primary_node_id: string | null
+  readonly public_host: string | null
+  readonly secret?: string | null
+}
+
+export interface TelegramProxyOperationResponse {
+  readonly operation_id: string
+  readonly status_url: string
+}

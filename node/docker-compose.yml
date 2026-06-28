@@ -11,11 +11,14 @@ services:
       - net.ipv6.conf.all.forwarding=1
     volumes:
       - ./config:/etc/amnezia/amneziawg
+      - ./mtproxy:/etc/amnezia/mtproxy
     ports:
       - "51820:51820/udp"
       - "8000:8000"
+      - "${MTPROXY_PORT:-443}:${MTPROXY_PORT:-443}/tcp"
     environment:
       - WG_INTERFACE=awg0
       - AGENT_TOKEN=changeme
       - SERVER_ENDPOINT=127.0.0.1:51820
       - WG_CONFIG=/etc/amnezia/amneziawg/awg0.conf
+      - MTPROXY_PORT=${MTPROXY_PORT:-443}

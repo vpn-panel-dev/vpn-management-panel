@@ -126,6 +126,25 @@ class BackendClient:
             )
             _raise_for_status(response)
 
+    async def fetch_telegram_proxy_node_snapshot(self, node_id: str) -> dict[str, Any]:
+        async with self._client() as client:
+            response = await client.get(f'/internal/worker/telegram-proxy/nodes/{node_id}/snapshot')
+            _raise_for_status(response)
+            return dict(response.json())
+
+    async def report_telegram_proxy_node_result(
+        self,
+        node_id: str,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        async with self._client() as client:
+            response = await client.post(
+                f'/internal/worker/telegram-proxy/nodes/{node_id}/result',
+                json=result,
+            )
+            _raise_for_status(response)
+            return dict(response.json())
+
     async def timeout_operation(self, operation_id: str) -> None:
         async with self._client() as client:
             response = await client.post(f'/internal/worker/operations/{operation_id}/timeout')

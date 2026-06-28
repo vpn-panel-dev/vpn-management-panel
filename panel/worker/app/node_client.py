@@ -21,6 +21,23 @@ class NodeClient:
         response = await self._request('GET', endpoint, token, '/dump')
         return dict(response.json())
 
+    async def put_mtproxy(
+        self,
+        endpoint: str,
+        token: str,
+        config: dict[str, Any],
+    ) -> dict[str, Any]:
+        response = await self._request('PUT', endpoint, token, '/mtproxy', json=config)
+        return dict(response.json())
+
+    async def get_mtproxy_status(self, endpoint: str, token: str) -> dict[str, Any]:
+        response = await self._request('GET', endpoint, token, '/mtproxy/status')
+        return dict(response.json())
+
+    async def delete_mtproxy(self, endpoint: str, token: str) -> dict[str, Any]:
+        response = await self._request('DELETE', endpoint, token, '/mtproxy')
+        return dict(response.json())
+
     async def put_interface(
         self,
         endpoint: str,

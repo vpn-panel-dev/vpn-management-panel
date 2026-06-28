@@ -27,10 +27,11 @@ Self-hosted VPN management system built on [AmneziaWG](https://github.com/amnezi
 
 | Server | What runs on it | Exposed ports |
 |---|---|---|
-| VPN node | AmneziaWG + node agent | `51820/udp`, `8000` (restrict to panel IP) |
+| VPN node | AmneziaWG + node agent + MTProxy runtime | `51820/udp`, `8000` (restrict to panel IP), `443/tcp` or `${MTPROXY_PORT}` when Telegram proxy is enabled |
 | Management panel | Panel backend + frontend + PostgreSQL | `80` |
 
 The node agent (`8000`) must **not** be exposed to the public internet — restrict it to the management server IP via firewall.
+The Telegram MTProxy port is public only on the VPN node that runs the proxy. The management panel does not need to expose it.
 
 ## Docker images
 
@@ -38,7 +39,7 @@ Pre-built images are published to GitHub Container Registry on every push to `ma
 
 | Image | Description |
 |---|---|
-| `ghcr.io/vpn-panel-dev/amnezia-node` | AmneziaWG userspace tunnel + FastAPI agent |
+| `ghcr.io/vpn-panel-dev/amnezia-node` | AmneziaWG userspace tunnel + FastAPI agent + Telegram MTProxy runtime |
 | `ghcr.io/vpn-panel-dev/amnezia-panel` | FastAPI management backend |
 | `ghcr.io/vpn-panel-dev/amnezia-panel-worker` | Background worker for panel jobs |
 | `ghcr.io/vpn-panel-dev/amnezia-panel-frontend` | Vue 3 admin SPA served by Nginx |
@@ -56,6 +57,7 @@ Run on each **VPN node server**. Repeat for every node.
 - Docker + Docker Compose
 - Kernel with `tun` support (virtually all VPS providers)
 - UDP port `51820` open in firewall
+- TCP port `443` open in firewall if you enable Telegram MTProxy, or whatever value you set in `MTPROXY_PORT`
 
 ### 1. Create working directory
 
@@ -121,6 +123,16 @@ ufw deny 8000
 ufw allow 51820/udp
 ufw --force enable
 ```
+
+### 6. Telegram MTProxy
+
+The node image already includes the MTProxy runtime and its config volume at `/etc/amnezia/mtproxy`.
+
+- The public TCP port defaults to `443`. Override `MTPROXY_PORT` in the node compose file if you want a different public port, and open that same port in the node firewall.
+- The shared secret is node-wide. Reusing the same secret keeps the public proxy URL stable, while rotation changes the URL and invalidates any old shared links.
+- The selected primary node is the public Telegram endpoint. Move the primary node in the panel if you want Telegram proxy traffic to come from a different server.
+- Telegram users do not need separate Telegram accounts or per-user server logins. They use the public MTProxy URL generated for the node.
+- Keep `8000` private to the panel IP. Only the MTProxy TCP port is public.
 
 ---
 
@@ -331,6 +343,8 @@ Pull the latest images and recreate containers:
 cd /opt/amnezia-node  && docker compose pull && docker compose up -d
 cd /opt/amnezia-panel && docker compose pull && docker compose up -d
 ```
+
+For Telegram MTProxy changes, update the panel worker first, then the panel, then the node. That keeps config writes and the node runtime in sync when you rotate the shared secret or change the public port.
 
 ---
 

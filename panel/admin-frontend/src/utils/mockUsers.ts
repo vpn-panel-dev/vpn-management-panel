@@ -125,7 +125,11 @@ function makeMockUser(index: number, scenario: UserScenario): User {
     vpn_ip: `10.66.${Math.floor(n / 250)}.${(n % 240) + 10}`,
     is_blocked: blocked || expired,
     lifecycle_status: blocked ? 'blocked' : expired ? 'expired' : 'active',
-    expire_at: remnawave ? null : expired ? new Date(now - 24 * 60 * 60 * 1000).toISOString() : expireAt,
+    expire_at: remnawave
+      ? null
+      : expired
+        ? new Date(now - 24 * 60 * 60 * 1000).toISOString()
+        : expireAt,
     traffic_limit_bytes: remnawave ? 0 : 50 * 1024 * 1024 * 1024,
     traffic_reset_policy: 'manual',
     traffic_reset_at: null,
