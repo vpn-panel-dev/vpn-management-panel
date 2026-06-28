@@ -322,14 +322,11 @@ validate_config() {
 start_mtproxy() {
     local nat_info
     local -a args preview_args
-    local internal_ip external_ip
 
     if ! nat_info="$(build_nat_info)"; then
         log "Unable to determine MTProxy nat-info."
         exit 1
     fi
-    internal_ip="${nat_info%%:*}"
-    external_ip="${nat_info#*:}"
 
     args=(
         mtproto-proxy
@@ -338,7 +335,7 @@ start_mtproxy() {
         -M "${WORKERS}"
         -C 60000
         --allow-skip-dh
-        --nat-info "${internal_ip}" "${external_ip}"
+        --nat-info "${nat_info}"
         -p "${CONTROL_PORT}"
         -H "${PORT}"
         --aes-pwd "${SECRET_FILE}"
@@ -351,7 +348,7 @@ start_mtproxy() {
         -M "${WORKERS}"
         -C 60000
         --allow-skip-dh
-        --nat-info "${internal_ip}" "${external_ip}"
+        --nat-info "${nat_info}"
         -p "${CONTROL_PORT}"
         -H "${PORT}"
         --aes-pwd "${SECRET_FILE}"
