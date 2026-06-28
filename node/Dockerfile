@@ -70,6 +70,7 @@ COPY agent/pyproject.toml /tmp/pyproject.toml
 RUN pip install --no-cache-dir uv && uv pip install --system -r /tmp/pyproject.toml && rm /tmp/pyproject.toml
 
 COPY agent/agent.py /app/agent.py
+COPY agent/mtproxy.py /app/mtproxy.py
 COPY tunnel.sh /usr/local/bin/tunnel.sh
 COPY mtproxy.sh /usr/local/bin/mtproxy.sh
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
