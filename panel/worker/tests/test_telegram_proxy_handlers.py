@@ -132,6 +132,19 @@ class FailingNode(FakeNode):
         raise RuntimeError('node-agent unavailable')
 
 
+class MissingMtproxyRouteNode(FakeNode):
+    async def put_mtproxy(
+        self,
+        endpoint: str,
+        token: str,
+        config: dict[str, Any],
+    ) -> dict[str, Any]:
+        _ = (token, config)
+        request = httpx.Request('PUT', f'{endpoint}/mtproxy')
+        response = httpx.Response(HTTPStatus.NOT_FOUND, request=request, text='Not Found')
+        raise httpx.HTTPStatusError('404 Not Found', request=request, response=response)
+
+
 class ReplayBackend(FakeBackend):
     async def start_operation(self, operation_id: str) -> dict[str, Any]:
         _ = operation_id
@@ -241,6 +254,31 @@ async def test_apply_node_failure_reports_backend_failure_before_returning() -> 
     )
     assert backend.calls[-1][0] == 'fail'
     assert MTPROXY_TEST_KEY not in str(backend.calls[-1])
+
+
+async def test_apply_node_404_reports_node_image_update_required() -> None:
+    backend = FakeBackend()
+    node = MissingMtproxyRouteNode()
+    handler = CommandHandler(backend, node)
+
+    result = await handler.handle(command('telegram_proxy_apply_node'))
+
+    assert result.ok is False
+    assert result.detail == 'Node agent does not support Telegram MTProxy; update the node image'
+    assert backend.calls[-2] == (
+        'telegram_proxy_result',
+        'node-1',
+        {
+            'status': 'failed',
+            'error': 'Node agent does not support Telegram MTProxy; update the node image',
+        },
+    )
+    assert backend.calls[-1] == (
+        'fail',
+        'op-telegram_proxy_apply_node-node-1',
+        'Node agent does not support Telegram MTProxy; update the node image',
+        None,
+    )
 
 
 async def test_apply_and_disable_share_per_node_lock() -> None:

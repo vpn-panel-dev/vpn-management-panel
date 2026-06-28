@@ -11,7 +11,6 @@ services:
       - net.ipv6.conf.all.forwarding=1
     volumes:
       - ./config:/etc/amnezia/amneziawg
-      - ./mtproxy:/etc/amnezia/mtproxy
     ports:
       - "51820:51820/udp"
       - "8000:8000"

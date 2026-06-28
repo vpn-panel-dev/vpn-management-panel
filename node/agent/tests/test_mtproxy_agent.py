@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 import agent
 from mtproxy import (
+    DEFAULT_CONFIG_PATH,
     MTProxyConfig,
     SupervisorCommandError,
     SupervisorTimeoutError,
@@ -55,6 +56,10 @@ def _run_mtproxy_wrapper(config_dir: Path, config_path: Path) -> subprocess.Comp
         check=False,
         env=env,
     )
+
+
+def test_mtproxy_default_config_path_uses_existing_node_config_mount() -> None:
+    assert Path('/etc/amnezia/amneziawg/mtproxy/config.json') == DEFAULT_CONFIG_PATH
 
 
 def test_mtproxy_config_rejects_invalid_port() -> None:

@@ -21,6 +21,9 @@ from app.remnawave_client import (
 NodeLockMap = defaultdict[str, asyncio.Lock]
 RemnawaveClientFactory = Callable[[str, str], RemnawaveClient | Any]
 OperationHandler = Callable[[WorkerCommand], Awaitable[dict[str, Any]]]
+MTPROXY_UNSUPPORTED_NODE_AGENT_ERROR = (
+    'Node agent does not support Telegram MTProxy; update the node image'
+)
 
 
 class CommandHandler:
@@ -312,6 +315,12 @@ class CommandHandler:
         return str(snapshot.get('token') or '')
 
     def _telegram_proxy_error(self, snapshot: dict[str, Any], exc: Exception) -> str:
+        if (
+            isinstance(exc, httpx.HTTPStatusError)
+            and exc.response.status_code == HTTPStatus.NOT_FOUND
+            and exc.request.url.path.startswith('/mtproxy')
+        ):
+            return MTPROXY_UNSUPPORTED_NODE_AGENT_ERROR
         message = str(exc)
         desired = snapshot.get('desired')
         if isinstance(desired, dict):

@@ -11,7 +11,7 @@ from typing import Final, Literal, assert_never
 
 from pydantic import BaseModel, ConfigDict, Field
 
-DEFAULT_CONFIG_PATH: Final = Path('/etc/amnezia/mtproxy/config.json')
+DEFAULT_CONFIG_PATH: Final = Path('/etc/amnezia/amneziawg/mtproxy/config.json')
 SUPERVISOR_TIMEOUT_SECONDS: Final = 5.0
 REDACTED: Final = '<redacted>'
 SUPERVISOR_STATE_PARTS: Final = 2

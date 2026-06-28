@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-CONFIG_DIR="${MTPROXY_CONFIG_DIR:-/etc/amnezia/mtproxy}"
+CONFIG_DIR="${MTPROXY_CONFIG_DIR:-/etc/amnezia/amneziawg/mtproxy}"
 CONFIG_FILE="${MTPROXY_CONFIG_FILE:-${CONFIG_DIR}/config.json}"
 LEGACY_CONFIG_FILE="${CONFIG_DIR}/config.env"
 SECRET_FILE="${MTPROXY_PROXY_SECRET_FILE:-${CONFIG_DIR}/proxy-secret}"

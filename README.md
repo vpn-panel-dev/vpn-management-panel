@@ -126,7 +126,7 @@ ufw --force enable
 
 ### 6. Telegram MTProxy
 
-The node image already includes the MTProxy runtime and its config volume at `/etc/amnezia/mtproxy`.
+The node image already includes the MTProxy runtime. Its runtime config is stored under the existing node config mount at `/etc/amnezia/amneziawg/mtproxy`.
 
 - The public TCP port defaults to `443`. Override `MTPROXY_PORT` in the node compose file if you want a different public port, and open that same port in the node firewall.
 - The shared secret is node-wide. Reusing the same secret keeps the public proxy URL stable, while rotation changes the URL and invalidates any old shared links.
