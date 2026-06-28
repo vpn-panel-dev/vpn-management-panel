@@ -140,13 +140,14 @@ PY
 
 resolve_nat_public_ip() {
     local host="$1"
+    local resolved
 
     if [[ "${host}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         printf '%s' "${host}"
         return 0
     fi
 
-    python3 - "${host}" <<'PY'
+    if resolved="$(python3 - "${host}" <<'PY'
 from __future__ import annotations
 
 import socket
@@ -158,6 +159,31 @@ try:
 except OSError:
     sys.exit(1)
 PY
+    )"; then
+        case "${resolved}" in
+            0.*|10.*|127.*|169.254.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[0-1].*)
+                ;;
+            *)
+                printf '%s' "${resolved}"
+                return 0
+                ;;
+        esac
+    fi
+
+    for url in https://api.ipify.org https://ifconfig.me; do
+        resolved="$(curl --fail --silent --show-error --location --max-time 5 "${url}" 2>/dev/null || true)"
+        case "${resolved}" in
+            0.*|10.*|127.*|169.254.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[0-1].*)
+                continue
+                ;;
+            [0-9]*.[0-9]*.[0-9]*.[0-9]*)
+                printf '%s' "${resolved}"
+                return 0
+                ;;
+        esac
+    done
+
+    return 1
 }
 
 detect_nat_internal_ip() {
@@ -296,11 +322,14 @@ validate_config() {
 start_mtproxy() {
     local nat_info
     local -a args preview_args
+    local internal_ip external_ip
 
     if ! nat_info="$(build_nat_info)"; then
         log "Unable to determine MTProxy nat-info."
         exit 1
     fi
+    internal_ip="${nat_info%%:*}"
+    external_ip="${nat_info#*:}"
 
     args=(
         mtproto-proxy
@@ -309,7 +338,7 @@ start_mtproxy() {
         -M "${WORKERS}"
         -C 60000
         --allow-skip-dh
-        --nat-info "${nat_info}"
+        --nat-info "${internal_ip}" "${external_ip}"
         -p "${CONTROL_PORT}"
         -H "${PORT}"
         --aes-pwd "${SECRET_FILE}"
@@ -322,7 +351,7 @@ start_mtproxy() {
         -M "${WORKERS}"
         -C 60000
         --allow-skip-dh
-        --nat-info "${nat_info}"
+        --nat-info "${internal_ip}" "${external_ip}"
         -p "${CONTROL_PORT}"
         -H "${PORT}"
         --aes-pwd "${SECRET_FILE}"

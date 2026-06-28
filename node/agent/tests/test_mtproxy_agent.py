@@ -61,6 +61,33 @@ def _run_mtproxy_wrapper(config_dir: Path, config_path: Path) -> subprocess.Comp
     )
 
 
+def _run_mtproxy_wrapper_with_path(
+    config_dir: Path,
+    config_path: Path,
+    path: Path,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    base_path = os.environ.get('PATH', '')
+    env = os.environ | {
+        'PATH': f'{path}:{base_path}' if base_path else str(path),
+        'MTPROXY_CONFIG_DIR': str(config_dir),
+        'MTPROXY_CONFIG_FILE': str(config_path),
+        'MTPROXY_DRY_RUN': '1',
+        'MTPROXY_SKIP_FETCH': '1',
+    }
+    if extra_env:
+        env |= extra_env
+    wrapper_path = Path(__file__).parents[2] / 'mtproxy.sh'
+    return subprocess.run(  # noqa: S603
+        ['/bin/bash', str(wrapper_path)],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+        env=env,
+    )
+
+
 def test_mtproxy_default_config_path_uses_existing_node_config_mount() -> None:
     assert Path('/etc/amnezia/amneziawg/mtproxy/config.json') == DEFAULT_CONFIG_PATH
 
@@ -177,7 +204,7 @@ def test_mtproxy_apply_writes_config_consumable_by_runtime_wrapper(
     assert result.returncode == 0
     assert (
         'Dry run: would start mtproto-proxy -u nobody -S <redacted> -M 1 -C 60000 '
-        '--allow-skip-dh --nat-info 172.19.0.2:95.85.230.107 -p 8888 -H 443 '
+        '--allow-skip-dh --nat-info 172.19.0.2 95.85.230.107 -p 8888 -H 443 '
         '--aes-pwd ' in result.stdout
     )
     assert 'MTProxy disabled by config' not in result.stdout
@@ -310,6 +337,42 @@ def test_mtproxy_wrapper_rejects_malformed_json_without_secret_leak(tmp_path: Pa
     assert 'Invalid MTProxy JSON config.' in result.stdout
     assert RAW_SECRET not in result.stdout
     assert RAW_SECRET not in result.stderr
+
+
+def test_mtproxy_wrapper_falls_back_to_public_ip_when_localhost_resolves_to_loopback(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / 'mtproxy'
+    config_dir.mkdir()
+    config_path = config_dir / 'config.json'
+    config_path.write_text(
+        '{"enabled": true, "port": 443, "secret": "0123456789abcdef0123456789abcdef"}\n'
+    )
+
+    bin_dir = tmp_path / 'bin'
+    bin_dir.mkdir()
+    curl_log = tmp_path / 'curl.log'
+    curl_path = bin_dir / 'curl'
+    curl_path.write_text('#!/bin/sh\nprintf "%s\n" "$*" >> "${CURL_LOG}"\nprintf "95.85.230.107"\n')
+    curl_path.chmod(0o755)
+
+    result = _run_mtproxy_wrapper_with_path(
+        config_dir,
+        config_path,
+        bin_dir,
+        {
+            'CURL_LOG': str(curl_log),
+            'MTPROXY_PUBLIC_HOST': 'localhost',
+            'MTPROXY_NAT_INTERNAL_IP': '172.19.0.2',
+        },
+    )
+
+    assert result.returncode == 0
+    assert 'Dry run: would start mtproto-proxy -u nobody -S <redacted> -M 1 -C 60000 ' in (
+        result.stdout
+    )
+    assert '--nat-info 172.19.0.2 95.85.230.107' in result.stdout
+    assert curl_log.read_text().count('https://api.ipify.org') == 1
 
 
 @pytest.mark.parametrize(
