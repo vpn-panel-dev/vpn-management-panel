@@ -18,6 +18,8 @@ SECRET="${MTPROXY_SECRET:-}"
 TAG="${MTPROXY_TAG:-}"
 WORKERS="${MTPROXY_WORKERS:-1}"
 CONTROL_PORT="${MTPROXY_CONTROL_PORT:-8888}"
+PUBLIC_HOST="${MTPROXY_PUBLIC_HOST:-}"
+NAT_PUBLIC_IP="${MTPROXY_NAT_PUBLIC_IP:-}"
 
 log() {
     printf '[mtproxy] %s\n' "$1"
@@ -77,6 +79,8 @@ read_env_config() {
             TAG|MTPROXY_TAG) TAG="${value}" ;;
             WORKERS|MTPROXY_WORKERS) WORKERS="${value}" ;;
             CONTROL_PORT|MTPROXY_CONTROL_PORT) CONTROL_PORT="${value}" ;;
+            PUBLIC_HOST|MTPROXY_PUBLIC_HOST) PUBLIC_HOST="${value}" ;;
+            NAT_PUBLIC_IP|MTPROXY_NAT_PUBLIC_IP) NAT_PUBLIC_IP="${value}" ;;
         esac
     done < "${CONFIG_FILE}"
 }
@@ -120,6 +124,8 @@ for source, target in (
     ('tag', 'TAG'),
     ('workers', 'WORKERS'),
     ('control_port', 'CONTROL_PORT'),
+    ('public_host', 'PUBLIC_HOST'),
+    ('nat_public_ip', 'NAT_PUBLIC_IP'),
 ):
     if source in data:
         emit(target, data[source])
@@ -130,6 +136,72 @@ PY
     fi
 
     eval "${parsed}"
+}
+
+resolve_nat_public_ip() {
+    local host="$1"
+
+    if [[ "${host}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        printf '%s' "${host}"
+        return 0
+    fi
+
+    python3 - "${host}" <<'PY'
+from __future__ import annotations
+
+import socket
+import sys
+
+
+try:
+    print(socket.gethostbyname(sys.argv[1]))
+except OSError:
+    sys.exit(1)
+PY
+}
+
+detect_nat_internal_ip() {
+    local route output candidate
+
+    if [[ -n "${MTPROXY_NAT_INTERNAL_IP:-}" ]]; then
+        printf '%s' "${MTPROXY_NAT_INTERNAL_IP}"
+        return 0
+    fi
+
+    if output="$(ip -4 route get 1.1.1.1 2>/dev/null)" && [[ "${output}" =~ src[[:space:]]+([0-9.]+) ]]; then
+        printf '%s' "${BASH_REMATCH[1]}"
+        return 0
+    fi
+
+    if output="$(hostname -i 2>/dev/null)"; then
+        for candidate in ${output}; do
+            if [[ "${candidate}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                printf '%s' "${candidate}"
+                return 0
+            fi
+        done
+    fi
+
+    return 1
+}
+
+build_nat_info() {
+    local internal_ip external_ip
+
+    external_ip="${NAT_PUBLIC_IP:-${PUBLIC_HOST}}"
+    if [[ -z "${external_ip}" ]]; then
+        return 1
+    fi
+
+    if ! external_ip="$(resolve_nat_public_ip "${external_ip}")"; then
+        return 1
+    fi
+
+    if ! internal_ip="$(detect_nat_internal_ip)"; then
+        return 1
+    fi
+
+    printf '%s:%s' "${internal_ip}" "${external_ip}"
 }
 
 read_config() {
@@ -222,15 +294,39 @@ validate_config() {
 }
 
 start_mtproxy() {
-    local args=(
+    local nat_info
+    local -a args preview_args
+
+    if ! nat_info="$(build_nat_info)"; then
+        log "Unable to determine MTProxy nat-info."
+        exit 1
+    fi
+
+    args=(
         mtproto-proxy
         -u nobody
+        -S "${SECRET}"
+        -M "${WORKERS}"
+        -C 60000
+        --allow-skip-dh
+        --nat-info "${nat_info}"
         -p "${CONTROL_PORT}"
         -H "${PORT}"
-        -S "${SECRET}"
         --aes-pwd "${SECRET_FILE}"
         "${MULTI_FILE}"
+    )
+    preview_args=(
+        mtproto-proxy
+        -u nobody
+        -S '<redacted>'
         -M "${WORKERS}"
+        -C 60000
+        --allow-skip-dh
+        --nat-info "${nat_info}"
+        -p "${CONTROL_PORT}"
+        -H "${PORT}"
+        --aes-pwd "${SECRET_FILE}"
+        "${MULTI_FILE}"
     )
 
     if [[ -n "${TAG}" ]]; then
@@ -238,7 +334,7 @@ start_mtproxy() {
     fi
 
     if [[ "${DRY_RUN}" == "1" ]]; then
-        log "Dry run: would start mtproto-proxy on port ${PORT} with secret redacted."
+        log "Dry run: would start ${preview_args[*]}."
         return
     fi
 

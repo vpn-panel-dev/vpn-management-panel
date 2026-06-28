@@ -48,6 +48,8 @@ def _run_mtproxy_wrapper(config_dir: Path, config_path: Path) -> subprocess.Comp
         'MTPROXY_CONFIG_FILE': str(config_path),
         'MTPROXY_DRY_RUN': '1',
         'MTPROXY_SKIP_FETCH': '1',
+        'MTPROXY_NAT_INTERNAL_IP': '172.19.0.2',
+        'MTPROXY_NAT_PUBLIC_IP': '95.85.230.107',
     }
     return subprocess.run(  # noqa: S603
         ['/bin/bash', str(wrapper_path)],
@@ -173,7 +175,11 @@ def test_mtproxy_apply_writes_config_consumable_by_runtime_wrapper(
 
     assert resp.status_code == HTTPStatus.OK
     assert result.returncode == 0
-    assert 'Dry run: would start mtproto-proxy on port 443 with secret redacted.' in result.stdout
+    assert (
+        'Dry run: would start mtproto-proxy -u nobody -S <redacted> -M 1 -C 60000 '
+        '--allow-skip-dh --nat-info 172.19.0.2:95.85.230.107 -p 8888 -H 443 '
+        '--aes-pwd ' in result.stdout
+    )
     assert 'MTProxy disabled by config' not in result.stdout
     assert RAW_SECRET not in result.stdout
     assert RAW_SECRET not in result.stderr
