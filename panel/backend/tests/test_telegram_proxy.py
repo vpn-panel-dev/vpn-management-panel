@@ -21,11 +21,11 @@ class TestTelegramProxyLinkGeneration:
 
         # Then: both link formats use the same encoded query values and order.
         assert links.tg_url == (
-            'tg://proxy?server=vpn.example.com&port=443&secret=0123456789abcdef0123456789abcdef'
+            'tg://proxy?server=vpn.example.com&port=443&secret=dd0123456789abcdef0123456789abcdef'
         )
         assert links.t_me_url == (
             'https://t.me/proxy?server=vpn.example.com&port=443&secret='
-            '0123456789abcdef0123456789abcdef'
+            'dd0123456789abcdef0123456789abcdef'
         )
 
     def test_link_generation_encodes_host_and_secret(self):
@@ -43,6 +43,18 @@ class TestTelegramProxyLinkGeneration:
         assert links.t_me_url == (
             'https://t.me/proxy?server=%5B2001%3Adb8%3A%3A1%5D&port=8443&secret='
             'dd0123456789abcdef0123456789abcdef'
+        )
+
+    def test_link_generation_keeps_dd_prefixed_secret_unchanged(self):
+        # Given: a secret already prepared for Telegram clients.
+        secret = 'dd0123456789abcdef0123456789abcdef'
+
+        # When: links are generated.
+        links = build_proxy_links('vpn.example.com', 443, secret)
+
+        # Then: the dd prefix is not duplicated.
+        assert links.tg_url == (
+            'tg://proxy?server=vpn.example.com&port=443&secret=dd0123456789abcdef0123456789abcdef'
         )
 
 

@@ -74,8 +74,8 @@ async def test_update_settings_redacts_secret_and_returns_ready_links(
     assert 'secret' not in body
     assert 'secret_encrypted' not in body
     assert body['links'] == {
-        'tg_url': f'tg://proxy?server=proxy.example.com&port=443&secret={RAW_SECRET}',
-        't_me_url': f'https://t.me/proxy?server=proxy.example.com&port=443&secret={RAW_SECRET}',
+        'tg_url': f'tg://proxy?server=proxy.example.com&port=443&secret=dd{RAW_SECRET}',
+        't_me_url': f'https://t.me/proxy?server=proxy.example.com&port=443&secret=dd{RAW_SECRET}',
     }
 
 

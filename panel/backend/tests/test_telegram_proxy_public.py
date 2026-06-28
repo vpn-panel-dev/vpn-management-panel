@@ -19,8 +19,8 @@ PROXY_SECRET = '0123456789abcdef0123456789abcdef'
 EXPECTED_PROXY = {
     'enabled': True,
     'primary_node_name': 'primary proxy',
-    'tg_url': 'tg://proxy?server=proxy.example.com&port=443&secret=0123456789abcdef0123456789abcdef',
-    'https_url': 'https://t.me/proxy?server=proxy.example.com&port=443&secret=0123456789abcdef0123456789abcdef',
+    'tg_url': 'tg://proxy?server=proxy.example.com&port=443&secret=dd0123456789abcdef0123456789abcdef',
+    'https_url': 'https://t.me/proxy?server=proxy.example.com&port=443&secret=dd0123456789abcdef0123456789abcdef',
     'status': 'ready',
 }
 

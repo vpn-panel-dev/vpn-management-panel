@@ -35,6 +35,13 @@ def validate_proxy_secret(secret: str) -> str:
     raise ValueError('telegram proxy secret must be 32 hex characters or dd plus 32 hex characters')
 
 
+def format_proxy_link_secret(secret: str) -> str:
+    normalized = validate_proxy_secret(secret)
+    if normalized.startswith('dd'):
+        return normalized
+    return f'dd{normalized}'
+
+
 def normalize_public_host(host: str) -> str:
     if host != host.strip():
         raise ValueError('telegram proxy public host must not include surrounding whitespace')
@@ -60,7 +67,7 @@ def build_proxy_links(host: str, port: object, secret: str) -> TelegramProxyLink
         {
             'server': normalize_public_host(host),
             'port': str(normalize_public_port(port)),
-            'secret': validate_proxy_secret(secret),
+            'secret': format_proxy_link_secret(secret),
         },
         quote_via=quote,
     )
