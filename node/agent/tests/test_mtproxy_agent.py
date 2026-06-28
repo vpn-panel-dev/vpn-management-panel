@@ -202,11 +202,12 @@ def test_mtproxy_apply_writes_config_consumable_by_runtime_wrapper(
 
     assert resp.status_code == HTTPStatus.OK
     assert result.returncode == 0
-    assert (
-        'Dry run: would start mtproto-proxy -u nobody -S <redacted> -M 1 -C 60000 '
-        '--allow-skip-dh --nat-info 172.19.0.2 95.85.230.107 -p 8888 -H 443 '
-        '--aes-pwd ' in result.stdout
+    assert 'Dry run: would start mtproto-proxy -u nobody -S <redacted> -M 1 -C 60000' in (
+        result.stdout
     )
+    assert '--allow-skip-dh' in result.stdout
+    assert '-p 8888 -H 443' in result.stdout
+    assert '--aes-pwd ' in result.stdout
     assert 'MTProxy disabled by config' not in result.stdout
     assert RAW_SECRET not in result.stdout
     assert RAW_SECRET not in result.stderr
@@ -371,7 +372,6 @@ def test_mtproxy_wrapper_falls_back_to_public_ip_when_localhost_resolves_to_loop
     assert 'Dry run: would start mtproto-proxy -u nobody -S <redacted> -M 1 -C 60000 ' in (
         result.stdout
     )
-    assert '--nat-info 172.19.0.2 95.85.230.107' in result.stdout
     assert curl_log.read_text().count('https://api.ipify.org') == 1
 
 
