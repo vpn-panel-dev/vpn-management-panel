@@ -333,6 +333,7 @@ export interface TelegramProxySettings {
   readonly id: string
   readonly enabled: boolean
   readonly port: number
+  readonly tls_domain: string
   readonly secret_set: boolean
   readonly primary_node_id: string | null
   readonly last_rotation_at: string | null
@@ -364,6 +365,7 @@ export interface TelegramProxySettingsUpdate {
   readonly port: number
   readonly primary_node_id: string | null
   readonly public_host: string | null
+  readonly tls_domain: string
   readonly secret?: string | null
 }
 

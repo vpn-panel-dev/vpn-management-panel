@@ -16,6 +16,7 @@
         v-model:port="form.port"
         v-model:primary-node-id="form.primaryNodeId"
         v-model:public-host="form.publicHost"
+        v-model:tls-domain="form.tlsDomain"
         v-model:secret="form.secret"
         :busy="busy"
         :saving="saving"
@@ -56,6 +57,7 @@ interface ProxyForm {
   port: number | null
   primaryNodeId: string | null
   publicHost: string
+  tlsDomain: string
   secret: string
 }
 
@@ -76,6 +78,7 @@ const form = reactive<ProxyForm>({
   port: null,
   primaryNodeId: null,
   publicHost: '',
+  tlsDomain: '',
   secret: '',
 })
 
@@ -120,6 +123,7 @@ function hydrateFormFromStatus(data: TelegramProxyStatus) {
   form.enabled = data.settings.enabled
   form.port = data.settings.port
   form.primaryNodeId = data.settings.primary_node_id
+  form.tlsDomain = data.settings.tls_domain
   form.publicHost = ''
   form.secret = ''
 }
@@ -168,6 +172,7 @@ async function saveSettings() {
       port: form.port,
       primary_node_id: form.primaryNodeId,
       public_host: form.publicHost.trim() || null,
+      tls_domain: form.tlsDomain.trim().toLowerCase(),
       ...(form.secret.trim() ? { secret: form.secret.trim() } : {}),
     }
     const data = await telegramProxyApi.updateTelegramProxySettings(payload)

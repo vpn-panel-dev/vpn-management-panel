@@ -51,6 +51,16 @@
       </div>
 
       <div class="field">
+        <label for="telegram-proxy-tls-domain">{{ t('telegramProxy.tlsDomainLabel') }}</label>
+        <InputText
+          id="telegram-proxy-tls-domain"
+          v-model.trim="tlsDomain"
+          :placeholder="t('telegramProxy.tlsDomainPlaceholder')"
+        />
+        <small class="field-hint">{{ t('telegramProxy.tlsDomainHint') }}</small>
+      </div>
+
+      <div class="field">
         <div class="field-head">
           <label for="telegram-proxy-secret">{{ t('telegramProxy.secretLabel') }}</label>
           <Tag :severity="secretTagSeverity">{{ secretTagLabel }}</Tag>
@@ -128,6 +138,7 @@ const enabled = defineModel<boolean>('enabled', { required: true })
 const port = defineModel<number | null>('port', { required: true })
 const primaryNodeId = defineModel<string | null>('primaryNodeId', { required: true })
 const publicHost = defineModel<string>('publicHost', { required: true })
+const tlsDomain = defineModel<string>('tlsDomain', { required: true })
 const secret = defineModel<string>('secret', { required: true })
 
 const props = defineProps<{
