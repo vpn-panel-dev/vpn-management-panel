@@ -43,8 +43,13 @@ function trafficValue(user: User): number {
   return user.local_traffic?.total_bytes ?? 0
 }
 
+function userDisplayName(user: User): string {
+  return user.remnawave?.display_name ?? user.name
+}
+
 function userSearchText(user: User): string {
   return [
+    userDisplayName(user),
     user.name,
     user.vpn_ip,
     user.id,
@@ -99,7 +104,7 @@ function applyUserQuery(users: User[], query: UserListQuery): UserListResponse {
       )
     }
     if (query.sort === 'sync') return Number(hasSyncIssue(b)) - Number(hasSyncIssue(a))
-    return a.name.localeCompare(b.name, 'ru')
+    return userDisplayName(a).localeCompare(userDisplayName(b), 'ru')
   })
 
   const safePageSize = Math.max(10, query.pageSize)

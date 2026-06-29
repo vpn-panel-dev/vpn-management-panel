@@ -1,3 +1,5 @@
+// allow: SIZE_OK — shared API type barrel across admin frontend
+
 export interface Node {
   id: string
   name: string
@@ -64,6 +66,11 @@ export interface Peer {
 export interface RemnawaveUserBrief {
   uuid: string
   username: string
+  display_name: string | null
+  telegram_username: string | null
+  telegram_url: string | null
+  description: string | null
+  telegram_id: number | null
   status: string
   expire_at: string | null
   email: string | null

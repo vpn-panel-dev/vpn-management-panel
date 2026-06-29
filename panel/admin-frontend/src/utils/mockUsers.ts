@@ -115,6 +115,14 @@ function makeMockUser(index: number, scenario: UserScenario): User {
   const expired = index % 17 === 0
   const expireAt = new Date(now + (index % 9 === 0 ? 5 : 45) * 24 * 60 * 60 * 1000).toISOString()
   const longName = index % 10 === 0 ? '-very-long-operator-name-with-region-and-team' : ''
+  const telegramUsername = index % 6 === 0 || index % 2 === 0 ? null : `remnawave_${String(n).padStart(3, '0')}`
+  const telegramId = index % 6 === 0 ? null : index % 2 === 0 ? 5_149_087_582 + n : null
+  const telegramUrl =
+    telegramUsername !== null
+      ? `https://t.me/${telegramUsername}`
+      : telegramId !== null
+        ? `tg://user?id=${telegramId}`
+        : null
 
   return {
     id: `mock-user-${String(n).padStart(3, '0')}`,
@@ -172,9 +180,14 @@ function makeMockUser(index: number, scenario: UserScenario): User {
           blocked_reason: expired ? 'expired' : blocked ? 'blocked' : null,
         },
     remnawave: remnawave
-      ? {
+        ? {
           uuid: `11111111-2222-4${String(index).padStart(3, '0').slice(-3)}-8${String(index).padStart(3, '0').slice(-3)}-aaaaaaaa${String(n).padStart(4, '0')}`,
           username: `remnawave_${String(n).padStart(3, '0')}`,
+          display_name: null,
+          telegram_username: telegramUsername,
+          telegram_url: telegramUrl,
+          description: index % 4 === 0 ? null : `Bot user: ${n}`,
+          telegram_id: telegramId,
           status: expired ? 'EXPIRED' : blocked ? 'DISABLED' : 'ACTIVE',
           expire_at: expired ? new Date(now - 24 * 60 * 60 * 1000).toISOString() : expireAt,
           email: `user${n}@example.net`,
