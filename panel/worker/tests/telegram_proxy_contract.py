@@ -19,6 +19,7 @@ EXPECTED_TELEGRAM_PROXY_SNAPSHOT_JSON = {
         'secret': MTPROXY_TEST_KEY,
         'port': 443,
         'public_host': 'proxy.example.com',
+        'tls_domain': 'cloudsyncpro.net',
     },
 }
 
@@ -26,6 +27,7 @@ EXPECTED_TELEGRAM_PROXY_NODE_CONFIG_JSON = {
     'secret': MTPROXY_TEST_KEY,
     'port': 443,
     'public_host': 'proxy.example.com',
+    'tls_domain': 'cloudsyncpro.net',
 }
 
 EXPECTED_TELEGRAM_PROXY_READY_RESULT_JSON = {

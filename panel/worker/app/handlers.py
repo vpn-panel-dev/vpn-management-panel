@@ -275,13 +275,21 @@ class CommandHandler:
         secret = desired.get('secret')
         public_host = desired.get('public_host')
         port = desired.get('port')
+        tls_domain = desired.get('tls_domain')
         if not isinstance(secret, str) or not secret:
             raise ValueError('Telegram proxy secret is missing')
         if not isinstance(public_host, str) or not public_host:
             raise ValueError('Telegram proxy public_host is missing')
         if not isinstance(port, int):
             raise TypeError('Telegram proxy port is missing')
-        return {'secret': secret, 'port': port, 'public_host': public_host}
+        if not isinstance(tls_domain, str) or not tls_domain:
+            raise ValueError('Telegram proxy tls_domain is missing')
+        return {
+            'secret': secret,
+            'port': port,
+            'public_host': public_host,
+            'tls_domain': tls_domain,
+        }
 
     def _telegram_proxy_result(self, status: dict[str, Any]) -> dict[str, Any]:
         state = str(status.get('state') or 'unknown')
