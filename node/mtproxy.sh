@@ -122,16 +122,16 @@ try:
 except KeyError:
     sys.exit(1)
 
-    for source, target in (
-        ('tag', 'TAG'),
-        ('workers', 'WORKERS'),
-        ('control_port', 'CONTROL_PORT'),
-        ('public_host', 'PUBLIC_HOST'),
-        ('nat_public_ip', 'NAT_PUBLIC_IP'),
-        ('tls_domain', 'TLS_DOMAIN'),
-    ):
-        if source in data:
-            emit(target, data[source])
+for source, target in (
+    ('tag', 'TAG'),
+    ('workers', 'WORKERS'),
+    ('control_port', 'CONTROL_PORT'),
+    ('public_host', 'PUBLIC_HOST'),
+    ('nat_public_ip', 'NAT_PUBLIC_IP'),
+    ('tls_domain', 'TLS_DOMAIN'),
+):
+    if source in data:
+        emit(target, data[source])
 PY
 )"; then
         log "Invalid MTProxy JSON config."

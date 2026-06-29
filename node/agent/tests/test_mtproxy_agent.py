@@ -381,6 +381,26 @@ def test_mtproxy_wrapper_falls_back_to_public_ip_when_localhost_resolves_to_loop
     assert curl_log.read_text().count('https://api.ipify.org') == 1
 
 
+def test_mtproxy_wrapper_uses_json_public_host_without_env_overrides(tmp_path: Path) -> None:
+    config_dir = tmp_path / 'mtproxy'
+    config_dir.mkdir()
+    config_path = config_dir / 'config.json'
+    config_path.write_text(
+        '{"enabled": true, "port": 443, "secret": "0123456789abcdef0123456789abcdef", '
+        '"public_host": "95.85.230.107", "tls_domain": "cloudsyncpro.net"}\n'
+    )
+
+    result = _run_mtproxy_wrapper(
+        config_dir,
+        config_path,
+    )
+
+    assert result.returncode == 0
+    assert '--nat-info 172.19.0.2:95.85.230.107' in result.stdout
+    assert RAW_SECRET not in result.stdout
+    assert RAW_SECRET not in result.stderr
+
+
 @pytest.mark.parametrize(
     'payload',
     [
