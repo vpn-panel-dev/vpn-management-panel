@@ -153,7 +153,7 @@ async def _public_telegram_proxy(db: AsyncSession) -> PublicTelegramProxy | None
             secret = decrypt(settings.secret_encrypted)
             node = await db.get(Node, settings.primary_node_id)
             if public_host is not None and public_port is not None and secret is not None and node:
-                links = build_proxy_links(public_host, public_port, secret)
+                links = build_proxy_links(public_host, public_port, secret, settings.tls_domain)
                 payload = PublicTelegramProxy(
                     enabled=True,
                     primary_node_name=node.name,

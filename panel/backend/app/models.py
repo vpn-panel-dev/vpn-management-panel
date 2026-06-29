@@ -382,6 +382,7 @@ class TelegramProxySettings(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     port: Mapped[int] = mapped_column(Integer, default=443, nullable=False)
+    tls_domain: Mapped[str] = mapped_column(String, default='cloudsyncpro.net', nullable=False)
     secret_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
     primary_node_id: Mapped[str | None] = mapped_column(
         String, ForeignKey('nodes.id', ondelete='SET NULL'), nullable=True
@@ -836,6 +837,7 @@ class TelegramProxySettingsSchema(BaseModel):
     id: str
     enabled: bool = False
     port: int = 443
+    tls_domain: str = 'cloudsyncpro.net'
     secret_set: bool = False
     primary_node_id: str | None = None
     last_rotation_at: datetime | None = None
@@ -852,6 +854,7 @@ class TelegramProxySettingsSchema(BaseModel):
             'id': obj.id,
             'enabled': obj.enabled,
             'port': obj.port,
+            'tls_domain': obj.tls_domain,
             'secret_set': obj.secret_encrypted is not None and len(obj.secret_encrypted) > 0,
             'primary_node_id': obj.primary_node_id,
             'last_rotation_at': obj.last_rotation_at,

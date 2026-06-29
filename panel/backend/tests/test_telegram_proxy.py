@@ -10,6 +10,8 @@ from app.services.telegram_proxy import (
     validate_proxy_secret,
 )
 
+TLS_DOMAIN_HEX = '636c6f756473796e6370726f2e6e6574'
+
 
 class TestTelegramProxyLinkGeneration:
     def test_link_generation_is_deterministic_and_url_encoded(self):
@@ -17,44 +19,50 @@ class TestTelegramProxyLinkGeneration:
         secret = '0123456789abcdef0123456789abcdef'
 
         # When: links are generated for Telegram clients.
-        links = build_proxy_links('vpn.example.com', 443, secret)
+        links = build_proxy_links('vpn.example.com', 443, secret, 'cloudsyncpro.net')
 
         # Then: both link formats use the same encoded query values and order.
         assert links.tg_url == (
-            'tg://proxy?server=vpn.example.com&port=443&secret=dd0123456789abcdef0123456789abcdef'
+            'tg://proxy?server=vpn.example.com&port=443&secret='
+            f'ee0123456789abcdef0123456789abcdef{TLS_DOMAIN_HEX}'
         )
         assert links.t_me_url == (
             'https://t.me/proxy?server=vpn.example.com&port=443&secret='
-            'dd0123456789abcdef0123456789abcdef'
+            f'ee0123456789abcdef0123456789abcdef{TLS_DOMAIN_HEX}'
         )
 
     def test_link_generation_encodes_host_and_secret(self):
-        # Given: a bracketed IPv6 host and dd-prefixed secret accepted by Telegram.
+        # Given: a bracketed IPv6 host and legacy dd-prefixed secret input.
         secret = 'dd0123456789abcdef0123456789abcdef'
 
         # When: links are generated.
-        links = build_proxy_links('[2001:db8::1]', 8443, secret)
+        links = build_proxy_links('[2001:db8::1]', 8443, secret, 'cloudsyncpro.net')
 
         # Then: reserved characters are encoded deterministically.
         assert links.tg_url == (
             'tg://proxy?server=%5B2001%3Adb8%3A%3A1%5D&port=8443&secret='
-            'dd0123456789abcdef0123456789abcdef'
+            f'ee0123456789abcdef0123456789abcdef{TLS_DOMAIN_HEX}'
         )
         assert links.t_me_url == (
             'https://t.me/proxy?server=%5B2001%3Adb8%3A%3A1%5D&port=8443&secret='
-            'dd0123456789abcdef0123456789abcdef'
+            f'ee0123456789abcdef0123456789abcdef{TLS_DOMAIN_HEX}'
         )
 
-    def test_link_generation_keeps_dd_prefixed_secret_unchanged(self):
-        # Given: a secret already prepared for Telegram clients.
+    def test_link_generation_normalizes_dd_prefixed_secret_to_fake_tls(self):
+        # Given: a dd-prefixed secret from legacy mode.
         secret = 'dd0123456789abcdef0123456789abcdef'
 
         # When: links are generated.
-        links = build_proxy_links('vpn.example.com', 443, secret)
+        links = build_proxy_links('vpn.example.com', 443, secret, 'cloudsyncpro.net')
 
-        # Then: the dd prefix is not duplicated.
+        # Then: the public link is emitted in fake-TLS format.
         assert links.tg_url == (
-            'tg://proxy?server=vpn.example.com&port=443&secret=dd0123456789abcdef0123456789abcdef'
+            'tg://proxy?server=vpn.example.com&port=443&secret='
+            f'ee0123456789abcdef0123456789abcdef{TLS_DOMAIN_HEX}'
+        )
+        assert links.t_me_url == (
+            'https://t.me/proxy?server=vpn.example.com&port=443&secret='
+            f'ee0123456789abcdef0123456789abcdef{TLS_DOMAIN_HEX}'
         )
 
 

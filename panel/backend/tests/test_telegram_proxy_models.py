@@ -48,6 +48,7 @@ class TestTelegramProxySettingsModel:
         assert settings_again.id == settings.id
         assert settings.enabled is False
         assert settings.port == 443
+        assert settings.tls_domain == 'cloudsyncpro.net'
         assert settings.secret_encrypted is None
         assert settings.primary_node_id is None
         assert settings.last_rotation_at is None

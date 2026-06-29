@@ -10,6 +10,8 @@ from app.models import TelegramProxyNodeState, TelegramProxySettings
 
 _NORMAL_SECRET_RE = re.compile(r'^[0-9a-f]{32}$')
 _DD_SECRET_RE = re.compile(r'^dd[0-9a-f]{32}$')
+_FAKE_TLS_DOMAIN = 'cloudsyncpro.net'
+_FAKE_TLS_DOMAIN_HEX = _FAKE_TLS_DOMAIN.encode().hex()
 _READY_STATUSES = frozenset({'active', 'ready'})
 _MIN_PUBLIC_PORT = 1
 _MAX_PUBLIC_PORT = 65535
@@ -35,11 +37,10 @@ def validate_proxy_secret(secret: str) -> str:
     raise ValueError('telegram proxy secret must be 32 hex characters or dd plus 32 hex characters')
 
 
-def format_proxy_link_secret(secret: str) -> str:
+def format_proxy_link_secret(secret: str, tls_domain: str) -> str:
     normalized = validate_proxy_secret(secret)
-    if normalized.startswith('dd'):
-        return normalized
-    return f'dd{normalized}'
+    base_secret = normalized[2:] if normalized.startswith('dd') else normalized
+    return f'ee{base_secret}{tls_domain.encode().hex()}'
 
 
 def normalize_public_host(host: str) -> str:
@@ -62,12 +63,12 @@ def normalize_public_port(port: object) -> int:
     raise ValueError('telegram proxy public port must be between 1 and 65535')
 
 
-def build_proxy_links(host: str, port: object, secret: str) -> TelegramProxyLinks:
+def build_proxy_links(host: str, port: object, secret: str, tls_domain: str) -> TelegramProxyLinks:
     query = urlencode(
         {
             'server': normalize_public_host(host),
             'port': str(normalize_public_port(port)),
-            'secret': format_proxy_link_secret(secret),
+            'secret': format_proxy_link_secret(secret, tls_domain),
         },
         quote_via=quote,
     )

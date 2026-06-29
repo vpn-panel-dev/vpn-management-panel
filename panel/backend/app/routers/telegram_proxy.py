@@ -40,6 +40,7 @@ class TelegramProxySettingsIn(BaseModel):
     port: int = Field(ge=1, le=65535)
     primary_node_id: str | None = None
     public_host: str | None = None
+    tls_domain: str = 'cloudsyncpro.net'
     secret: str | None = None
 
     @field_validator('public_host')
@@ -48,6 +49,14 @@ class TelegramProxySettingsIn(BaseModel):
         if value is None:
             return None
         return normalize_public_host(value)
+
+    @field_validator('tls_domain')
+    @classmethod
+    def normalize_tls_domain(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized == '':
+            raise ValueError('telegram proxy tls domain is required')
+        return normalized
 
     @field_validator('secret')
     @classmethod
@@ -116,7 +125,7 @@ async def _response_links(
     if secret is None:
         return None
 
-    links = build_proxy_links(public_host, public_port, secret)
+    links = build_proxy_links(public_host, public_port, secret, settings.tls_domain)
     return _links_out(links)
 
 
@@ -161,6 +170,7 @@ async def update_telegram_proxy_settings(
     settings.enabled = data.enabled
     settings.port = data.port
     settings.primary_node_id = data.primary_node_id
+    settings.tls_domain = data.tls_domain
     if data.secret is not None:
         settings.secret_encrypted = encrypt(data.secret)
     await db.commit()

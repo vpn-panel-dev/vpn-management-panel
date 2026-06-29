@@ -24,6 +24,7 @@ class TelegramProxyDesiredConfig(BaseModel):
     secret: str | None
     port: int
     public_host: str | None
+    tls_domain: str
 
 
 class TelegramProxySnapshot(BaseModel):
@@ -75,6 +76,7 @@ def _desired_config(settings: TelegramProxySettings, node: Node) -> TelegramProx
         secret=decrypt(settings.secret_encrypted) if settings.secret_encrypted else None,
         port=settings.port,
         public_host=_host_from_endpoint(node.server_endpoint),
+        tls_domain=settings.tls_domain,
     )
 
 

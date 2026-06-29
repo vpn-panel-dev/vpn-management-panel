@@ -16,6 +16,7 @@ EXPECTED_TELEGRAM_PROXY_SNAPSHOT_JSON = {
         'secret': '0123456789abcdef0123456789abcdef',
         'port': 8443,
         'public_host': 'proxy.example.com',
+        'tls_domain': 'cloudsyncpro.net',
     },
 }
 
