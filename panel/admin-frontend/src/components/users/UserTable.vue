@@ -20,11 +20,11 @@
       >
         <div class="user-primary">
           <div class="user-avatar" :class="{ 'user-avatar--rw': user.remnawave }">
-            {{ initials(user.name) }}
+            {{ initials(primaryIdentity(user)) }}
           </div>
           <div class="user-identity">
             <button type="button" class="user-name-button" @click.stop="$emit('select', user)">
-              {{ user.name }}
+              {{ primaryIdentity(user) }}
             </button>
             <div class="user-subline">
               <code v-if="user.vpn_ip">{{ user.vpn_ip }}</code>
@@ -58,7 +58,14 @@
           <div class="signal-title">{{ sourceLabel(user) }}</div>
           <div class="signal-meta">
             <template v-if="user.remnawave">
-              <span>{{ user.remnawave.username }}</span>
+              <span>{{ remnawaveContext(user) }}</span>
+              <a
+                v-if="telegramLinkLabel(user)"
+                :href="user.remnawave.telegram_url || undefined"
+                v-bind="telegramLinkAttrs(user)"
+              >
+                {{ telegramLinkLabel(user) }}
+              </a>
               <Tag
                 :severity="syncSeverity(user.remnawave.sync_status, user.remnawave.sync_error)"
                 :value="
@@ -142,6 +149,53 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('')
+}
+
+function primaryIdentity(user: User): string {
+  return user.remnawave?.display_name ?? user.name
+}
+
+function normalizeTelegramUsername(username: string | null | undefined): string | null {
+  const value = username?.trim().replace(/^@/, '')
+  return value ? value : null
+}
+
+function remnawaveContext(user: User): string | null {
+  if (!user.remnawave) return null
+
+  const username = normalizeTelegramUsername(user.remnawave.username)
+  if (!username) return user.name
+
+  return `${user.name} · @${username}`
+}
+
+function telegramLinkLabel(user: User): string | null {
+  const remnawave = user.remnawave
+  if (!remnawave?.telegram_url) return null
+
+  if (remnawave.telegram_url.startsWith('https://t.me/')) {
+    const username = normalizeTelegramUsername(remnawave.telegram_username)
+    return username ? `@${username}` : 'Telegram username'
+  }
+
+  if (remnawave.telegram_url.startsWith('tg://user?id=')) {
+    return remnawave.telegram_id !== null
+      ? `Telegram ID ${remnawave.telegram_id}`
+      : 'Telegram contact'
+  }
+
+  return 'Telegram contact'
+}
+
+function telegramLinkAttrs(user: User): {
+  readonly rel?: 'noreferrer'
+  readonly target?: '_blank'
+} {
+  if (user.remnawave?.telegram_url?.startsWith('http')) {
+    return { rel: 'noreferrer', target: '_blank' }
+  }
+
+  return {}
 }
 
 function sourceLabel(user: User): string {
@@ -272,6 +326,16 @@ function syncSeverity(status: string, error: string | null): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.signal-meta a {
+  color: var(--app-accent);
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.signal-meta a:hover {
+  text-decoration: underline;
 }
 
 .user-state-stack {

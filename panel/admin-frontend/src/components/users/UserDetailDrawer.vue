@@ -3,9 +3,19 @@
     <div class="drawer-head">
       <div>
         <span class="page-kicker"><i class="pi pi-id-card" /> {{ $t('userDetail.kicker') }}</span>
-        <h3>{{ user.name }}</h3>
+        <h3>{{ primaryIdentity(user) }}</h3>
         <p>
           {{ user.remnawave ? $t('userDetail.identityRemnawave') : $t('userDetail.identityLocal') }}
+        </p>
+        <p v-if="user.remnawave" class="drawer-identity-meta">
+          <span>{{ remnawaveContext(user) }}</span>
+          <a
+            v-if="telegramLinkLabel(user)"
+            :href="user.remnawave.telegram_url || undefined"
+            v-bind="telegramLinkAttrs(user)"
+          >
+            {{ telegramLinkLabel(user) }}
+          </a>
         </p>
       </div>
       <Button
@@ -261,8 +271,17 @@
           ><code>{{ user.remnawave.uuid }}</code>
         </div>
         <div>
+          <span>Display name</span><b>{{ user.remnawave.display_name || '—' }}</b>
+        </div>
+        <div>
           <span>{{ $t('userDetail.labelUsername') }}</span
           ><b>{{ user.remnawave.username }}</b>
+        </div>
+        <div v-if="user.remnawave.telegram_url">
+          <span>Telegram</span
+          ><a :href="user.remnawave.telegram_url" v-bind="telegramLinkAttrs(user)">
+            {{ telegramLinkLabel(user) }}
+          </a>
         </div>
         <div>
           <span>{{ $t('userDetail.labelEmail') }}</span
@@ -367,6 +386,53 @@ const emit = defineEmits<{
 
 function formatDateTimeOrDash(iso?: string | null): string {
   return iso ? formatDateTime(iso) : '—'
+}
+
+function primaryIdentity(user: User): string {
+  return user.remnawave?.display_name ?? user.name
+}
+
+function normalizeTelegramUsername(username: string | null | undefined): string | null {
+  const value = username?.trim().replace(/^@/, '')
+  return value ? value : null
+}
+
+function remnawaveContext(user: User): string | null {
+  if (!user.remnawave) return null
+
+  const username = normalizeTelegramUsername(user.remnawave.username)
+  if (!username) return user.name
+
+  return `${user.name} · @${username}`
+}
+
+function telegramLinkLabel(user: User): string | null {
+  const remnawave = user.remnawave
+  if (!remnawave?.telegram_url) return null
+
+  if (remnawave.telegram_url.startsWith('https://t.me/')) {
+    const username = normalizeTelegramUsername(remnawave.telegram_username)
+    return username ? `@${username}` : 'Telegram username'
+  }
+
+  if (remnawave.telegram_url.startsWith('tg://user?id=')) {
+    return remnawave.telegram_id !== null
+      ? `Telegram ID ${remnawave.telegram_id}`
+      : 'Telegram contact'
+  }
+
+  return 'Telegram contact'
+}
+
+function telegramLinkAttrs(user: User): {
+  readonly rel?: 'noreferrer'
+  readonly target?: '_blank'
+} {
+  if (user.remnawave?.telegram_url?.startsWith('http')) {
+    return { rel: 'noreferrer', target: '_blank' }
+  }
+
+  return {}
 }
 
 function trafficValue(user: User): string {
@@ -497,6 +563,25 @@ const sortedPeers = computed(() => {
 .drawer-head p {
   margin: 0.3rem 0 0;
   color: var(--app-text-muted);
+}
+
+.drawer-identity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.45rem 0 0;
+  color: var(--app-text-muted);
+  font-size: 0.82rem;
+}
+
+.drawer-identity-meta a {
+  color: var(--app-accent);
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.drawer-identity-meta a:hover {
+  text-decoration: underline;
 }
 
 .drawer-status-row,

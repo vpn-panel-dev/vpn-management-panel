@@ -5,7 +5,8 @@
     <article v-for="user in users" v-else :key="user.id" class="mobile-user-card">
       <div class="mobile-card-head">
         <div>
-          <div class="mobile-card-title">{{ user.name }}</div>
+          <div class="mobile-card-title">{{ primaryIdentity(user) }}</div>
+          <div v-if="user.remnawave" class="mobile-card-meta">{{ remnawaveContext(user) }}</div>
           <div class="mobile-card-sub">{{ user.vpn_ip || $t('userMobile.ipNotAssigned') }}</div>
         </div>
         <div class="mobile-card-tags">
@@ -52,12 +53,22 @@
             <code :title="user.remnawave.uuid">{{ user.remnawave.uuid }}</code>
           </div>
           <div>
+            <span>Display name</span>
+            <b>{{ user.remnawave.display_name || '—' }}</b>
+          </div>
+          <div>
             <span>{{ $t('userMobile.labelSource') }}</span>
             <b class="remnawave-source">{{ $t('userMobile.sourceRemnawave') }}</b>
           </div>
           <div>
             <span>{{ $t('userMobile.labelUsername') }}</span>
             <b>{{ user.remnawave.username }}</b>
+          </div>
+          <div v-if="user.remnawave.telegram_url">
+            <span>Telegram</span>
+            <a :href="user.remnawave.telegram_url" v-bind="telegramLinkAttrs(user)">
+              {{ telegramLinkLabel(user) }}
+            </a>
           </div>
           <div>
             <span>{{ $t('userMobile.labelExpires') }}</span>
@@ -268,6 +279,53 @@ function syncSeverity(status: string): string {
   return 'secondary'
 }
 
+function primaryIdentity(user: User): string {
+  return user.remnawave?.display_name ?? user.name
+}
+
+function normalizeTelegramUsername(username: string | null | undefined): string | null {
+  const value = username?.trim().replace(/^@/, '')
+  return value ? value : null
+}
+
+function remnawaveContext(user: User): string | null {
+  if (!user.remnawave) return null
+
+  const username = normalizeTelegramUsername(user.remnawave.username)
+  if (!username) return user.name
+
+  return `${user.name} · @${username}`
+}
+
+function telegramLinkLabel(user: User): string | null {
+  const remnawave = user.remnawave
+  if (!remnawave?.telegram_url) return null
+
+  if (remnawave.telegram_url.startsWith('https://t.me/')) {
+    const username = normalizeTelegramUsername(remnawave.telegram_username)
+    return username ? `@${username}` : 'Telegram username'
+  }
+
+  if (remnawave.telegram_url.startsWith('tg://user?id=')) {
+    return remnawave.telegram_id !== null
+      ? `Telegram ID ${remnawave.telegram_id}`
+      : 'Telegram contact'
+  }
+
+  return 'Telegram contact'
+}
+
+function telegramLinkAttrs(user: User): {
+  readonly rel?: 'noreferrer'
+  readonly target?: '_blank'
+} {
+  if (user.remnawave?.telegram_url?.startsWith('http')) {
+    return { rel: 'noreferrer', target: '_blank' }
+  }
+
+  return {}
+}
+
 function trafficLimitLabel(limitBytes: number): string {
   return limitBytes > 0 ? fmtBytes(limitBytes) : t('userDetail.noLimit')
 }
@@ -399,6 +457,22 @@ function sortedPeers(peers: Peer[]): Peer[] {
   grid-template-columns: 1fr;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.mobile-card-meta {
+  margin-top: 0.15rem;
+  color: var(--app-text-muted);
+  font-size: 0.76rem;
+}
+
+.mobile-remnawave-grid a {
+  color: var(--app-accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.mobile-remnawave-grid a:hover {
+  text-decoration: underline;
 }
 
 .mobile-card-list {
