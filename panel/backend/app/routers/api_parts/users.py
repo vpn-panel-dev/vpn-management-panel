@@ -36,6 +36,7 @@ from app.services.local_lifecycle import (
 )
 from app.services.online import is_peer_online, online_threshold_seconds
 from app.services.operations import enqueue_operation, new_operation
+from app.services.remnawave_display import derive_remnawave_display
 from app.services.users import create_local_user
 
 router = APIRouter()
@@ -137,10 +138,16 @@ async def api_list_users(db: DB):
         if u.remnawave_user is not None:
             rw = u.remnawave_user
             local_total = local_traffic.total_bytes if local_traffic else 0
+            display = derive_remnawave_display(rw.description, rw.telegram_id)
             rw_brief = RemnawaveUserBrief(
                 uuid=rw.remnawave_uuid,
                 username=rw.username,
                 status=rw.status,
+                display_name=display.display_name,
+                telegram_username=display.telegram_username,
+                telegram_url=display.telegram_url,
+                description=rw.description,
+                telegram_id=rw.telegram_id,
                 expire_at=rw.expire_at,
                 email=rw.email,
                 tag=rw.tag,

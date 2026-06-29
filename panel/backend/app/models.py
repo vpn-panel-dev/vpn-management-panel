@@ -649,6 +649,11 @@ class RemnawaveUserBrief(BaseModel):
     uuid: str
     username: str
     status: str
+    display_name: str | None = None
+    telegram_username: str | None = None
+    telegram_url: str | None = None
+    description: str | None = None
+    telegram_id: int | None = None
     expire_at: datetime | None = None
     email: str | None = None
     tag: str | None = None

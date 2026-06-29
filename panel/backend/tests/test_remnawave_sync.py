@@ -378,6 +378,8 @@ async def test_user_list_remnawave_brief_fields(
     profile = _profile(
         email='alice@example.com',
         tag='premium',
+        description='Bot user: Alice Example @alice_example',
+        telegram_id=5_149_087_582,
     )
     profile['traffic_used_bytes'] = 1_000_000
     profile['traffic_limit_bytes'] = 10_000_000
@@ -404,12 +406,47 @@ async def test_user_list_remnawave_brief_fields(
     brief = rw_user['remnawave']
     assert brief['email'] == 'alice@example.com'
     assert brief['tag'] == 'premium'
+    assert brief['display_name'] == 'Alice Example'
+    assert brief['telegram_username'] == 'alice_example'
+    assert brief['telegram_url'] == 'https://t.me/alice_example'
+    assert brief['description'] == 'Bot user: Alice Example @alice_example'
+    assert brief['telegram_id'] == 5_149_087_582
     assert brief['traffic_used_bytes'] == 1_000_000
     assert brief['traffic_limit_bytes'] == 10_000_000
     assert brief['local_amneziawg_traffic_used_bytes'] == 350
     assert brief['combined_traffic_used_bytes'] == 1_000_350
     assert brief['blocked_reason'] is None
     assert brief['delete_requested_at'] is None
+    assert 'remnawave_url' not in brief
+    assert 'remnawave_link' not in brief
+
+
+async def test_user_list_remnawave_display_fields_fallback_when_description_malformed(
+    client: AsyncClient, auth_headers, worker_headers, seeded_node
+):
+    assert seeded_node.id == 'node-1'
+    profile = _profile(
+        uuid='telegram-id-only-uuid',
+        username='telegram-id-only',
+        description='External text with https://evil.example/@not_a_bot_user',
+        telegram_id=4_242_424_242,
+    )
+    await client.post(
+        '/internal/worker/remnawave/users/upsert', json=[profile], headers=worker_headers
+    )
+
+    resp = await client.get('/api/users', headers=auth_headers)
+    assert resp.status_code == HTTPStatus.OK
+    users = resp.json()
+    brief = next(u['remnawave'] for u in users if u['remnawave'] is not None)
+
+    assert brief['display_name'] is None
+    assert brief['telegram_username'] is None
+    assert brief['telegram_url'] == 'tg://user?id=4242424242'
+    assert brief['description'] == 'External text with https://evil.example/@not_a_bot_user'
+    assert brief['telegram_id'] == 4_242_424_242
+    assert 'remnawave_url' not in brief
+    assert 'remnawave_link' not in brief
 
 
 async def test_user_list_includes_remnawave_sync_metadata(
