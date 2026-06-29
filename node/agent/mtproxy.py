@@ -28,6 +28,7 @@ class MTProxyConfig(BaseModel):
     port: int = Field(ge=1, le=65535)
     public_host: str = Field(min_length=1)
     secret: str = Field(min_length=1)
+    tls_domain: str = Field(default='cloudsyncpro.net', min_length=1)
 
 
 class MTProxyStatus(BaseModel):

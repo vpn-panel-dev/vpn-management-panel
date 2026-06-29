@@ -38,7 +38,12 @@ def mtproxy_config_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path
 
 
 def _payload() -> dict[str, object]:
-    return {'port': 443, 'public_host': 'proxy.example.com', 'secret': RAW_SECRET}
+    return {
+        'port': 443,
+        'public_host': 'proxy.example.com',
+        'secret': RAW_SECRET,
+        'tls_domain': 'cloudsyncpro.net',
+    }
 
 
 def _run_mtproxy_wrapper(config_dir: Path, config_path: Path) -> subprocess.CompletedProcess[str]:
@@ -207,6 +212,7 @@ def test_mtproxy_apply_writes_config_consumable_by_runtime_wrapper(
     )
     assert '--allow-skip-dh' in result.stdout
     assert '-p 8888 -H 443' in result.stdout
+    assert '-D cloudsyncpro.net' in result.stdout
     assert '--aes-pwd ' in result.stdout
     assert 'MTProxy disabled by config' not in result.stdout
     assert RAW_SECRET not in result.stdout
@@ -423,7 +429,12 @@ def test_apply_mtproxy_config_writes_restrictive_json(tmp_path: Path) -> None:
 
     payload = json.loads(config_path.read_text())
     mode = stat.S_IMODE(config_path.stat().st_mode)
-    assert payload == {'port': 443, 'public_host': 'proxy.example.com', 'secret': RAW_SECRET}
+    assert payload == {
+        'port': 443,
+        'public_host': 'proxy.example.com',
+        'secret': RAW_SECRET,
+        'tls_domain': 'cloudsyncpro.net',
+    }
     assert mode == 0o600
     assert not list(config_path.parent.glob('*.tmp'))
 

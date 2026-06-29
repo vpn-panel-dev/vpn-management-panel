@@ -20,6 +20,7 @@ WORKERS="${MTPROXY_WORKERS:-1}"
 CONTROL_PORT="${MTPROXY_CONTROL_PORT:-8888}"
 PUBLIC_HOST="${MTPROXY_PUBLIC_HOST:-}"
 NAT_PUBLIC_IP="${MTPROXY_NAT_PUBLIC_IP:-}"
+TLS_DOMAIN="${MTPROXY_TLS_DOMAIN:-cloudsyncpro.net}"
 
 log() {
     printf '[mtproxy] %s\n' "$1"
@@ -81,6 +82,7 @@ read_env_config() {
             CONTROL_PORT|MTPROXY_CONTROL_PORT) CONTROL_PORT="${value}" ;;
             PUBLIC_HOST|MTPROXY_PUBLIC_HOST) PUBLIC_HOST="${value}" ;;
             NAT_PUBLIC_IP|MTPROXY_NAT_PUBLIC_IP) NAT_PUBLIC_IP="${value}" ;;
+            TLS_DOMAIN|MTPROXY_TLS_DOMAIN) TLS_DOMAIN="${value}" ;;
         esac
     done < "${CONFIG_FILE}"
 }
@@ -120,15 +122,16 @@ try:
 except KeyError:
     sys.exit(1)
 
-for source, target in (
-    ('tag', 'TAG'),
-    ('workers', 'WORKERS'),
-    ('control_port', 'CONTROL_PORT'),
-    ('public_host', 'PUBLIC_HOST'),
-    ('nat_public_ip', 'NAT_PUBLIC_IP'),
-):
-    if source in data:
-        emit(target, data[source])
+    for source, target in (
+        ('tag', 'TAG'),
+        ('workers', 'WORKERS'),
+        ('control_port', 'CONTROL_PORT'),
+        ('public_host', 'PUBLIC_HOST'),
+        ('nat_public_ip', 'NAT_PUBLIC_IP'),
+        ('tls_domain', 'TLS_DOMAIN'),
+    ):
+        if source in data:
+            emit(target, data[source])
 PY
 )"; then
         log "Invalid MTProxy JSON config."
@@ -338,6 +341,7 @@ start_mtproxy() {
         --nat-info "${nat_info}"
         -p "${CONTROL_PORT}"
         -H "${PORT}"
+        -D "${TLS_DOMAIN}"
         --aes-pwd "${SECRET_FILE}"
         "${MULTI_FILE}"
     )
@@ -351,6 +355,7 @@ start_mtproxy() {
         --nat-info "${nat_info}"
         -p "${CONTROL_PORT}"
         -H "${PORT}"
+        -D "${TLS_DOMAIN}"
         --aes-pwd "${SECRET_FILE}"
         "${MULTI_FILE}"
     )
