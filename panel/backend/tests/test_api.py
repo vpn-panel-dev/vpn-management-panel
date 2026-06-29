@@ -17,6 +17,7 @@ from app.models import (
     LocalAmneziawgUserNodeLifetimeTraffic,
     Node,
     Peer,
+    RemnawaveUser,
     User,
 )
 
@@ -991,6 +992,69 @@ async def test_pub_user_info_active(client: AsyncClient, auth_headers, db):
         'updated_at': '2026-01-02T03:04:06',
     }
     assert data['updated_at'] == '2026-01-02T03:04:06'
+
+
+async def test_pub_user_info_remnawave_uses_readable_display_name(
+    client: AsyncClient, auth_headers, db
+) -> None:
+    headers = auth_headers
+    user_resp = await client.post('/api/users', json={'name': 'rw-user-1'}, headers=headers)
+    user_id = user_resp.json()['id']
+    db.add(
+        RemnawaveUser(
+            user_id=user_id,
+            remnawave_uuid='rw-user-1-uuid',
+            username='rw_user_1',
+            status='ACTIVE',
+            description='Bot user: Любовь',
+            telegram_id=111222333,
+        )
+    )
+    await db.commit()
+
+    resp = await client.get(f'/pub/u/{user_id}/info')
+
+    assert resp.status_code == HTTPStatus.OK
+    data = resp.json()
+    assert data['user_name'] == 'Любовь'
+    assert data['subscription']['managed'] is True
+    assert 'remnawave' not in data
+    assert 'telegram_url' not in data
+    assert 'subscription_url' not in data
+
+
+@pytest.mark.parametrize(
+    'description',
+    [None, 'not a bot description', 'Bot user: @handle_only'],
+)
+async def test_pub_user_info_remnawave_falls_back_to_user_name_without_display_name(
+    client: AsyncClient, auth_headers, db, description: str | None
+) -> None:
+    headers = auth_headers
+    user_resp = await client.post('/api/users', json={'name': 'rw-fallback-user'}, headers=headers)
+    user_id = user_resp.json()['id']
+    db.add(
+        RemnawaveUser(
+            user_id=user_id,
+            remnawave_uuid=f'rw-fallback-{description!r}',
+            username='rw_fallback_user',
+            status='ACTIVE',
+            description=description,
+            telegram_id=444555666,
+            subscription_url_encrypted='encrypted-remnawave-link',
+        )
+    )
+    await db.commit()
+
+    resp = await client.get(f'/pub/u/{user_id}/info')
+
+    assert resp.status_code == HTTPStatus.OK
+    data = resp.json()
+    assert data['user_name'] == 'rw-fallback-user'
+    assert data['subscription']['managed'] is True
+    assert 'remnawave' not in data
+    assert 'telegram_url' not in data
+    assert 'subscription_url' not in data
 
 
 async def test_pub_qr_not_found(client: AsyncClient):

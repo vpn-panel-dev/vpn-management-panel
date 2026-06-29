@@ -24,6 +24,7 @@ from app.services.node_config import (
     make_awg_qr_svg,
     make_qr_svg,
 )
+from app.services.remnawave_display import derive_remnawave_display
 from app.services.telegram_proxy import build_proxy_links, select_primary_node_state
 
 log = logging.getLogger(__name__)
@@ -163,6 +164,15 @@ async def _public_telegram_proxy(db: AsyncSession) -> PublicTelegramProxy | None
     return payload
 
 
+def _public_user_name(user: User) -> str:
+    rw = user.remnawave_user
+    if rw is None:
+        return user.name
+
+    display = derive_remnawave_display(rw.description, rw.telegram_id)
+    return display.display_name or user.name
+
+
 def _make_vpn_qr_svg(user: User, node: Node, description: str, psk_key: str = '') -> bytes | None:
     try:
         return make_amnezia_qr_svg(
@@ -183,9 +193,10 @@ async def pub_user_info(user_id: str, db: DB):
         raise HTTPException(status_code=404)
     summary = await _public_dashboard_summary(user, db)
     telegram_proxy = await _public_telegram_proxy(db)
+    user_name = _public_user_name(user)
     if user.is_blocked:
         return {
-            'user_name': user.name,
+            'user_name': user_name,
             'blocked': True,
             'nodes': [],
             'telegram_proxy': telegram_proxy,
@@ -223,7 +234,7 @@ async def pub_user_info(user_id: str, db: DB):
         )
 
     return {
-        'user_name': user.name,
+        'user_name': user_name,
         'blocked': False,
         'nodes': nodes_data,
         'telegram_proxy': telegram_proxy,
