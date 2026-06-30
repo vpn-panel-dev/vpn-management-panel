@@ -11,8 +11,9 @@ Self-hosted VPN management system built on [AmneziaWG](https://github.com/amnezi
                     ┌──────────────────────────┐
                     │     Management Server    │
                     │                          │
-  Browser ───────── │  Nginx (frontend :80)    │
-                    │  FastAPI (panel)         │
+  Browser ───────── │  Nginx (admin + user UI) │
+                    │  FastAPI (panel API)     │
+                    │  Panel worker            │
                     │  RabbitMQ (queue)        │
                     │  PostgreSQL (db)         │
                     └──────────┬───────────────┘
@@ -28,7 +29,7 @@ Self-hosted VPN management system built on [AmneziaWG](https://github.com/amnezi
 | Server | What runs on it | Exposed ports |
 |---|---|---|
 | VPN node | AmneziaWG + node agent + MTProxy runtime | `51820/udp`, `8000` (restrict to panel IP), `443/tcp` or `${MTPROXY_PORT}` when Telegram proxy is enabled |
-| Management panel | Panel backend + frontend + PostgreSQL | `80` |
+| Management panel | Admin frontend + user frontend + panel backend + worker + RabbitMQ + PostgreSQL | `80` |
 
 The node agent (`8000`) must **not** be exposed to the public internet — restrict it to the management server IP via firewall.
 The Telegram MTProxy port is public only on the VPN node that runs the proxy. The management panel does not need to expose it.
@@ -85,11 +86,13 @@ services:
     ports:
       - "51820:51820/udp"
       - "8000:8000"
+      - "${MTPROXY_PORT:-443}:${MTPROXY_PORT:-443}/tcp"
     environment:
       - WG_INTERFACE=awg0
       - AGENT_TOKEN=${AGENT_TOKEN}
       - SERVER_ENDPOINT=${SERVER_ENDPOINT}
       - WG_CONFIG=/etc/amnezia/amneziawg/awg0.conf
+      - MTPROXY_PORT=${MTPROXY_PORT:-443}
 EOF
 ```
 
@@ -175,6 +178,8 @@ services:
   rabbitmq:
     image: rabbitmq:4-alpine
     restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
@@ -191,11 +196,17 @@ services:
       - SYNC_INTERVAL_SEC=300
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
+      - REMNAWAVE_SECRET_KEY=${REMNAWAVE_SECRET_KEY}
     depends_on:
       db:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/openapi.json')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   panel-worker:
     image: ghcr.io/vpn-panel-dev/amnezia-panel-worker:latest
@@ -217,10 +228,10 @@ services:
         condition: service_healthy
 
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     environment:
       - POSTGRES_USER=amnezia
       - POSTGRES_PASSWORD=${DB_PASSWORD}
@@ -233,6 +244,7 @@ services:
 
 volumes:
   postgres_data:
+  rabbitmq_data:
 EOF
 ```
 
@@ -352,13 +364,16 @@ For Telegram MTProxy changes, update the panel worker first, then the panel, the
 
 ```
 panel/
-├── backend/          # FastAPI (Python)
-├── admin-frontend/   # Vue 3 admin SPA
-├── user-frontend/    # Vue 3 user self-service
-└── docker-compose.yml
+├── backend/          # FastAPI management API, Alembic migrations, RabbitMQ publisher
+├── worker/           # Async worker for sync, provisioning, heartbeats, cleanup, integrations
+├── admin-frontend/   # Vue 3 + PrimeVue admin SPA
+├── user-frontend/    # Vue 3 user self-service page
+└── docker-compose.yml # Local panel stack: frontends, backend, worker, RabbitMQ, PostgreSQL
 node/
 ├── agent/            # FastAPI node agent (Python)
-└── docker-compose.yml (AmneziaWG + agent)
+├── mtproxy.sh        # Telegram MTProxy runtime wrapper
+├── tunnel.sh         # AmneziaWG userspace tunnel wrapper
+└── docker-compose.yml # Local node stack: AmneziaWG + agent + MTProxy port
 ```
 
 Clone the repo and use the `build:`-based compose files in each subdirectory:
@@ -369,6 +384,19 @@ cd node && docker compose up --build
 
 # Panel
 cd panel && docker compose up --build
+```
+
+For service-specific development, install dependencies and run checks in the changed module:
+
+```bash
+# Python services
+uv run --directory panel/backend pytest -q
+uv run --directory panel/worker pytest -q
+uv run --directory node/agent pytest -q
+
+# Frontends
+cd panel/admin-frontend && npm run lint && npm run build
+cd panel/user-frontend && npm run lint && npm run build
 ```
 
 ---

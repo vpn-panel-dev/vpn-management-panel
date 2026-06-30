@@ -8,9 +8,10 @@ Amnezia is a self-hosted VPN management system built around AmneziaWG.
 
 - `panel/backend/`: FastAPI management API, SQLAlchemy/Alembic, RabbitMQ job publishing.
 - `panel/worker/`: async worker that consumes RabbitMQ jobs and calls backend/node APIs.
-- `panel/admin-frontend/`: Vue 3 admin SPA built with Vite.
+- `panel/admin-frontend/`: Vue 3 + PrimeVue admin SPA built with Vite.
 - `panel/user-frontend/`: Vue 3 self-service user page built with Vite.
-- `node/agent/`: FastAPI agent that runs on VPN nodes and controls AmneziaWG.
+- `node/agent/`: FastAPI agent that runs on VPN nodes and controls AmneziaWG plus Telegram
+  MTProxy through the node container scripts.
 - `panel/docker-compose.yml` and `node/docker-compose.yml`: local/container deployments.
 
 Read `README.md`, `CONTRIBUTING.md`, and `panel/worker/CONTRACT.md` before changing behavior
@@ -94,12 +95,15 @@ Frontend guidance:
 
 - Keep API access patterns centralized in existing API modules where possible.
 - Match existing component style, routing, and state patterns.
+- Admin UI uses PrimeVue; user frontend stays dependency-light Vue unless a need is explicit.
 - Do not add UI dependencies unless the existing stack cannot reasonably solve the problem.
 
 ## Backend, worker, and node contracts
 
 - Worker job payloads, RabbitMQ topology, retry behavior, and internal backend endpoints are described
   in `panel/worker/CONTRACT.md`.
+- Node-mutating jobs and Telegram proxy jobs are sequential queues; heartbeat, cleanup, and Remnawave
+  jobs are parallel queues controlled by `WORKER_CONCURRENCY`.
 - Backend worker-only routes live under `/internal/worker` and require bearer authentication.
 - The node agent must not be assumed to be publicly reachable; README states it should be firewalled
   to the management server.
