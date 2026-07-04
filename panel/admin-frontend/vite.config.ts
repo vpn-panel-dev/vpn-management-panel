@@ -1,12 +1,11 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
+      '@': new URL('./src', import.meta.url).pathname,
     },
   },
   server: {
@@ -17,5 +16,24 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'vue-runtime',
+              test: /node_modules[\\/](vue|vue-router|vue-i18n)[\\/]/,
+              priority: 2,
+            },
+            {
+              name: 'primevue',
+              test: /node_modules[\\/](@primevue|primevue|primeicons)[\\/]/,
+              priority: 1,
+              maxSize: 450 * 1024,
+            },
+          ],
+        },
+      },
+    },
   },
 })
