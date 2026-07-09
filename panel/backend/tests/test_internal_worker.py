@@ -176,6 +176,70 @@ async def test_heartbeat_result_updates_peer_handshake_without_touching_sync_sta
     assert saved_peer.raw_tx == 5
 
 
+async def test_duplicate_heartbeat_does_not_rewrite_unchanged_peer_state(
+    client: AsyncClient, db, worker_headers, seeded_worker_state
+):
+    node, user, peer = seeded_worker_state
+    first_at = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
+    duplicate_at = first_at + timedelta(seconds=5)
+    keepalive_at = first_at + timedelta(seconds=61)
+    payload = {
+        'ok': True,
+        'peers': [
+            {
+                'public_key': user.public_key,
+                'endpoint': '203.0.113.15:54321',
+                'rx_bytes': 10,
+                'tx_bytes': 5,
+                'last_handshake': 0,
+            }
+        ],
+    }
+
+    with patch(
+        'app.routers.internal_worker_parts.nodes.utc_now',
+        side_effect=[first_at, duplicate_at, keepalive_at],
+    ):
+        first = await client.post(
+            f'/internal/worker/nodes/{node.id}/heartbeat-result',
+            json=payload,
+            headers=worker_headers,
+        )
+        duplicate = await client.post(
+            f'/internal/worker/nodes/{node.id}/heartbeat-result',
+            json=payload,
+            headers=worker_headers,
+        )
+        keepalive = await client.post(
+            f'/internal/worker/nodes/{node.id}/heartbeat-result',
+            json=payload,
+            headers=worker_headers,
+        )
+
+    assert first.status_code == HTTPStatus.OK
+    assert duplicate.status_code == HTTPStatus.OK
+    assert keepalive.status_code == HTTPStatus.OK
+
+    saved_node = await db.get(Node, node.id)
+    saved_peer = await db.get(Peer, peer.id)
+    session = await db.scalar(select(PeerEndpointSession))
+    assert saved_node is not None
+    assert saved_peer is not None
+    assert session is not None
+    await db.refresh(saved_node)
+    await db.refresh(saved_peer)
+    await db.refresh(session)
+
+    assert saved_node.last_heartbeat_at is not None
+    assert saved_node.last_heartbeat_at.replace(tzinfo=UTC) == keepalive_at
+    assert saved_node.last_seen_at is not None
+    assert saved_node.last_seen_at.replace(tzinfo=UTC) == keepalive_at
+    assert saved_peer.endpoint == '203.0.113.15:54321'
+    assert saved_peer.raw_rx == 10
+    assert saved_peer.raw_tx == 5
+    assert session.last_seen_at.replace(tzinfo=UTC) == first_at
+
+
 async def test_snapshots_include_worker_fields(
     client: AsyncClient, worker_headers, seeded_worker_state
 ):

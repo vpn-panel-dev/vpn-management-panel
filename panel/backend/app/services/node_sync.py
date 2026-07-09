@@ -61,18 +61,21 @@ def apply_interface_result(node: Node, data: InterfaceResult) -> None:
     }
     for source, target in field_map.items():
         value = getattr(data, source)
-        if value is not None:
+        if value is not None and getattr(node, target) != value:
             setattr(node, target, value)
 
 
 async def apply_peer_result(
     db: AsyncSession, peer: Peer, data: PeerSyncResult, now: datetime
 ) -> PeerTrafficSample | None:
-    if data.status in {'active', 'pending', 'pending_delete', 'deleted'}:
+    if (
+        data.status in {'active', 'pending', 'pending_delete', 'deleted'}
+        and peer.status != data.status
+    ):
         peer.status = data.status
-    if 'endpoint' in data.model_fields_set:
+    if 'endpoint' in data.model_fields_set and peer.endpoint != data.endpoint:
         peer.endpoint = data.endpoint
-    if data.last_handshake is not None:
+    if data.last_handshake is not None and peer.last_handshake != data.last_handshake:
         peer.last_handshake = data.last_handshake
     await _apply_peer_endpoint_session(db, peer, data, now)
     if data.rx_bytes is None or data.tx_bytes is None:
@@ -84,8 +87,10 @@ async def apply_peer_result(
     tx_reset_detected = peer.raw_tx is not None and data.tx_bytes < peer.raw_tx
     delta_rx = _counter_delta(peer.raw_rx, data.rx_bytes)
     delta_tx = _counter_delta(peer.raw_tx, data.tx_bytes)
-    peer.raw_rx = data.rx_bytes
-    peer.raw_tx = data.tx_bytes
+    if peer.raw_rx != data.rx_bytes:
+        peer.raw_rx = data.rx_bytes
+    if peer.raw_tx != data.tx_bytes:
+        peer.raw_tx = data.tx_bytes
     if delta_rx == 0 and delta_tx == 0:
         return None
 
@@ -142,8 +147,8 @@ async def _apply_peer_endpoint_session(
         )
         return
 
-    session.last_seen_at = observed_at
-    if data.last_handshake is not None:
+    if data.last_handshake is not None and session.last_handshake != data.last_handshake:
+        session.last_seen_at = observed_at
         session.last_handshake = data.last_handshake
 
 

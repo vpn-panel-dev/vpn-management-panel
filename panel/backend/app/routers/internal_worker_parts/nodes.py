@@ -22,6 +22,7 @@ from app.services.remnawave_sync import (
 router = APIRouter()
 
 ACTIVE_OPERATION_STATUSES = {'queued', 'pending', 'running'}
+HEARTBEAT_TIMESTAMP_WRITE_INTERVAL = timedelta(seconds=60)
 
 
 async def _apply_peer_results(
@@ -55,6 +56,36 @@ def _aware(value: datetime) -> datetime:
     if value.tzinfo is not None:
         return value
     return value.replace(tzinfo=UTC)
+
+
+def _heartbeat_timestamp_due(node: Node, observed_at: datetime) -> bool:
+    if node.last_heartbeat_at is None:
+        return True
+    return observed_at - _aware(node.last_heartbeat_at) >= HEARTBEAT_TIMESTAMP_WRITE_INTERVAL
+
+
+def _apply_node_heartbeat_result(node: Node, data: HeartbeatResult, observed_at: datetime) -> None:
+    reachability_status = 'reachable' if data.ok else 'unreachable'
+    health_status = 'online' if data.ok else 'offline'
+    error = None if data.ok else data.error or 'Worker heartbeat failed'
+
+    status_changed = (
+        node.reachability_status != reachability_status
+        or node.health_status != health_status
+        or node.last_heartbeat_error != error
+    )
+    timestamp_due = status_changed or _heartbeat_timestamp_due(node, observed_at)
+
+    if timestamp_due:
+        node.last_heartbeat_at = observed_at
+        if data.ok:
+            node.last_seen_at = observed_at
+    if node.reachability_status != reachability_status:
+        node.reachability_status = reachability_status
+    if node.health_status != health_status:
+        node.health_status = health_status
+    if node.last_heartbeat_error != error:
+        node.last_heartbeat_error = error
 
 
 def _operation_payload(operation: AsyncOperation) -> dict[str, Any]:
@@ -212,11 +243,7 @@ async def node_provision_result(node_id: str, data: ProvisionResult, db: DB):
 async def node_heartbeat_result(node_id: str, data: HeartbeatResult, db: DB):
     node, peers = await load_node_with_peers(db, node_id)
     observed_at = utc_now()
-    node.last_heartbeat_at = observed_at
-    node.last_seen_at = observed_at if data.ok else node.last_seen_at
-    node.reachability_status = 'reachable' if data.ok else 'unreachable'
-    node.health_status = 'online' if data.ok else 'offline'
-    node.last_heartbeat_error = None if data.ok else data.error or 'Worker heartbeat failed'
+    _apply_node_heartbeat_result(node, data, observed_at)
     if data.ok and data.peers:
         await _apply_peer_results(db, peers, data.peers, observed_at)
     await db.commit()
