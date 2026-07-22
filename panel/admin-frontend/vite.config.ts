@@ -29,7 +29,6 @@ export default defineConfig({
               name: 'primevue',
               test: /node_modules[\\/](@primevue|primevue|primeicons)[\\/]/,
               priority: 1,
-              maxSize: 450 * 1024,
             },
           ],
         },
