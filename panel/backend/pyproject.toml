@@ -3,7 +3,7 @@ name = "panel-backend"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi==0.139.2",
+    "fastapi==0.140.0",
     "PyJWT==2.12.*",
     "uvicorn[standard]==0.51.*",
     "sqlalchemy[asyncio]==2.0.*",
