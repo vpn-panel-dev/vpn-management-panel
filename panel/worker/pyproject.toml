@@ -3,7 +3,7 @@ name = "panel-worker"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "aio-pika==9.*",
+    "aio-pika==10.*",
     "httpx==0.28.*",
     "pydantic==2.*",
 ]
