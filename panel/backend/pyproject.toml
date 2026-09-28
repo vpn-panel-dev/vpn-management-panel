@@ -6,7 +6,7 @@ dependencies = [
     "fastapi==0.141.1",
     "PyJWT==2.12.*",
     "uvicorn[standard]==0.52.*",
-    "sqlalchemy[asyncio]==2.0.*",
+    "sqlalchemy[asyncio]==2.1.*",
     "asyncpg==0.31.0",
     "alembic==1.19.*",
     "httpx==0.28.*",
